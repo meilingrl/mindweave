@@ -44,7 +44,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 5. Unresolved questions as the edge of an exploration in the summary network: decided, R5.
 6. Answers that cite the user's own summaries (with reply quality): decided, R6.
 7. Extending a single summary on request (§10.2): decided, R7.
-8. Joint summaries of several conversations (§10.1).
+8. Joint summaries of several conversations (§10.1): decided, R8.
 9. Relations across workspaces and automatic categorization (§10.2).
 
 ## Decisions
@@ -137,6 +137,17 @@ Considered: summaries only, as decided there (little is found where the user rar
 - It is built after recaps exist.
 
 Considered: dots with a summary only, as §10.2 is written (usable only where the user summarized); no separate action (no way to ask for directions for one chosen dot).
+
+### R8 A summary of a conversation with its branches (2026-11-25)
+
+- “总结” (Summarize) gets a second scope: the conversation alone, as today, or the conversation with all its branches. On a root conversation this is a summary of the whole exploration.
+- The result is the summary of that conversation's dot: the same summary node, ring, versions, candidates and read state. No new kind of node, and nothing new is drawn.
+- A version records that it covers branches, and up to where in each. This is a migration.
+- “有后续” (later content) then also reacts to finished answers in any covered branch, and to a branch created after the summary.
+- When the exploration does not fit the model's context, branches that have a summary or a recap go in as that text and the rest in full. The summary states which branches it took in shortened form.
+- A summary with branches of an archived conversation follows the existing rule (D-021).
+
+Considered: any selection of conversations (a summary that belongs to no dot needs a new kind of node and a place in the settled picture); no joint summary.
 
 ## Still to write
 
