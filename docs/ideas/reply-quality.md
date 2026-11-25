@@ -8,6 +8,10 @@
 
 Started 2026-11-25. The owner decides; each decision is recorded here with its date. Questions are asked one at a time, in the order of what depends on what.
 
+### Approach in short
+
+One answer prompt opens every answer, in the interface language, with a version number. Its lines are defaults; the user's question wins. Pieces join it by condition: a branch paragraph in a branch, the user's note when there is one, the titles of matching summaries when there are any, the tool section when tools are offered, the request for follow-up suggestions unless they are turned off. The summary prompt gets a gist, a body by concept and key terms. A long page reaches the model as its best-matching passages. Nothing here adds a model request to an answer. The evaluation set measures all of it, with cost and time, and the owner's reading and daily use decide what is good.
+
 ### Order of the questions
 
 | # | Question | Depends on |
@@ -150,7 +154,7 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 14. The evaluation report shows two prompt versions side by side per scenario, with tokens, requests, time to the first text and total time for each.
 15. No screen offers a test, a quiz or a guided mode.
 
-### Increments (proposed)
+### Increments
 
 | # | Content | The owner sees |
 | --- | --- | --- |
@@ -158,6 +162,8 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 | 2 | **Follow-up suggestions** (Q5), and the chip for the other reading (Q6b). | Screenshots of the chips, then a build |
 | 3 | **The note and the summary titles** (Q4), with the follow-up rule for the search (Q7); the note in the summary prompt (Q9). | A screenshot of the Settings field, then a build |
 | 4 | **Best-matching passages of a long page** (Q8). | Nothing on screen; the evaluation scenario |
+
+**Q11, 2026-11-26 (owner): these four increments, in this order.** Not chosen: follow-up suggestions first.
 
 Each increment is a task branch of its own and merges after the full test suite passes. Requirement and architecture text for an increment is a separate commit the owner confirms.
 
@@ -195,6 +201,8 @@ The answers a user gets to questions, and the documents they get from summaries,
 - The evaluation set checks mechanics. Quality is judged by the owner reading the answers.
 
 ## Ideas, best gain for the cost first
+
+This table and the sections after it are the first draft of 2026-11-22, kept as background. Where they differ from "Discussion", the decisions there stand.
 
 | # | Idea | First step | Extra cost | Borrowed from |
 | --- | --- | --- | --- | --- |
