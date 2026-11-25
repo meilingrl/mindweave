@@ -76,6 +76,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | Search by meaning serves both the model's tools and the user (owner): one index over summaries, the questions and answers of conversations, and attachments, inside one workspace. The user gets a search of their own beside title search. |
 | 2026-11-26 | The vectors come from an embedding model on a saved connection (owner): one more model setting, empty by default, which leaves search as it is today. An embedding model that Mindweave carries itself can follow behind the same setting. |
 | 2026-11-26 | The section on search by meaning in §7 is agreed as written, Claude's calls included (owner). |
+| 2026-11-26 | Prompt caching: the first increment has all three steps, in this order (owner): record and show cached tokens; stop changing the start of the request; mark the cache points for Messages. |
 
 ## 6. Set aside
 
