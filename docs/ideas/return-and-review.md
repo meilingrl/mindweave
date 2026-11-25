@@ -43,7 +43,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 4. What coming back after some days shows, and where: decided, R4.
 5. Unresolved questions as the edge of an exploration in the summary network: decided, R5.
 6. Answers that cite the user's own summaries (with reply quality): decided, R6.
-7. Extending a single summary on request (§10.2).
+7. Extending a single summary on request (§10.2): decided, R7.
 8. Joint summaries of several conversations (§10.1).
 9. Relations across workspaces and automatic categorization (§10.2).
 
@@ -126,6 +126,17 @@ The reply-quality draft decided (its Q4, owner, 2026-11-25) that before each ans
 - Accepted cost: more material means more chance of a wrong match, which can make the model skip an explanation the user needed; a recap is written by the model and never confirmed by the user.
 
 Considered: summaries only, as decided there (little is found where the user rarely summarizes).
+
+### R7 Extending on request (2026-11-25)
+
+- The details of a selected dot that has a summary or a recap offer one action, “延伸” (Extend). One request returns up to 3 recommended nodes beside that dot.
+- They are today's recommended nodes in every respect: the same drawing, “开始探索” (Start exploring) and “忽略” (Ignore), never saved into the layout, no recommendations derived from them (requirements §10.3.2).
+- A recommendation's basis becomes a summary or a conversation with a recap. This is a storage change (a migration) and a change to §10.3.2.
+- The automatic summary link “来自推荐” after the first summary (§10.3.5) is made only when both ends have summaries; a start from a recap-based recommendation gets none.
+- An open question continues inside its conversation; an extension starts a new exploration beside it. The two stay apart.
+- It is built after recaps exist.
+
+Considered: dots with a summary only, as §10.2 is written (usable only where the user summarized); no separate action (no way to ask for directions for one chosen dot).
 
 ## Still to write
 
