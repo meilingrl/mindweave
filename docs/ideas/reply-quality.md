@@ -64,6 +64,11 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - Attachments: when relying on an attachment that came with the question and has no number, name it; write a number only for results that carry one. This closes the second to-do in section 8 of agent-loop.md.
   - Accepted cost: about 70 input tokens in answers with tools; "about three sources" can stop a model early on a question that needs breadth; one evaluation run with a real model compares versions 3 and 4, within a budget the owner gives.
   - The first to-do in section 8 of agent-loop.md (attachment digests cut by the output limit on reasoning models) is an internal defect: it goes into the first increment as a fix with a failing test first.
+- **Q6b, 2026-11-25 (owner): no clarification card; one line in the answer prompt.**
+  - When a question has two clearly different readings and the answer would differ, the model says in one sentence which reading it takes, answers it, and offers the other reading as a follow-up suggestion (Q5).
+  - It works for every answer, with or without tools, and nothing pauses.
+  - Accepted cost: about 30 input tokens; a wrong pick costs one click and one more answer; with suggestions turned off, the other reading is named but has no chip.
+  - Not chosen: a card that pauses the run and waits for a choice (idea 8).
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
