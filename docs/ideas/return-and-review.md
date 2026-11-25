@@ -45,7 +45,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 6. Answers that cite the user's own summaries (with reply quality): decided, R6.
 7. Extending a single summary on request (§10.2): decided, R7.
 8. Joint summaries of several conversations (§10.1): decided, R8.
-9. Relations across workspaces and automatic categorization (§10.2).
+9. Relations across workspaces and automatic categorization (§10.2): decided, R9 (nothing).
 
 ## Decisions
 
@@ -100,7 +100,7 @@ Considered: a "bring back" action in the branch that writes its recap at once (o
 
 Considered: a recap panel shown once at start after an absence (a surface for one scenario, standing before what the user came to ask); the summary network only (the page used least today).
 
-Still to settle for the page: the order and the total number when both lists are full.
+The order and number on the page are a writer's call below.
 
 ### R5 Open questions in the summary network (2026-11-25)
 
@@ -149,6 +149,84 @@ Considered: dots with a summary only, as §10.2 is written (usable only where th
 
 Considered: any selection of conversations (a summary that belongs to no dot needs a new kind of node and a place in the settled picture); no joint summary.
 
-## Still to write
+### R9 Across workspaces and categorization: nothing (owner, 2026-11-25)
 
-The approach, out of scope, failure cases, acceptance scenarios and the first increment follow the decisions.
+- No relations across workspaces and no automatic categorization are designed here. The owner: it is useless.
+- Requirements §10.2 keeps them as vision; nothing in this draft prepares for them.
+
+Considered: a "related elsewhere" list in the details, found by local keyword search (the writer's recommendation); stored summary links across workspaces.
+
+## The approach in one piece
+
+One new thing is stored, the recap, and everything else is an existing mechanism given more material.
+
+| Piece | What it is | Model request | Storage |
+| --- | --- | --- | --- |
+| Recap (R1, R2) | Key points and open questions of a rested, heavier conversation | One small request per due conversation, capped per check and per day | New table (migration) |
+| Branch entry (R3) | The recap on the quote chip in the parent | None | None |
+| New exploration page (R4) | Up to 3 open questions above the recommended questions | None | Remembered "not interested" and asked questions |
+| Dashed ring and details (R5) | The mark for open questions in the summary network | None | None |
+| What the user already knows (R6) | Reply quality's local search also covers recaps | None | None |
+| Extend (R7) | Recommended nodes for one chosen dot | One per click | A recommendation's basis may be a conversation (migration) |
+| Summary with branches (R8) | A second scope of “总结” (Summarize) | One per summary, larger | A version's covered branches (migration) |
+
+Writer's calls not yet read by the owner:
+
+- **The new exploration page.** The open questions come first, then the recommended questions; each list keeps its limit of 3. The light placeholder in the input box stays the first recommended question, because Tab fills it into a new exploration, and an open question belongs to another conversation.
+- **Sharing.** A recap is not part of a shared page. Whether a device copy carries recaps is the sharing design's to say; they can be written again on the other device.
+- **What goes to the model for a recap.** The conversation's own messages and its earlier recap, as for a summary. The settings text that explains automatic requests names recaps (requirements §9.4).
+- **Deleting.** A recap goes with its conversation or workspace. Archiving keeps it.
+- **Language.** A recap is written in the interface language at the time, like other generated text; a recap already written stays as it is.
+
+## Out of scope
+
+- A review schedule, reminders, notifications, streaks, or anything that grades or tests the user (requirements §5.4).
+- A recap page or panel at start (R4), and any new view or main area.
+- A "bring back" action that writes a recap at once (R3).
+- A summary of an arbitrary selection of conversations, and merging summary nodes (R8).
+- Relations across workspaces and automatic categorization (R9).
+- Search by meaning. The searches here are the existing keyword kind.
+- The look of the summary network beyond the one new ring, exploration places and `node_layout` (D-035, D-038).
+- Everything inside an answer: follow-up suggestions, the answer prompt, the user's own Settings text (reply quality).
+
+## Failure cases
+
+| Case | What happens |
+| --- | --- |
+| No model connected, or the credential is invalid | No recap is written and nothing is shown about it; the places of return look as they do today |
+| The recap request fails or returns something unusable | Nothing is saved; the conversation is tried again at a later check, within the daily cap |
+| The model finds nothing left open | The recap has key points only; the dot gets no dashed ring |
+| The conversation gets new answers after its recap | The recap stays, marked in the details as older than the conversation; a new one replaces it after the next rest |
+| A conversation is opened while its recap is being written | The request finishes; the recap is saved only if the conversation still has no newer answer |
+| Recaps are switched off in Settings | No new recap is written; existing ones stay and still show |
+| A long absence, or the first run over old data | At most 3 recaps per check and 10 per day, the most recently active first; the rest follow on later days |
+| The app quits while a recap is being written | Nothing partial is saved; the conversation is due again at the next start |
+| An open question's conversation is archived or deleted | The question leaves the new exploration page; with deletion the recap goes too |
+| Extend on a dot whose basis is then deleted | Its pending recommended nodes are removed, as today (§10.3.2) |
+| A summary with branches does not fit the context | Branches go in as their summary or recap; if it still does not fit, the request is refused with the reason and no partial summary is saved (§6.4) |
+| A covered branch is deleted after the summary | The summary keeps its text; its range notes that a covered branch no longer exists |
+
+## Acceptance scenarios
+
+1. **A rested, heavier conversation gets a recap.** Given a workspace with ten conversations, one of them with six questions and no activity for 36 hours, when the check runs with a model connected, then that conversation has a recap with one or two key points and at most two open questions, and a conversation with one question has none.
+2. **No second recap without new messages.** Given a conversation with a recap, when days pass with no new answer, then no further request is made for it.
+3. **A new recap after new answers and rest.** Given a recap and two later answers, when 36 hours pass without activity, then one request, containing the earlier recap and only the later messages, replaces the recap.
+4. **The cap holds.** Given 200 old conversations that are all due, when the app runs for a day, then at most 10 recaps are written, the most recently active first.
+5. **Returning to a parent days later.** Given a parent whose branch has a recap, when the parent is opened, then the branch's entry shows the key points and the open questions; a branch without a recap shows its title only. The immediate “返回来源” (Back to source) is unchanged.
+6. **An open question becomes the next question.** Given open questions in two conversations, when new exploration is opened, then they are listed above the recommended questions, each naming its conversation; a click opens that conversation with the question in the input box and sends nothing; after it is sent, the question is gone from the list.
+7. **Not interested.** When an open question is marked “不感兴趣” (not interested), it disappears from every place and does not come back with the same recap.
+8. **The ring.** Given a conversation whose recap has open questions, then its dot wears the dashed ring in both views, with or without a summary ring, the details list the questions in words, and the legend explains the ring. When the last open question is asked or dismissed, the ring goes.
+9. **Answers build on recaps.** Given a recap whose key points match a new question in the same workspace, then the answer's prompt carries that conversation's title and key points among at most three matches (with reply quality's Q4).
+10. **Extend.** Given a selected dot with a recap and no summary, when “延伸” (Extend) is clicked, then up to 3 recommended nodes appear beside it, each with a question and a reason, and “开始探索” (Start exploring) fills the question into new exploration.
+11. **A summary with branches.** Given a root with three branches, when it is summarized with its branches, then the root's dot gets the summary and its ring, the summary states the covered range, and a new answer in any covered branch marks it “有后续” (later content).
+12. **Nothing without a model.** With no model connected, every page looks and works as in 0.6.11.
+
+## Increments (proposal)
+
+1. **Recaps, seen in the summary network.** The table, the rest-and-weight check, the request, the Settings switch, the recap in a dot's details, and the dashed ring (R1, R2, R5). The owner judges the ring from a picture and tries the migration on a copy of their data.
+2. **Recaps in the two other places.** The branch entry (R3) and the open questions on the new exploration page (R4).
+3. **Answers build on recaps (R6)**, after reply quality's search for matching summaries is built.
+4. **Extend (R7).**
+5. **A summary with branches (R8).** It depends on recaps only for explorations too large for the context.
+
+Each increment is merged on its own. Requirements and architecture text (a glossary row for the recap, §6.3, §7.1, §7.3, §9.4, §10.2, §10.3.2, §4.2) is proposed as a separate commit for the owner once this draft is agreed.
