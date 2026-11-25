@@ -53,7 +53,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
-| Trials as an app bundle (`claude/xenodochial-boyd-41d843`): keep or drop. It does not cure the panel freeze | Not merged; your decision | Nothing |
 | The application icon: the tile colour (black nearly disappears on a dark taskbar), and whether the open state with nodes is used | Look and feel is yours to judge | Nothing |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |

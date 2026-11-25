@@ -17,6 +17,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.14 · 2026-11-25
+
+- Documents: Added D-040: why the macOS file panels block the app, and the trial as an `.app` that was tried and dropped (kept at the tag `archive/trial-as-app`)
+- Try: nothing on screen changed
+- Not verified: nothing new
+
 ## 0.6.13 · 2026-11-25
 
 - Added sharing with structure only ([sharing.md](design/sharing.md), increment 1a): "Share…" in a conversation's menu and on a dot of the Mindweave page opens a dialog with ticks and saves one HTML file. It carries no message text and loads nothing from the network
