@@ -1,6 +1,6 @@
 # Reply quality
 
-**Status:** in discussion with the owner since 2026-11-25, reopened on 2026-11-26 at Q5; decisions are recorded under "Discussion". Nothing outside that section is agreed. First draft 2026-11-22. Based on a research pass of the same day over open-source projects: their prompts, code and documents were read; the adaptations to Mindweave and all cost estimates are inferences, not measurements.
+**Status:** in discussion with the owner since 2026-11-25, Q5 reopened and settled on 2026-11-26; decisions are recorded under "Discussion". Nothing outside that section is agreed. First draft 2026-11-22. Based on a research pass of the same day over open-source projects: their prompts, code and documents were read; the adaptations to Mindweave and all cost estimates are inferences, not measurements.
 
 **Related:** [agent-loop.md](../design/agent-loop.md) (run loop, L1–L12, section 8), [web-search.md](../design/web-search.md), [requirements §10.4](../requirements.md).
 
@@ -49,10 +49,10 @@ One answer prompt opens every answer, in the interface language, with a version 
   - The titles: before each answer, one local keyword search of this workspace's summaries with the question and, in a branch, the selected passage. The top three titles above a match threshold go into the prompt with "build on these; do not explain them again from the start". Titles only; with tools on, the model can open one through the summary search.
   - Facts extracted by the model (level 3 of "Memory") are not built.
   - Accepted cost: up to about 200 input tokens for the note and about 50 for the titles; one stored preference; a Settings field whose look the owner confirms; a wrong match can make the model skip a needed explanation; nothing on screen shows which titles were sent; the Settings text on what is sent to the AI (requirements §9.4) gains a line.
-- **Q5: reopened, 2026-11-26.** The owner said yes on 2026-11-25 to follow-up suggestions under each answer, withdrew that on 2026-11-26 ("keep answers plain; no need to offer possible follow-up questions"), and reopened the discussion the same day because the record of the withdrawal went further than what was said. Three things are kept apart:
+- **Q5, settled 2026-11-26 (owner): no chips under an answer; answers stay as they are.** The owner said yes to follow-up suggestions on 2026-11-25, withdrew it on 2026-11-26, reopened the discussion when the record went further than what was said, and then settled it: "just keep things normal; don't build any extra features". Three things are kept apart:
   - **A. Exploration recommendations in a workspace**: recommended questions, recommended nodes and conversations started from a recommendation (requirements §10.3.1, §10.3.2, §10.3.5). Built, and outside this draft. Nothing here changes or removes them.
-  - **B. Chips under an answer**: the mechanism first agreed as Q5 (a marked block in the response, parsed and shown as chips). Withdrawn by the owner.
-  - **C. What the model writes at the end of its own answer text**: for example a closing sentence that points to a related direction. The owner has decided nothing about this. Open.
+  - **B. Chips under an answer** (a marked block in the response, parsed and shown as chips after every exchange): not built.
+  - **C. How the model ends its own answer text**: left as it is. The answer prompt says nothing about endings, neither asking for suggested questions nor forbidding them.
 - **Q6, 2026-11-25 (owner): five lines join the tool section; the run prompt goes to version 4.**
   - Stop: answer once the material answers the question; about three relevant sources is usually enough; if two searches in a row bring nothing new, stop and say what is missing.
   - Refine: when a search falls short, search again with terms found in the results, not with the same words.
@@ -104,7 +104,7 @@ One answer prompt opens every answer, in the interface language, with a version 
 ### Out of scope
 
 - Self-check cards and a guide-me mode, in any form (Q3).
-- Chips with follow-up suggestions under an answer (Q5, part B). What the model writes in its own answer text is not covered by this line.
+- Chips with follow-up suggestions under an answer (Q5, part B).
 - A clarification card that pauses a run (Q6b).
 - A model request that rewrites a follow-up question (Q7).
 - Facts about the user extracted by the model (Q4).
@@ -132,7 +132,7 @@ One answer prompt opens every answer, in the interface language, with a version 
 2. "Just the number" or "rewrite this sentence": the answer does only that, with no added explanation.
 3. A branch on a term: the answer explains the term in the context of the passage and does not answer the parent question again.
 4. A later question in the same branch: the request still carries the branch paragraph.
-5. No chips with suggested questions appear under an answer. (How an answer's own text may end is open, Q5 part C.)
+5. Nothing new appears under an answer: no chips with suggested questions.
 6. A question with two readings: the answer says which reading it takes and names the other.
 7. A note in Settings is sent with the next answer and the next summary; clearing it removes it from the next request.
 8. A question on a topic that has a summary: its title is in the request; with no matching summary there is no titles line.
