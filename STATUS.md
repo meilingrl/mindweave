@@ -4,7 +4,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). Next are import, then device copies, each after a short note.
+- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); increment 2a (structure-only import, with a migration) is next, then 2b, then device copies after a short note.
 - Four design discussions are open with you on task branches: reply quality; return and review; safety, diagnostics and upkeep; ask from anywhere and local AI. Nothing in them is agreed as a whole.
 
 ## Next steps
@@ -66,7 +66,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | sharing 1a, 0.6.13 | 2026-11-25 | passed: Core 137, Architecture 36, Infrastructure 1071 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the import design, 0.6.16 | 2026-11-25 | passed: Core 137, Architecture 39, Infrastructure 1110 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

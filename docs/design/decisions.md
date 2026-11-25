@@ -254,3 +254,13 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **What was chosen.** The panels of export, share and attachments are app-modal (0.6.13). In a probe with Apple's framework only, a sheet froze, a sheet over a window that takes no clicks never reacted, a separate window froze, and only the app-modal window kept working; your trial of the real app then had no freeze. Both were short: one session each.
 - **What was tried and dropped.** `scripts/daily.sh trial` starting its build as an `.app` with an identifier of its own, because the first three freezes were all in bare executables and the same Avalonia probe as an `.app` kept working. That conclusion was wrong: in seven trials as an `.app` the hidden window came up every time. The change is not merged; its commit is kept, read-only, at the tag `archive/trial-as-app` (c9c2936: the script, its checks and a line in daily-build.md).
 - **Reconsider** when macOS fixes the fault, or when Avalonia's picker offers an app-modal panel: `MacFilePanel` can then go.
+
+## D-041 Import of a shared file: read-only, and only adding (you, 2026-11-25)
+
+- **A structure-only share arrives as real, empty conversations**, which a later share with content fills. There is no separate outline.
+- **A shared file only adds.** It never changes a title, the current summary version or the archived state of what is already here. "The newer one wins" holds only for copies between your own devices.
+- **A conversation that arrives by import is read-only.** In your words: conflicts over the same conversation are resolved by attaching new nodes. Your question at its end starts a conversation of your own that continues from it.
+- **Two continuations of one conversation** (D-039) can then arise only between your own devices, and are worked out with device copies.
+- **A URL in received text needs your approval** before the model reads it.
+- The note is [sharing-import.md](sharing-import.md). It corrects [sharing.md](sharing.md) where the two differed.
+

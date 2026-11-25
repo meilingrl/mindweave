@@ -17,6 +17,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.16 · 2026-11-25
+
+- Documents: Added the design of importing a shared file ([sharing-import.md](design/sharing-import.md), D-041), and its text in the requirements (v0.30) and architecture (§16.4 and §16.5)
+- Try: nothing on screen changed
+- Not verified: nothing new
+
 ## 0.6.15 · 2026-11-25
 
 - Added sharing with content ([sharing.md](design/sharing.md), increment 1b): by choice, a share carries questions, folded answers with Markdown and formulas, branch marks and summaries; structure only stays the default
