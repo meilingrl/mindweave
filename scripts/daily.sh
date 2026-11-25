@@ -36,6 +36,8 @@ APP_HOME="${MINDWEAVE_DAILY_HOME:-$HOME/Applications/Mindweave-daily}"
 APP_BUNDLE="${MINDWEAVE_DAILY_APP:-$HOME/Applications/Mindweave.app}"
 # Stable identity for Launch Services and the Dock; never change it, or pinned icons and settings tied to it go stale.
 BUNDLE_ID="local.mindweave.daily"
+# A trial is another app to macOS, so it never takes the daily one's place in the Dock or its settings.
+TRIAL_BUNDLE_ID="local.mindweave.trial"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 BACKUP_DIR="${MINDWEAVE_DAILY_BACKUP_DIR:-$HOME/Documents/Mindweave-daily-backups}"
 DATA="${MINDWEAVE_DAILY_DATA:-$HOME/Library/Application Support/Mindweave/$CHANNEL}"
@@ -251,17 +253,75 @@ cmd_publish() {
   note "start it from the Dock or with: scripts/daily.sh run"
 }
 
+# Writes the Info.plist of a trial's own bundle. LSEnvironment keeps the bundle on the copy of the data however it is
+# started later (the Dock lists recent apps, and macOS can reopen apps after a restart).
+write_trial_plist() {
+  local contents="$1" data="$2" plist="$1/Info.plist"
+  plutil -create xml1 "$plist"
+  plutil -insert CFBundleName -string "Mindweave trial" "$plist"
+  plutil -insert CFBundleDisplayName -string "Mindweave trial" "$plist"
+  plutil -insert CFBundleIdentifier -string "$TRIAL_BUNDLE_ID" "$plist"
+  plutil -insert CFBundleExecutable -string "Mindweave" "$plist"
+  plutil -insert CFBundlePackageType -string "APPL" "$plist"
+  plutil -insert CFBundleInfoDictionaryVersion -string "6.0" "$plist"
+  plutil -insert LSMinimumSystemVersion -string "12.0" "$plist"
+  plutil -insert NSHighResolutionCapable -bool true "$plist"
+  plutil -insert NSPrincipalClass -string "NSApplication" "$plist"
+  plutil -insert LSEnvironment -dictionary "$plist"
+  plutil -insert LSEnvironment.MINDWEAVE_DATA_DIR -string "$data" "$plist"
+  if [[ -f "$contents/MacOS/Mindweave.icns" ]]; then
+    mkdir -p "$contents/Resources"
+    cp "$contents/MacOS/Mindweave.icns" "$contents/Resources/Mindweave.icns"
+    plutil -insert CFBundleIconFile -string "Mindweave" "$plist"
+  fi
+}
+
+# Starts a trial's bundle and waits until it quits; ending this script (Ctrl-C, closing the terminal) ends the trial.
+run_trial_bundle() {
+  local bundle="$1" data="$2" errors="$3" opener status=0
+  TRIAL_PROGRAM="$bundle/Contents/MacOS/Mindweave"
+  TRIAL_STOPPED=0
+  # A value from the terminal would win over the bundle's own, so it is set here too. Other variables reach the app as well.
+  MINDWEAVE_DATA_DIR="$data" open -W -n --env "MINDWEAVE_DATA_DIR=$data" --stderr "$errors" "$bundle" &
+  opener=$!
+  trap 'stop_trial 130' INT
+  trap 'stop_trial 143' TERM
+  trap 'stop_trial 129' HUP
+  while :; do
+    status=0
+    wait "$opener" || status=$?
+    kill -0 "$opener" 2>/dev/null || break
+  done
+  trap - INT TERM HUP
+  if [[ -s "$errors" ]]; then cat "$errors" >&2 || true; fi
+  if (( TRIAL_STOPPED > 0 )); then exit "$TRIAL_STOPPED"; fi
+  (( status == 0 )) || die "the trial could not be started"
+}
+
+# The app is not a child of this script: it is found by the program file it runs, which only this trial has.
+stop_trial() {
+  local pids
+  TRIAL_STOPPED="$1"
+  pids="$(lsof -t -- "$TRIAL_PROGRAM" 2>/dev/null || true)"
+  if [[ -n "$pids" ]]; then kill -INT $pids 2>/dev/null || true; fi
+}
+
+# The build runs as an app bundle, as the daily one does: on macOS 27.2.1 the save panel of a program started as a bare
+# executable can stop taking clicks (2026-11-25).
 cmd_trial() {
-  local ref="${1:-$MAINLINE}" app sha trial
+  local ref="${1:-$MAINLINE}" app bundle sha trial
   trial="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/mindweave-trial.XXXXXX")" && pwd -P)"
+  bundle="$trial/Mindweave trial.app"
+  app="$bundle/Contents/MacOS"
+  mkdir -p "$app"
   if [[ "$ref" == "current" ]]; then
-    app="$APP_BUNDLE/Contents/MacOS"
-    [[ -x "$app/Mindweave" ]] || die "no current daily build; run: scripts/daily.sh app"
+    [[ -x "$APP_BUNDLE/Contents/MacOS/Mindweave" ]] || die "no current daily build; run: scripts/daily.sh app"
+    cp -cR "$APP_BUNDLE/Contents/MacOS/." "$app/" 2>/dev/null || cp -R "$APP_BUNDLE/Contents/MacOS/." "$app/"
   else
     sha="$(resolve_commit "$ref")"
-    app="$trial/app"
     build_release "$sha" "$app"
   fi
+  write_trial_plist "$bundle/Contents" "$trial/data"
   mkdir -p "$trial/data"
   if [[ -f "$DB" ]]; then
     sqlite3 "$DB" ".backup '$trial/data/mindweave.db'"
@@ -275,7 +335,8 @@ cmd_trial() {
   if [[ -f "$DATA/language" ]]; then cp "$DATA/language" "$trial/data/language"; fi
   note "trial data (a copy; delete when done): $trial/data"
   note "the trial build uses the daily keychain entries, so your saved API keys work in it"
-  MINDWEAVE_DATA_DIR="$trial/data" exec "$app/Mindweave"
+  note "waiting until the trial quits; Ctrl-C ends it"
+  run_trial_bundle "$bundle" "$trial/data" "$trial/stderr.log"
 }
 
 cmd_run() {
