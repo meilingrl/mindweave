@@ -24,9 +24,16 @@ Considered: a separate outline drawn as its own kind of dot (new storage, drawin
 
 This replaces the suggestion in sharing.md §7 that an outline be shown like recommended nodes.
 
+### I2 A shared file only adds (2026-11-25)
+
+- Importing a shared file never changes what is already here: not a conversation's title, not which summary version is current, not whether a conversation is archived.
+- A summary version the app does not have arrives as a further saved version beside the user's own, never as the current one.
+- The rule goes by the kind of file, not by who made it: a share only adds, the user's own share included. "The newer one wins" (sharing.md S4) holds only for device copies, in step 3.
+- The stored time of a title's last change is therefore not needed in step 2; it moves to step 3's migration. This corrects sharing.md §6.6 point 7.
+- Filling an empty conversation (I1) is adding: its messages and source sentences arrive; a title the user gave it stays.
+
 ## Open
 
-1. Whether a shared file may change what is already here (a title, the current summary version).
 2. What the recipient sees in place of what did not travel: attachments, citations, tool steps.
 3. Trust: imported text as context for the recipient's model.
 4. Entry points, the summary before writing, and removing an import.
