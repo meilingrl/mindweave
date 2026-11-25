@@ -1,6 +1,6 @@
 # Return and review
 
-**Status:** working draft, in discussion with the owner since 2026-11-25. Not adopted. It covers what happens between sessions of use: coming back, unresolved questions, and the summary network as the place to review. Decisions below are the owner's unless marked as the writer's call.
+**Status:** agreed by the owner on 2026-11-26, after the discussion of 2026-11-25: the decisions R1 to R9, the writer's calls, the failure cases, the acceptance scenarios and the order of the increments. Nothing is built, and the requirements and architecture text is still to be proposed as a separate commit. It covers what happens between sessions of use: coming back, unresolved questions, and the summary network as the place to review. Decisions below are the owner's unless marked as the writer's call.
 
 **Related:** [more directions](more-directions.md) (direction 6, gentle return), [evolution.md](../evolution.md) D8 ("Relation to other directions from the same discussion"), [session-network.md](../design/session-network.md), [requirements](../requirements.md) §4.2, §6.3–6.5, §7, §10.1–10.3.
 
@@ -170,7 +170,7 @@ One new thing is stored, the recap, and everything else is an existing mechanism
 | Extend (R7) | Recommended nodes for one chosen dot | One per click | A recommendation's basis may be a conversation (migration) |
 | Summary with branches (R8) | A second scope of “总结” (Summarize) | One per summary, larger | A version's covered branches (migration) |
 
-Writer's calls not yet read by the owner:
+Writer's calls (agreed with the draft, 2026-11-26):
 
 - **The new exploration page.** The open questions come first, then the recommended questions; each list keeps its limit of 3. The light placeholder in the input box stays the first recommended question, because Tab fills it into a new exploration, and an open question belongs to another conversation.
 - **Sharing.** A recap is not part of a shared page. Whether a device copy carries recaps is the sharing design's to say; they can be written again on the other device.
@@ -221,7 +221,7 @@ Writer's calls not yet read by the owner:
 11. **A summary with branches.** Given a root with three branches, when it is summarized with its branches, then the root's dot gets the summary and its ring, the summary states the covered range, and a new answer in any covered branch marks it “有后续” (later content).
 12. **Nothing without a model.** With no model connected, every page looks and works as in 0.6.11.
 
-## Increments (proposal)
+## Increments (agreed 2026-11-26)
 
 1. **Recaps, seen in the summary network.** The table, the rest-and-weight check, the request, the Settings switch, the recap in a dot's details, and the dashed ring (R1, R2, R5). The owner judges the ring from a picture and tries the migration on a copy of their data.
 2. **Recaps in the two other places.** The branch entry (R3) and the open questions on the new exploration page (R4).
