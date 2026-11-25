@@ -4,6 +4,8 @@
     <AssemblyName>Mindweave</AssemblyName>
     <RootNamespace>Mindweave.Desktop</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- The source-generated native calls of MacFilePanel. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Mindweave.ico</ApplicationIcon>
   </PropertyGroup>
