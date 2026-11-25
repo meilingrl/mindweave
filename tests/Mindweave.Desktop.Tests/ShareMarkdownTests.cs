@@ -146,6 +146,50 @@ public class ShareMarkdownTests
         Assert.Equal("p(rail and rail)ul(li(p(a strong(rail) here))li(p(rail)))", Drawn(markdown, anchored with { Anchor = anchored.Anchor! with { Profile = "other" } }));
     }
 
+    /// <summary>The app's layout text breaks lines as the platform does, so a branch made on Windows has "\r\n" in its quote.</summary>
+    [Fact]
+    public void A_quote_captured_on_Windows_over_a_line_break_is_marked()
+    {
+        Assert.Equal("p(one mark[0](two)brmark[0](three) four)", Marked("one two\nthree four", "two\r\nthree"));
+        Assert.Equal("pre(x mark[0](a\nb) y)", Marked("```\nx a\nb y\n```", "a\r\nb"));
+        Assert.Equal("p(one mark[0](two)brmark[0](three) four)", Marked("one two\r\nthree four", "two\nthree"));
+        Assert.Equal("p(a mark[0](b))mathblock[x\ny]p(mark[0](c) d)", Marked("a b\r\n\r\n$$\r\nx\r\ny\r\n$$\r\n\r\nc d", "b\n$$\r\nx\r\ny\r\n$$\nc"));
+    }
+
+    /// <summary>The same for a stored place after a line break: it counts the break as one character or as two.</summary>
+    [Theory]
+    [InlineData("a\nrail and rail", 11)]
+    [InlineData("a\nrail and rail", 12)]
+    [InlineData("```\na\nrail and rail\n```", 11)]
+    [InlineData("```\na\nrail and rail\n```", 12)]
+    public void A_stored_place_after_a_line_break_is_found_whichever_platform_stored_it(string markdown, int start)
+    {
+        MarkdownSetup.EnsureRegistered();
+        var span = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline)[0].Span;
+
+        Assert.Contains("rail and mark[0](rail)", Drawn(markdown, At(span.Start, span.End, start, "rail")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_exact_offset_in_Markdown_with_either_line_ending_is_found()
+    {
+        Assert.Equal("p(abrrail and mark[0](rail))", Drawn("a\nrail and rail", new ExchangeBranchSource(MessageId.New(), "rail", new ExchangePosition(0, 11), null)));
+        Assert.Equal("p(abrrail and mark[0](rail))", Drawn("a\r\nrail and rail", new ExchangeBranchSource(MessageId.New(), "rail", new ExchangePosition(0, 12), null)));
+    }
+
+    /// <summary>Never a guess: where the two ways of counting point at different places, the sentence is not marked.</summary>
+    [Fact]
+    public void A_stored_place_that_could_be_either_of_two_is_not_marked()
+    {
+        Assert.Equal("p(xbraaa)", Drawn("x\naaa", At(0, 4, 3, "aa")));
+    }
+
+    private static ExchangeBranchSource At(int sourceStart, int sourceEnd, int start, string quote)
+    {
+        var anchor = new SelectionAnchor(SourceAnchors.FormatVersion, 0, string.Empty, [new AnchorSegment(sourceStart, sourceEnd, 0, string.Empty, start, quote.Length, quote)]);
+        return new ExchangeBranchSource(MessageId.New(), quote, null, new ExchangeAnchor(SourceAnchors.FormatVersion, SourceAnchors.RenderProfile, SourceAnchors.Serialize(anchor)));
+    }
+
     [AvaloniaFact]
     public void The_offset_is_the_exact_place_in_the_Markdown_when_the_anchor_has_it()
     {
@@ -206,7 +250,9 @@ public class ShareMarkdownTests
     private static List<string> AppBlocks(string markdown)
     {
         var renderer = Render(markdown, new HashSet<int> { 1, 2, 3 });
-        return [.. SourceAnchors.Blocks(renderer).Select(b => b.LayoutText)];
+
+        // The layout breaks lines as the platform does ("\r\n" on Windows); a reader sees the same break.
+        return [.. SourceAnchors.Blocks(renderer).Select(b => b.LayoutText.Replace("\r\n", "\n", StringComparison.Ordinal))];
     }
 
     private static SelectionAnchor Capture(string markdown, int block, int start, int length)

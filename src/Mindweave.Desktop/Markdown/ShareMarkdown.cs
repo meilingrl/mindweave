@@ -96,9 +96,9 @@ public sealed class ShareMarkdown : IShareMarkdown
     /// <summary>
     /// Something shown in a text block: a text, a formula, a line break. <paramref name="Readable"/> is how a quote has it
     /// (<see cref="SourceAnchors.QuoteOf"/>) and <paramref name="At"/> its start in all of them; <paramref name="LayoutAt"/>
-    /// is its start in its block's displayed text.
+    /// is its start in its block's displayed text, with <paramref name="Breaks"/> line breaks before it there.
     /// </summary>
-    private sealed record Shown(Node Parent, Node Node, string Readable, int At, int LayoutAt, TextBlockPlace Block);
+    private sealed record Shown(Node Parent, Node Node, string Readable, int At, int LayoutAt, int Breaks, TextBlockPlace Block);
 
     /// <summary>A text block the app would show, as an anchor names it.</summary>
     private sealed record TextBlockPlace(SourceSpan Span, int Ordinal);
@@ -110,6 +110,7 @@ public sealed class ShareMarkdown : IShareMarkdown
         private readonly Dictionary<SourceSpan, int> _ordinals = [];
         private TextBlockPlace _block = new(default, 0);
         private int _layout;
+        private int _breaks;
 
         public List<Node> Blocks(IEnumerable<Block> blocks) => [.. blocks.Select(Of).OfType<Node>()];
 
@@ -121,11 +122,11 @@ public sealed class ShareMarkdown : IShareMarkdown
         {
             var text = _readable.ToString();
             var owners = new string?[text.Length];
-            foreach (var mark in marks.Reverse().OrderByDescending(m => m.Source.Quote.Length))
+            foreach (var (mark, quote) in marks.Reverse().Select(m => (m, Quote: WithPlainBreaks(m.Source.Quote))).OrderByDescending(m => m.Quote.Length))
             {
-                if (PlaceOf(mark, text) is { } at)
+                if (PlaceOf(mark, quote, text) is { } at)
                 {
-                    Array.Fill(owners, mark.Branch.ToString(), at, mark.Source.Quote.Length);
+                    Array.Fill(owners, mark.Branch.ToString(), at, quote.Length);
                 }
             }
 
@@ -172,9 +173,14 @@ public sealed class ShareMarkdown : IShareMarkdown
             }
         }
 
-        private int? PlaceOf(ShareMark mark, string text)
+        /// <summary>
+        /// The displayed text breaks lines as the platform does, so a quote captured on Windows has <c>\r\n</c>; here every
+        /// break is one <c>\n</c>.
+        /// </summary>
+        private static string WithPlainBreaks(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        private int? PlaceOf(ShareMark mark, string quote, string text)
         {
-            var quote = mark.Source.Quote;
             var places = new List<int>();
             for (var at = quote.Length == 0 ? -1 : text.IndexOf(quote, StringComparison.Ordinal); at >= 0; at = text.IndexOf(quote, at + 1, StringComparison.Ordinal))
             {
@@ -188,31 +194,43 @@ public sealed class ShareMarkdown : IShareMarkdown
 
             if (mark.Source.Position is { Offset: var offset })
             {
-                return Only(places, (shown, within) => shown.Block.Span.Start + shown.LayoutAt + within == offset);
+                return Only(places, (shown, layout) => shown.Block.Span.Start + layout == offset);
             }
 
             if (mark.Source.Anchor is { } stored && AnchorOf(stored.Version, stored.Profile, stored.Data)?.Segments[0] is { } first)
             {
                 var start = first.Start + first.Quote.Length - first.Quote.TrimStart().Length;
-                return Only(places, (shown, within) =>
-                    shown.Block.Span.Start == first.SourceStart && shown.Block.Span.End == first.SourceEnd && shown.Block.Ordinal == first.Ordinal && shown.LayoutAt + within == start);
+                return Only(places, (shown, layout) =>
+                    shown.Block.Span.Start == first.SourceStart && shown.Block.Span.End == first.SourceEnd && shown.Block.Ordinal == first.Ordinal && layout == start);
             }
 
             return null;
         }
 
+        /// <summary>
+        /// The one place that is it. A stored place counts a line break as the platform it was stored on does, one character
+        /// or two; when the two ways lead to different places, none is certain.
+        /// </summary>
         private int? Only(List<int> places, Func<Shown, int, bool> isIt)
         {
+            var found = new List<int>();
             foreach (var place in places)
             {
-                var shown = _shown.LastOrDefault(s => s.At <= place && s.Readable.Length > 0);
-                if (shown is not null && isIt(shown, place - shown.At))
+                if (_shown.LastOrDefault(s => s.At <= place && s.Readable.Length > 0) is not { } shown)
                 {
-                    return place;
+                    continue;
+                }
+
+                var within = place - shown.At;
+                var layout = shown.LayoutAt + within;
+                var breaks = shown.Breaks + shown.Readable.AsSpan(0, within).Count('\n');
+                if (isIt(shown, layout) || isIt(shown, layout + breaks))
+                {
+                    found.Add(place);
                 }
             }
 
-            return null;
+            return found.Count == 1 ? found[0] : null;
         }
 
         private Node? Of(Block block) => block switch
@@ -305,6 +323,7 @@ public sealed class ShareMarkdown : IShareMarkdown
             _ordinals[span] = ordinal + 1;
             _block = new TextBlockPlace(span, ordinal);
             _layout = 0;
+            _breaks = 0;
         }
 
         private void Inlines(Node into, ContainerInline inlines)
@@ -396,11 +415,12 @@ public sealed class ShareMarkdown : IShareMarkdown
         private void Show(Node into, Node node, string readable, int layoutLength)
         {
             into.Parts.Add(node);
-            _shown.Add(new Shown(into, node, readable, _readable.Length, _layout, _block));
+            _shown.Add(new Shown(into, node, readable, _readable.Length, _layout, _breaks, _block));
             _readable.Append(readable);
             _layout += layoutLength;
+            _breaks += node.Kind is ShareNode.TextKind or "br" ? readable.Count(c => c == '\n') : 0;
         }
 
-        private string Source(SourceSpan span) => span.Start >= 0 && span.End >= span.Start && span.End < markdown.Length ? markdown[span.Start..(span.End + 1)] : string.Empty;
+        private string Source(SourceSpan span) => span.Start >= 0 && span.End >= span.Start && span.End < markdown.Length ? WithPlainBreaks(markdown[span.Start..(span.End + 1)]) : string.Empty;
     }
 }
