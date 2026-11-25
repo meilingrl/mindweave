@@ -1,6 +1,6 @@
 # Return and review
 
-**Status:** agreed by the owner on 2026-11-26, after the discussion of 2026-11-25: the decisions R1 to R9, the writer's calls, the failure cases, the acceptance scenarios and the order of the increments. Nothing is built, and the requirements and architecture text is still to be proposed as a separate commit. It covers what happens between sessions of use: coming back, unresolved questions, and the summary network as the place to review. Decisions below are the owner's unless marked as the writer's call.
+**Status:** agreed by the owner on 2026-11-26, after the discussion of 2026-11-25: the decisions R1 to R9, the writer's calls, the failure cases, the acceptance scenarios and the order of the increments. Nothing is built. The requirements and architecture text is proposed in commit `fd6c04b` of this branch (requirements v0.29, §10.7) and waits for the owner's confirmation. It covers what happens between sessions of use: coming back, unresolved questions, and the summary network as the place to review. Decisions below are the owner's unless marked as the writer's call.
 
 **Related:** [more directions](more-directions.md) (direction 6, gentle return), [evolution.md](../evolution.md) D8 ("Relation to other directions from the same discussion"), [session-network.md](../design/session-network.md), [requirements](../requirements.md) §4.2, §6.3–6.5, §7, §10.1–10.3.
 
