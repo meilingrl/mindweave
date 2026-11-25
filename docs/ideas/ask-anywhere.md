@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Last discussed: 2026-11-26 (quoting and connections are agreed; the section on search by meaning waits for the owner's confirmation; prompt caching is not discussed yet).
+**Status:** in discussion with the owner since 2026-11-25. Last discussed: 2026-11-26 (quoting and connections are agreed; search by meaning is agreed; prompt caching is being discussed).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -75,6 +75,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | Responses moves into the first increment as its fourth step, after Messages (owner). It is checked against a local server and the owner's relay; the check against OpenAI's own service stays open until there is a key. This replaces "Responses comes later" above. |
 | 2026-11-25 | Search by meaning serves both the model's tools and the user (owner): one index over summaries, the questions and answers of conversations, and attachments, inside one workspace. The user gets a search of their own beside title search. |
 | 2026-11-26 | The vectors come from an embedding model on a saved connection (owner): one more model setting, empty by default, which leaves search as it is today. An embedding model that Mindweave carries itself can follow behind the same setting. |
+| 2026-11-26 | The section on search by meaning in §7 is agreed as written, Claude's calls included (owner). |
 
 ## 6. Set aside
 
@@ -269,9 +270,9 @@ Look and feel is the owner's: the list in settings and the picker are shown befo
 
 Requirement and architecture text follows as a separate commit that the owner confirms: requirements §9.4 and architecture §7 (which describe one configuration), and evolution D3. How keys are kept stays with the safety and upkeep discussion (§4).
 
-### Search by meaning (D2; waiting for the owner to confirm this section)
+### Search by meaning (D2; agreed by the owner, 2026-11-26)
 
-The owner's decisions are in §5. Everything else in this section is Claude's call, and the owner can change it. This section answers Q13 of the agent platform questions.
+The owner's decisions are in §5. The rest of this section was proposed by Claude and agreed with it. This section answers Q13 of the agent platform questions.
 
 #### How it works
 
