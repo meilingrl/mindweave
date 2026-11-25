@@ -66,7 +66,7 @@ One answer prompt opens every answer, in the interface language, with a version 
   - It works for every answer, with or without tools, and nothing pauses.
   - Accepted cost: about 30 input tokens; a wrong pick costs one more question and answer.
   - Not chosen: a card that pauses the run and waits for a choice (idea 8).
-  - Open since 2026-11-26: the other reading was to be offered as a chip (Q5). With the chips withdrawn, the wording above (the other reading named in the sentence) is a proposal, not yet confirmed by the owner.
+  - Confirmed by the owner on 2026-11-26 in this wording. On 2026-11-25 the other reading was to be offered as a chip; the chips were dropped with Q5.
 - **Q7, 2026-11-25 (owner): follow-up questions keep the L9 rule; no model request rewrites them.**
   - The summary title search of Q4 uses the same rule as the pre-search: for a short or referring question, the conversation title and the branch selection go in front. One rule, in one place, serves both searches.
   - The evaluation set gains a follow-up scenario in the "开" (On) web setting, so the rule is measured on a real service.
