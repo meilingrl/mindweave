@@ -154,6 +154,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     [ObservableProperty]
     public partial bool CanReturnToSource { get; private set; }
 
+    /// <summary>The tip of the way back: to the passage, or to the end of what this continues.</summary>
+    [ObservableProperty]
+    public partial string ReturnHint { get; private set; } = UiText.ReturnToSourceHint;
+
+    /// <summary>It came from a shared file, so it is read-only: a question asked here continues in a conversation of the user's own (decision I4).</summary>
+    [ObservableProperty]
+    public partial bool IsReceived { get; private set; }
+
     /// <summary>It came from a shared file and nothing was said in it: asking starts a conversation of the user's own (decision I4).</summary>
     [ObservableProperty]
     public partial bool IsUnexplored { get; private set; }
@@ -546,6 +554,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         var branches = await _conversations.ListBranchesAsync(Id, CancellationToken.None);
         var archivedBranches = await _conversations.ArchivedAmongAsync([.. branches.Select(b => b.Child)], CancellationToken.None);
         var archive = await _conversations.PlanRestoreAsync(Id, CancellationToken.None);
+        var continuations = await ContinuationTitlesAsync(branches);
         if (_disposed)
         {
             return;
@@ -553,10 +562,12 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
         _source = lineage.Count > 0 ? lineage[^1].Source : null;
         SourceQuote = _source?.Quote;
-        IsUnexplored = content.Conversation.IsImported && content.Messages.Count == 0;
+        IsReceived = content.Conversation.IsImported;
+        IsUnexplored = IsReceived && content.Messages.Count == 0;
         IsBranch = _source is not null && !IsUnexplored;
         CanReturnToSource = _source?.SourceMessage is not null;
-        Composer.Placeholder = IsUnexplored ? UiText.AskInReceivedPlaceholder : UiText.AskPlaceholder;
+        ReturnHint = _source is { IsContinuation: true } ? UiText.ReturnToEndHint : UiText.ReturnToSourceHint;
+        Composer.Placeholder = IsUnexplored ? UiText.AskInReceivedPlaceholder : IsReceived ? UiText.ContinueReceivedPlaceholder : UiText.AskPlaceholder;
         DisplayTitle = UiText.ConversationTitle(content.Conversation, content.Messages.FirstOrDefault(m => m.Role == MessageRole.User) is { } first ? ContentBlocks.BriefOf(first.Blocks, ModelPhrases.Current) : null, _source?.Quote);
         Lineage.Clear();
         foreach (var ancestor in lineage.Take(Math.Max(0, lineage.Count - 1)))
@@ -568,7 +579,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         ArchiveText = !archive.IsHidden ? null
             : archive.ArchivedAncestors.Count == 0 ? UiText.ArchivedReadOnly
             : UiText.HiddenByAncestors([.. archive.ArchivedAncestors.Select(a => Lineage.FirstOrDefault(l => l.Id == a)?.Title ?? UiText.NewConversation)]);
-        MessageListReconciler.Reconcile(Messages, content, branches, archivedBranches, IsArchived, NewItem);
+        MessageListReconciler.Reconcile(Messages, content, branches, archivedBranches, IsArchived, NewItem, continuations, IsReceived);
         HasBranches = Messages.Any(m => m.IsAnswer && m.Branches.Count > 0);
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
@@ -584,11 +595,22 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         await Summary.LoadAsync();
     }
 
+    /// <summary>A branch that left from no sentence is listed by its own title.</summary>
+    private async Task<IReadOnlyDictionary<ConversationId, string>> ContinuationTitlesAsync(IReadOnlyList<BranchSource> branches)
+    {
+        var ids = branches.Where(b => b.IsContinuation).Select(b => b.Child).ToHashSet();
+        return ids.Count == 0
+            ? new Dictionary<ConversationId, string>()
+            : (await _conversations.ListAsync(_workspace, CancellationToken.None)).Where(r => ids.Contains(r.Conversation.Id))
+                .ToDictionary(r => r.Conversation.Id, r => UiText.ConversationTitle(r.Conversation, r.FirstQuestion, r.Quote));
+    }
+
     private MessageItemViewModel NewItem(Message message)
     {
         var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time, Composer.Open, OpenToolResult, OpenSummary, OpenCitation, _conversations.DecideApproval)
         {
             IsBranchPaused = IsStorageBlocked,
+            IsReceived = IsReceived,
         };
         item.PropertyChanged += (_, e) =>
         {
@@ -608,7 +630,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         var last = Messages.LastOrDefault();
         if (last is { IsAnswer: true })
         {
-            last.CanRetry = !last.IsInProgress && !IsArchived;
+            last.CanRetry = !last.IsInProgress && !IsArchived && !IsReceived;
         }
 
         UpdateTicking();

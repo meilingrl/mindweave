@@ -45,6 +45,7 @@ public sealed partial class ImportViewModel(
     private ExchangeDocument? _document;
     private bool _reading;
     private IReadOnlyDictionary<ConversationId, WorkspaceId> _holdings = new Dictionary<ConversationId, WorkspaceId>();
+    private StoredContents _stored = StoredContents.Nothing;
 
     [ObservableProperty]
     public partial bool IsOpen { get; private set; }
@@ -87,10 +88,10 @@ public sealed partial class ImportViewModel(
 
     public string CloseText => ShowsChoice ? UiText.Cancel : UiText.ShareClose;
 
-    /// <summary>How many conversations the chosen workspace would gain.</summary>
+    /// <summary>The chosen workspace would gain something.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
-    public partial int NewCount { get; private set; }
+    public partial bool BringsAnything { get; private set; }
 
     /// <summary>The most recent pick or drop; tests await it.</summary>
     internal Task Opening { get; private set; } = Task.CompletedTask;
@@ -129,7 +130,7 @@ public sealed partial class ImportViewModel(
 
         // Read before it is shown: it opens with its buttons as they stay, so it can take the keyboard at once.
         _reading = true;
-        (_document, KindText, Targets, Counts, Problem, NewCount, IsReady, IsAllHere) = (null, null, [], [], null, 0, false, false);
+        (_document, KindText, Targets, Counts, Problem, BringsAnything, IsReady, IsAllHere) = (null, null, [], [], null, false, false, false);
         ShareTitle = Path.GetFileName(path);
         try
         {
@@ -140,7 +141,7 @@ public sealed partial class ImportViewModel(
                 return;
             }
 
-            _holdings = await imports.HoldingsAsync(document, CancellationToken.None);
+            await CompareAsync(document);
             if (ImportRules.Plan(document, _holdings, null) is null)
             {
                 // A parent neither in the file nor here (§7).
@@ -150,7 +151,7 @@ public sealed partial class ImportViewModel(
 
             _document = document;
             ShareTitle = ImportRules.OneLine(document.Title) is { Length: > 0 } title ? title : UiText.ImportedWorkspace;
-            KindText = UiText.ImportKindStructure;
+            KindText = document.Kind == ExchangeDocument.ContentKind ? UiText.ImportKindContent : UiText.ImportKindStructure;
             Offer();
         }
 #pragma warning disable CA1031 // An unreadable store is said; closing still works.
@@ -168,6 +169,12 @@ public sealed partial class ImportViewModel(
         }
     }
 
+    private async Task CompareAsync(ExchangeDocument document)
+    {
+        _holdings = await imports.HoldingsAsync(document, CancellationToken.None);
+        _stored = await imports.ContentsAsync(document, CancellationToken.None);
+    }
+
     internal void Choose(ImportTargetViewModel target)
     {
         foreach (var other in Targets.Where(t => !ReferenceEquals(t, target)))
@@ -176,14 +183,14 @@ public sealed partial class ImportViewModel(
         }
 
         Problem = null;
-        if (_document is { } document && ImportRules.Plan(document, _holdings, target.Workspace) is { } plan)
+        if (_document is { } document && ImportRules.Plan(document, _holdings, target.Workspace, _stored) is { } plan)
         {
-            NewCount = plan.New.Count;
+            BringsAnything = !plan.IsEmpty;
             Counts = [.. Lines(plan)];
         }
     }
 
-    private bool CanImport() => IsReady && !IsBusy && !IsAllHere && NewCount > 0;
+    private bool CanImport() => IsReady && !IsBusy && !IsAllHere && BringsAnything;
 
     [RelayCommand(CanExecute = nameof(CanImport))]
     private async Task ImportAsync()
@@ -214,7 +221,7 @@ public sealed partial class ImportViewModel(
                     break;
                 default:
                     // What was new arrived another way while the dialog was open.
-                    _holdings = await imports.HoldingsAsync(document, CancellationToken.None);
+                    await CompareAsync(document);
                     Offer();
                     break;
             }
@@ -301,7 +308,9 @@ public sealed partial class ImportViewModel(
         }
 
         // Whether a conversation is new depends on the workspace only through its parent: where the parent is, it can be added.
-        IsAllHere = document.Conversations.All(c => _holdings.ContainsKey(c.Id));
+        // One that is here can still gain something where it is, or differ from the file.
+        IsAllHere = document.Conversations.All(c => _holdings.ContainsKey(c.Id))
+            && _holdings.Values.Distinct().All(w => ImportRules.Plan(document, _holdings, w, _stored) is { IsEmpty: true, Unfit: 0, Own: 0 });
         Targets = targets;
         IsReady = true;
         targets[0].IsChosen = true;
@@ -318,9 +327,34 @@ public sealed partial class ImportViewModel(
             yield return UiText.ImportNew(plan.New.Count);
         }
 
+        if (plan.Gains.Count(g => g.Messages.Count > 0) is > 0 and var messages)
+        {
+            yield return UiText.ImportGainsMessages(messages);
+        }
+
+        if (plan.Gains.Count(g => g.Messages.Count == 0) is > 0 and var more)
+        {
+            yield return UiText.ImportGainsMore(more);
+        }
+
+        if (plan.Links.Count > 0)
+        {
+            yield return UiText.ImportLinks(plan.Links.Count);
+        }
+
         if (plan.AlreadyHere > 0)
         {
             yield return UiText.ImportHere(plan.AlreadyHere);
+        }
+
+        if (plan.Own > 0)
+        {
+            yield return UiText.ImportOwn(plan.Own);
+        }
+
+        if (plan.Unfit > 0)
+        {
+            yield return UiText.ImportUnfit(plan.Unfit);
         }
 
         foreach (var skipped in plan.Skipped)

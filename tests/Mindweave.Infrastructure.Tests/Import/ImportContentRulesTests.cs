@@ -4,6 +4,7 @@ using Mindweave.Application.Import;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
+using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Import;
 
@@ -13,14 +14,14 @@ public sealed class ImportContentRulesTests
     private static readonly WorkspaceId Here = WorkspaceId.New();
     private static readonly WorkspaceId There = WorkspaceId.New();
 
-    private static readonly ExchangeMessage Asked = Shared.Question(0, "How did trains begin?");
-    private static readonly ExchangeMessage Told = Shared.Answer(1, "With steam.");
-    private static readonly ExchangeMessage AskedMore = Shared.Question(2, "And then?");
-    private static readonly ExchangeMessage ToldMore = Shared.Answer(3, "Electricity.");
+    private static readonly ExchangeMessage Asked = SharedParts.Question(0, "How did trains begin?");
+    private static readonly ExchangeMessage Told = SharedParts.Answer(1, "With steam.");
+    private static readonly ExchangeMessage AskedMore = SharedParts.Question(2, "And then?");
+    private static readonly ExchangeMessage ToldMore = SharedParts.Answer(3, "Electricity.");
 
-    private static readonly ExchangeConversation Root = Shared.Conversation(null, "Trains", null, Asked, Told, AskedMore, ToldMore).With(Shared.Summary("Trains", 3));
-    private static readonly ExchangeConversation Branch = Shared.Conversation(Root, "Steam", Shared.From(Told, "steam"), Shared.Question(0, "Why?"), Shared.Answer(1, "Heat.")).With(Shared.Summary("Steam", 1));
-    private static readonly ExchangeDocument Document = Shared.Document(Branch, Root) with { Links = [new(Root.Id, Branch.Id) { Note = "related" }] };
+    private static readonly ExchangeConversation Root = SharedParts.Conversation(null, "Trains", null, Asked, Told, AskedMore, ToldMore).With(SharedParts.Summary("Trains", 3));
+    private static readonly ExchangeConversation Branch = SharedParts.Conversation(Root, "Steam", SharedParts.From(Told, "steam"), SharedParts.Question(0, "Why?"), SharedParts.Answer(1, "Heat.")).With(SharedParts.Summary("Steam", 1));
+    private static readonly ExchangeDocument Document = SharedParts.Document(Branch, Root) with { Links = [new(Root.Id, Branch.Id) { Note = "related" }] };
 
     [Fact]
     public void Everything_is_new_with_its_link_where_nothing_is_here()
@@ -61,7 +62,7 @@ public sealed class ImportContentRulesTests
     public void A_source_waits_until_its_parent_holds_the_message()
     {
         // The parent does not fit, so the message the branch left from does not arrive; the branch itself does.
-        var plan = Plan(Stored((Root, true, false, false, [Shared.Answer(1, "Something else.")]), (Branch, true, false, false, [])));
+        var plan = Plan(Stored((Root, true, false, false, [SharedParts.Answer(1, "Something else.")]), (Branch, true, false, false, [])));
 
         Assert.Equal(1, plan.Unfit);
         Assert.False(Assert.Single(plan.Gains).Source);
@@ -70,7 +71,7 @@ public sealed class ImportContentRulesTests
     [Fact]
     public void A_number_held_by_another_message_skips_that_conversation_and_nothing_else()
     {
-        var plan = Plan(Stored((Root, true, false, false, [Asked, Shared.Answer(1, "Another answer.")])));
+        var plan = Plan(Stored((Root, true, false, false, [Asked, SharedParts.Answer(1, "Another answer.")])));
 
         Assert.Equal(1, plan.Unfit);
         Assert.Empty(plan.Gains);
@@ -159,11 +160,11 @@ public sealed class ImportContentRulesTests
     public void What_cannot_be_true_is_not_sound(string what)
     {
         Assert.True(ImportRules.IsSound(Document));
-        ExchangeDocument With(params ExchangeMessage[] messages) => Shared.Document(Shared.Conversation(null, "x", null, messages));
-        var retried = Shared.Answer(2, "Another.");
+        ExchangeDocument With(params ExchangeMessage[] messages) => SharedParts.Document(SharedParts.Conversation(null, "x", null, messages));
+        var retried = SharedParts.Answer(2, "Another.");
         var document = what switch
         {
-            "a message twice" => Shared.Document(Root, Shared.Conversation(null, "x", null, Asked)),
+            "a message twice" => SharedParts.Document(Root, SharedParts.Conversation(null, "x", null, Asked)),
             "a number twice" => With(Asked, Told, AskedMore with { Seq = 1 }),
             "numbers that fall" => With(Asked, AskedMore, Told),
             "an answer first" => With(Told),
@@ -177,10 +178,10 @@ public sealed class ImportContentRulesTests
             "an answer with attachments" => With(Asked, Told with { Attachments = ["a.txt"] }),
             "a number cited twice" => With(Asked, Told with { Citations = [new(1, CitationKind.Web), new(1, CitationKind.Summary)] }),
             "a question too long" => With(Asked with { Text = new string('x', ConversationService.MaxQuestionLength + 1) }),
-            "a root with a source" => Shared.Document(Root with { Content = Root.Content! with { Source = Shared.From(Told, "steam") } }),
-            "a source that is not in the parent" => Shared.Document(Root, Branch with { Content = Branch.Content! with { Source = new(MessageId.New(), "steam", null, null) } }),
-            "a sentence of a question" => Shared.Document(Root, Branch with { Content = Branch.Content! with { Source = Shared.From(Asked, "trains") } }),
-            "a version twice" => Shared.Document(Root, Branch.With(Root.Content!.Summary!)),
+            "a root with a source" => SharedParts.Document(Root with { Content = Root.Content! with { Source = SharedParts.From(Told, "steam") } }),
+            "a source that is not in the parent" => SharedParts.Document(Root, Branch with { Content = Branch.Content! with { Source = new(MessageId.New(), "steam", null, null) } }),
+            "a sentence of a question" => SharedParts.Document(Root, Branch with { Content = Branch.Content! with { Source = SharedParts.From(Asked, "trains") } }),
+            "a version twice" => SharedParts.Document(Root, Branch.With(Root.Content!.Summary!)),
             "a conversation without content" => Document with { Conversations = [Root, Branch with { Content = null }] },
             "a link to itself" => Document with { Links = [new(Root.Id, Root.Id)] },
             _ => Document with { Links = [new(Root.Id, Branch.Id) { Note = new string('x', 17) }] },
@@ -191,15 +192,15 @@ public sealed class ImportContentRulesTests
     [Fact]
     public void An_earlier_attempt_names_the_answer_that_stands_however_many_were_replaced()
     {
-        var (first, second, third) = (Shared.Answer(1, "One."), Shared.Answer(2, "Two."), Shared.Answer(3, "Three."));
-        Assert.True(ImportRules.IsSound(Shared.Document(Shared.Conversation(null, "x", null, Asked, first with { ReplacedBy = third.Id }, second with { ReplacedBy = third.Id }, third))));
+        var (first, second, third) = (SharedParts.Answer(1, "One."), SharedParts.Answer(2, "Two."), SharedParts.Answer(3, "Three."));
+        Assert.True(ImportRules.IsSound(SharedParts.Document(SharedParts.Conversation(null, "x", null, Asked, first with { ReplacedBy = third.Id }, second with { ReplacedBy = third.Id }, third))));
     }
 
     /// <summary>A continuation left from a question too, when nothing answers it.</summary>
     [Fact]
     public void A_source_without_a_sentence_can_be_any_message_of_the_parent()
     {
-        Assert.True(ImportRules.IsSound(Shared.Document(Root, Branch with { Content = Branch.Content! with { Source = new(Asked.Id, null, null, null) } })));
+        Assert.True(ImportRules.IsSound(SharedParts.Document(Root, Branch with { Content = Branch.Content! with { Source = new(Asked.Id, null, null, null) } })));
     }
 
     private static ImportPlan Plan(StoredContents stored, IReadOnlyList<ExchangeConversation>? known = null) =>

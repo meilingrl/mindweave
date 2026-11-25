@@ -6,6 +6,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Import;
 using Mindweave.Infrastructure.Share;
 using Mindweave.Infrastructure.Tests.Share;
+using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Import;
 
@@ -21,23 +22,23 @@ public sealed class SharedContentReaderTests : IDisposable
     // Fixed identities: the theory's data names them, and it is made in another run than the one that reads them.
     private static MessageId Id(int number) => MessageId.Parse($"0190f000-0000-7000-8000-00000000020{number}");
 
-    private static readonly ExchangeMessage Asked = Shared.Question(0, "Why </script> & “how” 为什么?", "plan <1>.pdf", null) with { Id = Id(1) };
+    private static readonly ExchangeMessage Asked = SharedParts.Question(0, "Why </script> & “how” 为什么?", "plan <1>.pdf", null) with { Id = Id(1) };
 
-    private static readonly ExchangeMessage Told = Shared.Answer(3, "So [1][2].", MessageState.Interrupted) with
+    private static readonly ExchangeMessage Told = SharedParts.Answer(3, "So [1][2].", MessageState.Interrupted) with
     {
         Id = Id(2),
         Activity = new(1, 2, 3, 4, 5),
         Citations = [new(1, CitationKind.Web, "A page", new Uri("https://example.org/a?b=c&d=%20e")), new(2, CitationKind.Summary, "Steam"), new(3, CitationKind.Attachment), new(4, CitationKind.Material)],
     };
 
-    private static readonly ExchangeMessage Earlier = Shared.Answer(1, "Earlier.", MessageState.Failed) with { Id = Id(3), ReplacedBy = Told.Id };
+    private static readonly ExchangeMessage Earlier = SharedParts.Answer(1, "Earlier.", MessageState.Failed) with { Id = Id(3), ReplacedBy = Told.Id };
 
-    private static readonly ExchangeConversation Root = Shared.Conversation(null, "Trains", null, Asked, Earlier, Told).With(Shared.Summary("Trains", 7));
-    private static readonly ExchangeConversation Branch = Shared.Conversation(Root, null, new(Earlier.Id, "Earlier", new(0, 12), new(1, "livemarkdown-2.5.1/cjk-emphasis-1", "{\"v\":1}")), Shared.Question(0, "Branch?"), Shared.Answer(1, "Yes.", MessageState.Stopped));
-    private static readonly ExchangeConversation Continued = Shared.Conversation(Root, "Mine", new(Told.Id, null, null, null), Shared.Question(0, "More?"));
-    private static readonly ExchangeConversation Empty = Shared.Conversation(Branch, "Empty", null);
+    private static readonly ExchangeConversation Root = SharedParts.Conversation(null, "Trains", null, Asked, Earlier, Told).With(SharedParts.Summary("Trains", 7));
+    private static readonly ExchangeConversation Branch = SharedParts.Conversation(Root, null, new(Earlier.Id, "Earlier", new(0, 12), new(1, "livemarkdown-2.5.1/cjk-emphasis-1", "{\"v\":1}")), SharedParts.Question(0, "Branch?"), SharedParts.Answer(1, "Yes.", MessageState.Stopped));
+    private static readonly ExchangeConversation Continued = SharedParts.Conversation(Root, "Mine", new(Told.Id, null, null, null), SharedParts.Question(0, "More?"));
+    private static readonly ExchangeConversation Empty = SharedParts.Conversation(Branch, "Empty", null);
 
-    private static ExchangeDocument Document => Shared.Document(Root, Branch, Continued, Empty) with { Links = [new(Root.Id, Branch.Id) { Note = "关联" }] };
+    private static ExchangeDocument Document => SharedParts.Document(Root, Branch, Continued, Empty) with { Links = [new(Root.Id, Branch.Id) { Note = "关联" }] };
 
     private static string Html => SharePage.Format(Document, new PlainMarkdown());
 
@@ -112,14 +113,14 @@ public sealed class SharedContentReaderTests : IDisposable
     [Fact]
     public async Task What_is_over_the_apps_limits_is_damaged()
     {
-        ExchangeDocument With(ExchangeConversation conversation) => Shared.Document(Root, conversation);
+        ExchangeDocument With(ExchangeConversation conversation) => SharedParts.Document(Root, conversation);
         foreach (var document in new[]
         {
-            With(Branch with { Content = Branch.Content! with { Source = Shared.From(Told, new string('x', BranchRules.MaxQuoteLength + 1)) } }),
+            With(Branch with { Content = Branch.Content! with { Source = SharedParts.From(Told, new string('x', BranchRules.MaxQuoteLength + 1)) } }),
             With(Branch with { Content = Branch.Content! with { Source = Branch.Content.Source! with { Anchor = new(1, "p", new string('1', BranchRules.MaxAnchorLength + 1)) } } }),
-            With(Branch.And(Shared.Question(2, new string('x', Application.Conversations.ConversationService.MaxQuestionLength + 1)))),
-            With(Branch.And(Shared.Question(2, "?", [.. Enumerable.Repeat("a", Application.Resources.ResourceLimits.MaxAttachmentsPerMessage + 1)]))),
-            With(Branch.And(Shared.Question(2, "?"), Shared.Answer(3, new string('x', ImportLimits.MaxTextLength + 1)))),
+            With(Branch.And(SharedParts.Question(2, new string('x', Application.Conversations.ConversationService.MaxQuestionLength + 1)))),
+            With(Branch.And(SharedParts.Question(2, "?", [.. Enumerable.Repeat("a", Application.Resources.ResourceLimits.MaxAttachmentsPerMessage + 1)]))),
+            With(Branch.And(SharedParts.Question(2, "?"), SharedParts.Answer(3, new string('x', ImportLimits.MaxTextLength + 1)))),
         })
         {
             Assert.Equal(ImportRefusal.Damaged, (await ReadAsync(SharePage.Format(document, new PlainMarkdown()))).Refusal);

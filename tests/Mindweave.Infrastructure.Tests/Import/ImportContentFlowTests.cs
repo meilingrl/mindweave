@@ -155,8 +155,8 @@ public sealed class ImportContentFlowTests : IDisposable
         var late = document with { Conversations = [root, branch with { Content = branch.Content! with { Source = null } }, twig] };
         await ImportAsync(h, late);
         var mine = await AskAsync(h, branch.Id, "Mine?", "Yours.", opens: true);
-        var below = Shared.Conversation(Shared.Conversation(null, null, null) with { Id = mine.ConversationId }, "Someone else's", new(mine.Id, "Yours", null, null), Shared.Question(0, "Below mine?"), Shared.Answer(1, "Yes."));
-        await ImportAsync(h, Shared.Document(below));
+        var below = SharedParts.Conversation(SharedParts.Conversation(null, null, null) with { Id = mine.ConversationId }, "Someone else's", new(mine.Id, "Yours", null, null), SharedParts.Question(0, "Below mine?"), SharedParts.Answer(1, "Yes."));
+        await ImportAsync(h, SharedParts.Document(below));
         Assert.Equal([(branch.Id, 1)], await RangesAsync(h, twig.Id));
         Assert.Equal([(branch.Id, 1), (mine.ConversationId, 1)], await RangesAsync(h, below.Id));
 
@@ -241,7 +241,7 @@ public sealed class ImportContentFlowTests : IDisposable
     {
         await using var h = await ChatHarness.StartAsync();
         var (_, branch, _, document) = ThePath();
-        var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("Trains"), Shared.Day);
+        var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("Trains"), SharedParts.Day);
         await Imports(h).ImportAsync(document, ImportTarget.New(workspace), Ct);
         await AskAsync(h, branch.Id, "Why?", "Heat.", opens: true);
 
@@ -258,9 +258,9 @@ public sealed class ImportContentFlowTests : IDisposable
         await ImportAsync(h, document);
         var last = (await h.Store.GetMessagesAsync(root.Id, Ct))[^1];
         var model = (await h.Models.GetActiveSnapshotAsync(Ct))!;
-        GenerationTaskRecord Task(MessageId target) => new(GenerationTaskId.New(), GenerationTaskKind.Answer, root.Id, target, model, [], Shared.Day);
-        var question = new Message(MessageId.New(), root.Id, 0, MessageRole.User, [new TextBlock("?")], MessageState.Complete, 0, null, null, null, Shared.Day, Shared.Day);
-        var answer = new Message(MessageId.New(), root.Id, 0, MessageRole.Assistant, [new TextBlock("")], MessageState.Pending, 0, null, null, null, Shared.Day, null);
+        GenerationTaskRecord Task(MessageId target) => new(GenerationTaskId.New(), GenerationTaskKind.Answer, root.Id, target, model, [], SharedParts.Day);
+        var question = new Message(MessageId.New(), root.Id, 0, MessageRole.User, [new TextBlock("?")], MessageState.Complete, 0, null, null, null, SharedParts.Day, SharedParts.Day);
+        var answer = new Message(MessageId.New(), root.Id, 0, MessageRole.Assistant, [new TextBlock("")], MessageState.Pending, 0, null, null, null, SharedParts.Day, null);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => h.Store.AppendQuestionAsync(question, answer, Task(answer.Id), Ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => h.Store.AddRetryAsync(answer with { Supersedes = last.Id }, Task(answer.Id), Ct));
@@ -315,7 +315,7 @@ public sealed class ImportContentFlowTests : IDisposable
         await SummarizeAsync(h, root.Id, "Title: My summary\n\nIn my words.");
         await h.Conversations.ArchiveAsync(root.Id, Ct);
         var mine = (await h.SummaryNodes.ForConversationAsync(root.Id, Ct))!;
-        var theirs = Shared.Summary("Theirs", 1);
+        var theirs = SharedParts.Summary("Theirs", 1);
 
         var result = await ImportAsync(h, document with { Conversations = [root.With(theirs), .. document.Conversations.Skip(1)] });
 
@@ -338,7 +338,7 @@ public sealed class ImportContentFlowTests : IDisposable
         await ImportAsync(h, document);
         var gate = h.Client.Knowledge.Hold();
         Assert.True((await h.SummaryService.SummarizeAsync(root.Id, Ct)).Accepted);
-        var theirs = Shared.Summary("Theirs", 1);
+        var theirs = SharedParts.Summary("Theirs", 1);
         await ImportAsync(h, document with { Conversations = [root.With(theirs), .. document.Conversations.Skip(1)] });
         gate.TrySetResult();
 
@@ -356,9 +356,9 @@ public sealed class ImportContentFlowTests : IDisposable
         await h.WebSearch.SetKeyAsync("tvly-secret-key-1234567890", Ct);
         h.Pages.Page("https://theirs.example/a", "Theirs", "Their page.");
         h.Pages.Page("https://mine.example/b", "Mine", "My page.");
-        var asked = Shared.Question(0, "Read https://theirs.example/a please.");
-        var root = Shared.Conversation(null, "Trains", null, asked, Shared.Answer(1, "See https://theirs.example/a for more."));
-        await ImportAsync(h, Shared.Document(root));
+        var asked = SharedParts.Question(0, "Read https://theirs.example/a please.");
+        var root = SharedParts.Conversation(null, "Trains", null, asked, SharedParts.Answer(1, "See https://theirs.example/a for more."));
+        await ImportAsync(h, SharedParts.Document(root));
 
         async Task<(SendOutcome Sent, LiveAnswer Live)> AskForAsync(ConversationId id, string url, string question)
         {
@@ -396,8 +396,8 @@ public sealed class ImportContentFlowTests : IDisposable
     public async Task What_did_not_travel_has_a_stand_in_that_survives_being_shared_again()
     {
         await using var h = await ChatHarness.StartAsync();
-        var asked = Shared.Question(0, "What is in these?", "plan.pdf", null);
-        var told = Shared.Answer(1, "A gauge [1], as noted [2][3][4].") with
+        var asked = SharedParts.Question(0, "What is in these?", "plan.pdf", null);
+        var told = SharedParts.Answer(1, "A gauge [1], as noted [2][3][4].") with
         {
             Activity = new ExchangeActivity(1, 2, 3, 4, 5),
             Citations =
@@ -408,10 +408,10 @@ public sealed class ImportContentFlowTests : IDisposable
                 new(4, CitationKind.Summary, "Steam"),
             ],
         };
-        var root = Shared.Conversation(null, "Trains", null, asked, told);
-        var branch = Shared.Conversation(root, "Steam", Shared.From(told, "gauge"), Shared.Question(0, "", "only.txt"), Shared.Answer(1, "Seen.", MessageState.Stopped)).With(Shared.Summary("Steam", 1));
+        var root = SharedParts.Conversation(null, "Trains", null, asked, told);
+        var branch = SharedParts.Conversation(root, "Steam", SharedParts.From(told, "gauge"), SharedParts.Question(0, "", "only.txt"), SharedParts.Answer(1, "Seen.", MessageState.Stopped)).With(SharedParts.Summary("Steam", 1));
         var full = root with { Content = root.Content! with { Messages = [asked, told with { Citations = [.. told.Citations.Take(3), told.Citations[3] with { Summary = branch.Id }] }] } };
-        var document = Shared.Document(full, branch) with { Conversations = [full with { Questions = 1 }, branch with { Questions = 1 }] };
+        var document = SharedParts.Document(full, branch) with { Conversations = [full with { Questions = 1 }, branch with { Questions = 1 }] };
 
         await ImportAsync(h, document);
 
@@ -421,7 +421,7 @@ public sealed class ImportContentFlowTests : IDisposable
         var citations = ContentBlocks.CitationsOf(messages[1].Blocks);
         Assert.Equal([true, false, false, false], citations.Select(c => c.CanBeOpened));
         Assert.Equal(["Gauges", "", "", "Steam"], citations.Select(c => c.Title));
-        Assert.Equal((MessageState.Stopped, Shared.Day.AddMinutes(1)), ((await h.Store.GetMessagesAsync(branch.Id, Ct))[1].State, (await h.Store.GetMessagesAsync(branch.Id, Ct))[1].CompletedAt!.Value));
+        Assert.Equal((MessageState.Stopped, SharedParts.Day.AddMinutes(1)), ((await h.Store.GetMessagesAsync(branch.Id, Ct))[1].State, (await h.Store.GetMessagesAsync(branch.Id, Ct))[1].CompletedAt!.Value));
         Assert.Equal(0, await h.CountAsync("resource"));
 
         // Shared again, it leaves as it came.
@@ -441,12 +441,12 @@ public sealed class ImportContentFlowTests : IDisposable
     public async Task Attempts_that_arrive_in_different_files_leave_one_standing_answer()
     {
         await using var h = await ChatHarness.StartAsync();
-        var asked = Shared.Question(0, "Q?");
-        var (one, two, three) = (Shared.Answer(1, "One."), Shared.Answer(2, "Two."), Shared.Answer(3, "Three."));
-        var root = Shared.Conversation(null, "Trains", null, asked, two);
+        var asked = SharedParts.Question(0, "Q?");
+        var (one, two, three) = (SharedParts.Answer(1, "One."), SharedParts.Answer(2, "Two."), SharedParts.Answer(3, "Three."));
+        var root = SharedParts.Conversation(null, "Trains", null, asked, two);
         async Task<IReadOnlyList<MessageId?>> AfterAsync(params ExchangeMessage[] messages)
         {
-            await ImportAsync(h, Shared.Document(root with { Content = root.Content! with { Messages = messages } }));
+            await ImportAsync(h, SharedParts.Document(root with { Content = root.Content! with { Messages = messages } }));
             return [.. (await h.Store.GetMessagesAsync(root.Id, Ct)).Select(m => m.Supersedes)];
         }
 
@@ -462,19 +462,19 @@ public sealed class ImportContentFlowTests : IDisposable
     {
         await using var h = await ChatHarness.StartAsync();
         var own = await StartAsync(h, "Mine?", "Yours.");
-        var root = Shared.Conversation(null, "Trains", null, Shared.Question(0, "Q?"), Shared.Answer(1, "A."));
-        await ImportAsync(h, Shared.Document(root));
+        var root = SharedParts.Conversation(null, "Trains", null, SharedParts.Question(0, "Q?"), SharedParts.Answer(1, "A."));
+        await ImportAsync(h, SharedParts.Document(root));
         var before = await StateAsync(h, "message", "conversation");
 
-        var other = Shared.Conversation(null, "Other", null, Shared.Question(0, "Other?"), Shared.Answer(1, "Yes."));
-        var clash = root with { Content = root.Content! with { Messages = [root.Content.Messages[0], Shared.Answer(1, "Not A."), Shared.Question(2, "More?"), Shared.Answer(3, "More.")] } };
-        var theirs = Shared.Conversation(null, "Mine", null, Shared.Question(5, "Not mine?"), Shared.Answer(6, "No.")) with { Id = own.Conversation };
-        var below = Shared.Conversation(clash, "Below", Shared.From(clash.Content!.Messages[3], "More"), Shared.Question(0, "Below?"), Shared.Answer(1, "Yes."));
-        var stolen = Shared.Conversation(null, "Stolen", null, root.Content.Messages[0] with { Seq = 0 });
-        var result = await ImportAsync(h, Shared.Document(clash, theirs, below, other));
+        var other = SharedParts.Conversation(null, "Other", null, SharedParts.Question(0, "Other?"), SharedParts.Answer(1, "Yes."));
+        var clash = root with { Content = root.Content! with { Messages = [root.Content.Messages[0], SharedParts.Answer(1, "Not A."), SharedParts.Question(2, "More?"), SharedParts.Answer(3, "More.")] } };
+        var theirs = SharedParts.Conversation(null, "Mine", null, SharedParts.Question(5, "Not mine?"), SharedParts.Answer(6, "No.")) with { Id = own.Conversation };
+        var below = SharedParts.Conversation(clash, "Below", SharedParts.From(clash.Content!.Messages[3], "More"), SharedParts.Question(0, "Below?"), SharedParts.Answer(1, "Yes."));
+        var stolen = SharedParts.Conversation(null, "Stolen", null, root.Content.Messages[0] with { Seq = 0 });
+        var result = await ImportAsync(h, SharedParts.Document(clash, theirs, below, other));
         Assert.Equal(new HashSet<ConversationId> { other.Id, below.Id }, result.Created.ToHashSet());
         Assert.Empty(result.Gained);
-        Assert.Equal(ImportStatus.NothingNew, (await ImportAsync(h, Shared.Document(stolen))).Status);
+        Assert.Equal(ImportStatus.NothingNew, (await ImportAsync(h, SharedParts.Document(stolen))).Status);
 
         // Its branch arrives without a source: the message it left from did not.
         Assert.Null((await h.Conversations.GetSourceAsync(below.Id, Ct))!.SourceMessage);
@@ -527,7 +527,7 @@ public sealed class ImportContentFlowTests : IDisposable
         h.SummaryService.Changed += (_, id) => summarized.Add(id);
         h.Links.Changed += (_, id) => linked.Add(id);
 
-        var full = document with { Conversations = [root.With(Shared.Summary("A", 1)), branch.With(Shared.Summary("B", 1)), twig], Links = [new(root.Id, branch.Id) { Note = "n" }] };
+        var full = document with { Conversations = [root.With(SharedParts.Summary("A", 1)), branch.With(SharedParts.Summary("B", 1)), twig], Links = [new(root.Id, branch.Id) { Note = "n" }] };
         await ImportAsync(h, full);
 
         Assert.Equal(new HashSet<ConversationId> { root.Id, branch.Id, twig.Id }, changed.ToHashSet());
@@ -546,15 +546,15 @@ public sealed class ImportContentFlowTests : IDisposable
 
         var facts = await h.StatisticsStore.ActivityAsync(new ActivityQuery(null, TimeZoneInfo.Utc, DateTimeOffset.UtcNow.AddDays(-30), [1], [1]), Ct);
         Assert.Equal((1, 1), (facts.Questions, facts.ActiveDays));
-        Assert.True(Assert.Single(facts.Milestones).Day > DateOnly.FromDateTime(Shared.Day.UtcDateTime));
+        Assert.True(Assert.Single(facts.Milestones).Day > DateOnly.FromDateTime(SharedParts.Day.UtcDateTime));
     }
 
     private static (ExchangeConversation Root, ExchangeConversation Branch, ExchangeConversation Twig, ExchangeDocument Document) ThePath()
     {
-        var root = Shared.Conversation(null, "Trains", null, Shared.Question(0, "How did trains begin?"), Shared.Answer(1, "With steam engines on rails."));
-        var branch = Shared.Conversation(root, "Steam", Shared.From(root.Content!.Messages[1], "steam engines"), Shared.Question(0, "Who built one?"), Shared.Answer(1, "Newcomen did."));
-        var twig = Shared.Conversation(branch, "Newcomen", Shared.From(branch.Content!.Messages[1], "Newcomen"), Shared.Question(0, "When?"), Shared.Answer(1, "In 1712."));
-        return (root, branch, twig, Shared.Document(root, branch, twig));
+        var root = SharedParts.Conversation(null, "Trains", null, SharedParts.Question(0, "How did trains begin?"), SharedParts.Answer(1, "With steam engines on rails."));
+        var branch = SharedParts.Conversation(root, "Steam", SharedParts.From(root.Content!.Messages[1], "steam engines"), SharedParts.Question(0, "Who built one?"), SharedParts.Answer(1, "Newcomen did."));
+        var twig = SharedParts.Conversation(branch, "Newcomen", SharedParts.From(branch.Content!.Messages[1], "Newcomen"), SharedParts.Question(0, "When?"), SharedParts.Answer(1, "In 1712."));
+        return (root, branch, twig, SharedParts.Document(root, branch, twig));
     }
 
     /// <summary>Through the file, as the dialog does it.</summary>
@@ -570,7 +570,7 @@ public sealed class ImportContentFlowTests : IDisposable
     private static async Task<ExchangeDocument> ShareAsync(ChatHarness h, ConversationId root)
     {
         var source = await Shares(h).ReadAsync(h.Workspace, Ct);
-        return await ShareContentFlowTests.Contents(h).BuildAsync("Trains", h.Workspace, source, ShareSelection.Exploration(source.Parents, root), Shared.Day, "0.7.0", Ct);
+        return await ShareContentFlowTests.Contents(h).BuildAsync("Trains", h.Workspace, source, ShareSelection.Exploration(source.Parents, root), SharedParts.Day, "0.7.0", Ct);
     }
 
     private static async Task<(ConversationId Conversation, Message Answer)> StartAsync(ChatHarness h, string question, string reply)

@@ -109,6 +109,12 @@
     <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
     <Setter Property="MinWidth" Value="28" />
   </Style>
+  <Style Selector="TextBlock.citation-number.plain">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Grid.plain-citation">
+    <Setter Property="Margin" Value="0,4" />
+  </Style>
   <Style Selector="TextBlock.citation-title">
     <Setter Property="FontSize" Value="13" />
   </Style>

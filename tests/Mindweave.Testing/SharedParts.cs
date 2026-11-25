@@ -2,10 +2,10 @@ using Mindweave.Application.Exchange;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 
-namespace Mindweave.Infrastructure.Tests.Import;
+namespace Mindweave.Testing;
 
 /// <summary>Shares with content made by hand, for what the app's own export does not happen to write.</summary>
-internal static class Shared
+public static class SharedParts
 {
     public static readonly DateTimeOffset Day = new(2026, 11, 18, 11, 42, 30, 120, TimeSpan.Zero);
 

@@ -92,8 +92,11 @@ public static class SourceAnchors
 
     public static string Serialize(SelectionAnchor anchor) => JsonSerializer.Serialize(anchor, Json);
 
+    /// <summary>An anchor from a shared file can say anything (docs/design/sharing-import.md §4), so what it must hold is looked at.</summary>
     public static SelectionAnchor Deserialize(string json) =>
-        JsonSerializer.Deserialize<SelectionAnchor>(json, Json) ?? throw new InvalidDataException("The anchor is empty.");
+        JsonSerializer.Deserialize<SelectionAnchor>(json, Json) is { SourceHash: not null, Segments: { } segments } anchor && segments.All(s => s is { LayoutHash: not null, Quote: not null })
+            ? anchor
+            : throw new InvalidDataException("The anchor is empty.");
 
     public static string Serialize(ReadingLocator locator) => JsonSerializer.Serialize(locator, Json);
 
