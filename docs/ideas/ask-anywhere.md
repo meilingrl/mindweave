@@ -69,6 +69,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | Closing the main window keeps Mindweave running, so the hotkey stays reachable (owner). Quitting is explicit. |
 | 2026-11-25 | The quoting section of §7 is agreed as written, Claude's calls included (owner). |
 | 2026-11-25 | Several connections: there is one current model for everything (owner). Settings hold the list of connections; a picker beside the input box switches the current model for all new questions. A model per conversation can be added on top later. |
+| 2026-11-25 | One setting, the model for background work (owner). It defaults to the current model and can be any saved model. Background work is titles, compression, attachment digests, recommended questions and link suggestions; summaries stay with the current model. When that model cannot be reached, the task fails with its reason; nothing switches on its own. |
 
 ## 6. Set aside
 
