@@ -183,6 +183,8 @@ Each merge states how to try it, what was run and what was not verified.
 
 ## 11. Text that changed with this note
 
+The requirements and architecture rows were written as their own commit and confirmed by the owner on 2026-11-25 (requirements v0.30).
+
 | Where | Change |
 | --- | --- |
 | [sharing.md](sharing.md) §6.6 point 7, §7 | "The newer one wins" and the time of a title's change belong to step 3 (I2); an outline is empty conversations, not directions like recommended nodes (I1) |
