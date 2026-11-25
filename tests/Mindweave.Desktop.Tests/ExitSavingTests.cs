@@ -201,6 +201,30 @@ public class ExitSavingTests
         Assert.Equal(1, app.Shell.ExitRequests);
     }
 
+    [AvaloniaFact]
+    public async Task A_share_still_writing_its_file_is_finished_before_the_window_closes()
+    {
+        var writer = new GatedExportWriter();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IExportFileWriter>(writer));
+        var window = app.ShowWindow(1100, 720);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        app.Services.GetRequiredService<ISharePrompt>().Open(app.Workbench.CurrentWorkspace!.Id, page.Id);
+        await app.Root.Share.Loading;
+        app.Shell.NextShare = _ => new ExportDestination("share.html", "/unused/share.html", null);
+        var save = app.Root.Share.SaveCommand.ExecuteAsync(null);
+        await writer.Started.Task;
+
+        window.Close();
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Assert.Equal(0, app.Shell.ExitRequests);
+
+        writer.Release.SetResult();
+        await save;
+        await app.Root.Exit.Running;
+        Assert.Equal(1, writer.Writes);
+        Assert.Equal(1, app.Shell.ExitRequests);
+    }
+
     /// <summary>An export writer that holds the write until released.</summary>
     private sealed class GatedExportWriter : IExportFileWriter
     {

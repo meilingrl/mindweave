@@ -24,6 +24,7 @@ public sealed partial class ComposerView : UserControl
         Input.AddHandler(TextBox.PastingFromClipboardEvent, OnPasting, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         AttachFileItem.Click += async (_, _) => await PickAsync(images: false);
         AttachImageItem.Click += async (_, _) => await PickAsync(images: true);
+        ComposerBox.AddHandler(DragDrop.DragEnterEvent, OnDragOver);
         ComposerBox.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         ComposerBox.AddHandler(DragDrop.DragLeaveEvent, (_, _) => ComposerBox.Classes.Set("drop-target", false));
         ComposerBox.AddHandler(DragDrop.DropEvent, OnDrop);
@@ -157,21 +158,15 @@ public sealed partial class ComposerView : UserControl
 
     private async Task PickAsync(bool images)
     {
-        if (DataContext is not Composer composer || TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
+        if (DataContext is not Composer composer || TopLevel.GetTopLevel(this) is not { } window)
         {
             return;
         }
 
-        var options = new FilePickerOpenOptions
-        {
-            Title = images ? UiText.ImageDialogTitle : UiText.FileDialogTitle,
-            AllowMultiple = true,
-            FileTypeFilter = images
-                ? [new FilePickerFileType(UiText.ImagesFileFilter) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"] }]
-                : null,
-        };
-        var picked = await storage.OpenFilePickerAsync(options);
-        var paths = picked.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
+        var paths = await FilePanels.OpenAsync(
+            window,
+            images ? UiText.ImageDialogTitle : UiText.FileDialogTitle,
+            images ? new FileKind(UiText.ImagesFileFilter, ["png", "jpg", "jpeg", "gif", "webp"]) : null);
         if (paths.Count > 0)
         {
             await composer.AttachFilesAsync(paths);
@@ -183,6 +178,7 @@ public sealed partial class ComposerView : UserControl
         var accepts = DataContext is Composer { CanAttach: true } && (e.DataTransfer.Contains(DataFormat.File) || e.DataTransfer.Contains(DataFormat.Text));
         e.DragEffects = accepts ? DragDropEffects.Copy : DragDropEffects.None;
         ComposerBox.Classes.Set("drop-target", accepts);
+        e.Handled = accepts; // The window behind it takes shared files.
     }
 
     /// <summary>Dropped files become attachments; dropped text goes in the input, or becomes an attachment when long.</summary>

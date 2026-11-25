@@ -24,7 +24,8 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                            (SELECT state FROM message WHERE conversation_id = c.id AND role = 'assistant' ORDER BY seq DESC LIMIT 1),
                            s.parent_id, s.quote,
                            EXISTS (SELECT 1 FROM conversation_archive a WHERE a.conversation_id = c.id),
-                           {SqliteArchive.HiddenCondition("c.id")}
+                           {SqliteArchive.HiddenCondition("c.id")},
+                           EXISTS (SELECT 1 FROM import_conversation i WHERE i.conversation_id = c.id)
                     FROM conversation c LEFT JOIN branch_source s ON s.child_id = c.id
                     WHERE c.workspace_id = $ws
                     ORDER BY c.updated_at DESC, c.rowid DESC;
@@ -36,7 +37,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                     var last = reader.NullableString(7);
                     var parent = reader.NullableString(8);
                     list.Add(new ConversationSummary(
-                        ReadConversation(reader),
+                        ReadConversation(reader) with { IsImported = reader.GetInt64(12) != 0 },
                         reader.NullableString(6),
                         last is null ? null : SqlNames.ParseMessageState(last),
                         parent is null ? null : ConversationId.Parse(parent),
@@ -61,19 +62,8 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         return database.WriteAsync(
             (connection, transaction) =>
             {
-                connection.Execute(transaction, """
-                    INSERT INTO conversation (id, workspace_id, title, title_source, created_at, updated_at)
-                    VALUES ($id, $ws, $title, $source, $created, $updated);
-                    """,
-                    ("$id", conversation.Id.ToString()),
-                    ("$ws", conversation.WorkspaceId.ToString()),
-                    ("$title", conversation.Title),
-                    ("$source", SqlNames.Of(conversation.TitleSource)),
-                    ("$created", conversation.CreatedAt.Ms()),
-                    ("$updated", conversation.UpdatedAt.Ms()));
-                InsertMessage(connection, transaction, question with { Seq = 0 });
-                InsertMessage(connection, transaction, answer with { Seq = 1 });
-                InsertTask(connection, transaction, task);
+                InsertConversation(connection, transaction, conversation);
+                InsertFirstQuestion(connection, transaction, question, answer, task);
                 if (from is not null)
                 {
                     // Requirements §10.3.5: a basis deleted since the page showed it is not remembered.
@@ -94,6 +84,54 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             cancellationToken);
     }
 
+    public Task CreateBranchAsync(ConversationId parent, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(conversation);
+        return database.WriteAsync(
+            (connection, transaction) =>
+            {
+                SqliteArchive.RequireOpenForWork(connection, transaction, parent);
+                InsertConversation(connection, transaction, conversation);
+                SqliteBranchStore.InsertWithoutSource(connection, transaction, conversation.Id, parent, conversation.CreatedAt);
+                foreach (var attachment in question.Blocks.OfType<AttachmentBlock>())
+                {
+                    SqliteResourceStore.MoveDraft(connection, transaction, parent, conversation.Id, attachment.Resource);
+                }
+
+                InsertFirstQuestion(connection, transaction, question, answer, task);
+                return 0;
+            },
+            cancellationToken);
+    }
+
+    internal static void InsertConversation(SqliteConnection connection, SqliteTransaction transaction, Conversation conversation) =>
+        connection.Execute(transaction, """
+            INSERT INTO conversation (id, workspace_id, title, title_source, created_at, updated_at)
+            VALUES ($id, $ws, $title, $source, $created, $updated);
+            """,
+            ("$id", conversation.Id.ToString()),
+            ("$ws", conversation.WorkspaceId.ToString()),
+            ("$title", conversation.Title),
+            ("$source", SqlNames.Of(conversation.TitleSource)),
+            ("$created", conversation.CreatedAt.Ms()),
+            ("$updated", conversation.UpdatedAt.Ms()));
+
+    private static void InsertFirstQuestion(SqliteConnection connection, SqliteTransaction transaction, Message question, Message answer, GenerationTaskRecord task)
+    {
+        InsertMessage(connection, transaction, question with { Seq = 0 });
+        InsertMessage(connection, transaction, answer with { Seq = 1 });
+        InsertTask(connection, transaction, task);
+    }
+
+    /// <summary>A received conversation is read-only (decision I4): whatever asks, no message is added to it.</summary>
+    private static void RequireOwn(SqliteConnection connection, SqliteTransaction transaction, ConversationId conversation)
+    {
+        if (connection.Scalar<long>(transaction, "SELECT EXISTS (SELECT 1 FROM import_conversation WHERE conversation_id = $id);", ("$id", conversation.ToString())) != 0)
+        {
+            throw new InvalidOperationException($"Conversation {conversation} came from a shared file and takes no message.");
+        }
+    }
+
     public Task<(Message Question, Message Answer)> AppendQuestionAsync(Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(question);
@@ -102,6 +140,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             (connection, transaction) =>
             {
                 SqliteArchive.RequireOpenForWork(connection, transaction, question.ConversationId);
+                RequireOwn(connection, transaction, question.ConversationId);
                 ThrowIfUnfinished(connection, transaction, question.ConversationId);
                 var next = NextSeq(connection, transaction, question.ConversationId);
                 var storedQuestion = question with { Seq = next };
@@ -123,6 +162,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             {
                 // Re-checked inside the transaction: only the last, finished answer of an open conversation may be superseded.
                 SqliteArchive.RequireOpenForWork(connection, transaction, answer.ConversationId);
+                RequireOwn(connection, transaction, answer.ConversationId);
                 var messages = GetMessages(connection, transaction, answer.ConversationId);
                 if (answer.Supersedes is not { } replaced || !ConversationRules.CanRetry(messages, replaced))
                 {
@@ -500,10 +540,10 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     internal static Conversation? GetConversation(SqliteConnection connection, SqliteTransaction? transaction, ConversationId id)
     {
         using var command = connection.Command(transaction,
-            "SELECT id, workspace_id, title, title_source, created_at, updated_at FROM conversation WHERE id = $id;",
+            "SELECT id, workspace_id, title, title_source, created_at, updated_at, EXISTS (SELECT 1 FROM import_conversation WHERE conversation_id = $id) FROM conversation WHERE id = $id;",
             ("$id", id.ToString()));
         using var reader = command.ExecuteReader();
-        return reader.Read() ? ReadConversation(reader) : null;
+        return reader.Read() ? ReadConversation(reader) with { IsImported = reader.GetInt64(6) != 0 } : null;
     }
 
     /// <summary>The conversation's messages in order, up to and including <paramref name="maxSeq"/>.</summary>

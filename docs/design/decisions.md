@@ -238,3 +238,29 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Read-only calls:** at most 4 at once in each run, with no limit across runs. Cited passages do not go into branches. The default run limits stay.
 - **Later content** is a mark in the network's details.
 - **The repository is public** for its CI quota, under Apache-2.0 (D-025, note).
+
+## D-039 Sharing a thinking path is adopted (you, 2026-11-24 and 11-25)
+
+- **One file.** A share is a set of conversations from one workspace, saved as one self-contained HTML file that loads nothing from the network.
+- **Structure only unless chosen.** Without a choice a share carries titles, branch lines and dates, and no message text. With the choice it carries questions and folded answers.
+- **Wider than D8's first form.** A recipient who uses Mindweave can import a shared file and keep asking, and the same mechanism carries copies between your own devices. One exchange format (seam E5) is under all three.
+- **Incremental.** Importing and exporting only keep or add. Nothing is deleted automatically, and what is already there is never copied.
+- **A snapshot.** The app keeps no record of shares.
+- All three steps (export, import, device copies) are in the 0.6.x cycle. The design is [sharing.md](sharing.md); the page's look is the prototype in `prototypes/share-page`.
+
+## D-040 macOS file panels block the app; trials stay bare executables (you, 2026-11-25)
+
+- **The fault.** On macOS 27.2.1 a file panel can stop taking clicks for good. A click while its location menu is open can make macOS bring a hidden window of its own panel service to the front, over the panel, and that window takes the clicks; the app itself keeps running. You found the trigger: the window behind the panel is not constrained. It is not Mindweave's or Avalonia's fault: a program with only Apple's framework froze the same way.
+- **What was chosen.** The panels of export, share and attachments are app-modal (0.6.13). In a probe with Apple's framework only, a sheet froze, a sheet over a window that takes no clicks never reacted, a separate window froze, and only the app-modal window kept working; your trial of the real app then had no freeze. Both were short: one session each.
+- **What was tried and dropped.** `scripts/daily.sh trial` starting its build as an `.app` with an identifier of its own, because the first three freezes were all in bare executables and the same Avalonia probe as an `.app` kept working. That conclusion was wrong: in seven trials as an `.app` the hidden window came up every time. The change is not merged; its commit is kept, read-only, at the tag `archive/trial-as-app` (c9c2936: the script, its checks and a line in daily-build.md).
+- **Reconsider** when macOS fixes the fault, or when Avalonia's picker offers an app-modal panel: `MacFilePanel` can then go.
+
+## D-041 Import of a shared file: read-only, and only adding (you, 2026-11-25)
+
+- **A structure-only share arrives as real, empty conversations**, which a later share with content fills. There is no separate outline.
+- **A shared file only adds.** It never changes a title, the current summary version or the archived state of what is already here. "The newer one wins" holds only for copies between your own devices.
+- **A conversation that arrives by import is read-only.** In your words: conflicts over the same conversation are resolved by attaching new nodes. Your question at its end starts a conversation of your own that continues from it.
+- **Two continuations of one conversation** (D-039) can then arise only between your own devices, and are worked out with device copies.
+- **A URL in received text needs your approval** before the model reads it.
+- The note is [sharing-import.md](sharing-import.md). It corrects [sharing.md](sharing.md) where the two differed.
+

@@ -10,8 +10,8 @@ Based on architecture §4.1 and §4.2. Following the development route, only the
 
 ## Branch source dependencies and frozen ancestor ranges
 
-- `branch_source`: one per child conversation (the primary key is the child conversation's ID), with foreign keys to the parent conversation and the source message. The source message must belong to the parent conversation and be in a final state. A foreign key cannot express this, so it is checked inside the transaction that creates the branch.
-- `branch_context_range`: one row per ancestor conversation, recording the upper bound (by `seq`) of the message range that may be used. When C is created, all of B's rows are copied and a row for B itself is added. So later appends to an ancestor do not change the background, and queries need no recursion.
+- `branch_source`: one per child conversation (the primary key is the child conversation's ID), with foreign keys to the parent conversation and the source message. The source message must belong to the parent conversation and be in a final state. A foreign key cannot express this, so it is checked inside the transaction that creates the branch. A branch that came from a structure-only share, and the user's own branch of an empty received conversation, have a parent and no source message; a continuation has a source message and no quoted sentence; a source from a file can have a sentence without a place or without an anchor (v19).
+- `branch_context_range`: one row per ancestor conversation, recording the upper bound (by `seq`) of the message range that may be used. When C is created, all of B's rows are copied and a row for B itself is added. So later appends to an ancestor do not change the background, and queries need no recursion. An upper bound of -1 says that nothing of the ancestor is used; the row stays, because the tree, archiving and the deletion checks read it (v19).
 - References may only point along the ancestor chain (the §4.2 invariant). So "has no child conversation" means "no one else references this conversation's messages", and the deletion check only looks at this conversation's own relationships.
 
 ## Version ownership
@@ -31,13 +31,15 @@ Based on architecture §4.1 and §4.2. Following the development route, only the
 | Create a branch: child conversation + branch source + ancestor ranges | S2 |
 | Adopt/discard/set as current/delete a version; the node is deleted with its last version | S4 |
 | Delete a conversation, or a closed set of conversations with their summaries; delete a workspace; archive and restore | S6, item 3 |
+| Import a shared file: the new workspace if one was chosen, the import, its conversations with their branch rows and ranges | v19 |
+| Ask in an empty received conversation: the user's own branch with its first question, and the draft's attachments | v19 |
 | Save the places of explorations that are new or changed, when the network loads | v18 |
 
 ## Deletion boundaries
 
 Messages are never deleted on their own. A conversation is deleted with all its descendants and their summary nodes as one closed set (architecture §4.2, §9.1): the scope is worked out again inside the transaction, which refuses when it changed or a user task is unfinished. When the set has branches, summaries or attachments, a backup is made first. A workspace is deleted with everything in it, after a backup.
 
-Foreign keys are always on for the write connection. `RESTRICT` is kept on the core chain (conversation to workspace, message to conversation, branch source and ranges to the parent, summary node to conversation, task to conversation, message block to resource), so a missed check fails. Rows that only describe something else (exploration places, drafts, reading, requests, steps, recommendations, links, suggestions, resources) go with it (`CASCADE`), and a reference that may outlive its target is set to null or stored as an identity without a key. `summary_node` and `summary_version` point at each other with deferred keys.
+Foreign keys are always on for the write connection. `RESTRICT` is kept on the core chain (conversation to workspace, message to conversation, branch source and ranges to the parent, summary node to conversation, task to conversation, message block to resource), so a missed check fails. Rows that only describe something else (exploration places, imports, drafts, reading, requests, steps, recommendations, links, suggestions, resources) go with it (`CASCADE`), and a reference that may outlive its target is set to null or stored as an identity without a key. `summary_node` and `summary_version` point at each other with deferred keys.
 
 ## Tables by migration
 
@@ -60,3 +62,4 @@ Foreign keys are always on for the write connection. `RESTRICT` is kept on the c
 | v16 | `resource_chunk` with its search table, `draft_attachment`, provenance, request purpose |
 | v17 | `run_step`; the tools and limits of a task |
 | v18 | `exploration_place` |
+| v19 | `import`, `import_conversation`; `branch_source` and `branch_context_range` rebuilt for branches without a source |

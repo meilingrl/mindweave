@@ -935,7 +935,16 @@ public sealed class SummaryNetworkCanvas : Control
         }
 
         var tone = node.Hovered ? palette.NodeHover : node.OnTrail ? palette.NodeTrail : palette.Node;
-        context.DrawEllipse(tone, null, p, r, r);
+        if (node.Hollow)
+        {
+            // Inside the dot's edge, so hollow and filled dots of one weight are the same size.
+            context.DrawEllipse(palette.Background, palette.HollowPen(tone), p, r - (SummaryNetworkPalette.HollowStroke / 2), r - (SummaryNetworkPalette.HollowStroke / 2));
+        }
+        else
+        {
+            context.DrawEllipse(tone, null, p, r, r);
+        }
+
         if (node.SummaryRing)
         {
             context.DrawEllipse(null, palette.SummaryRingPen(tone), p, r + SummaryRingGap, r + SummaryRingGap);

@@ -69,7 +69,7 @@ internal static class MessageListReconciler
             item.Run = content.Runs?.GetValueOrDefault(message.Id);
             item.IsArchived = isArchived;
             item.CanRetry = !isArchived && last?.Id == message.Id && message.IsFinished;
-            var entries = branches.Where(b => b.SourceMessage == message.Id).Select(b => new BranchEntry(b.Child, b.Quote, archivedBranches.Contains(b.Child))).ToList();
+            var entries = branches.Where(b => b.SourceMessage == message.Id && b.Quote is not null).Select(b => new BranchEntry(b.Child, b.Quote!, archivedBranches.Contains(b.Child))).ToList();
             if (!entries.SequenceEqual(item.Branches))
             {
                 item.Branches.Clear();

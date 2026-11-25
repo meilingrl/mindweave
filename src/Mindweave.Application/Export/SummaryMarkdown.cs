@@ -97,6 +97,22 @@ public static class ExportFileName
     /// </summary>
     public static string Suggest(string title, int versionSeq)
     {
+        var name = Clean(title);
+        if (name.Length == 0)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"summary-v{versionSeq}");
+        }
+
+        // The dialog adds ".md"; a title that already ends with it would otherwise give "x.md.md".
+        return Safe(name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && name.Length > 3 ? Trim(name[..^3]) : name);
+    }
+
+    /// <summary>
+    /// A title without what a file name may not hold, cut to fit with <paramref name="room"/> bytes left over; empty when
+    /// nothing of it is left. Device names are still in it (<see cref="Safe"/>).
+    /// </summary>
+    internal static string Clean(string title, int room = 0)
+    {
         ArgumentNullException.ThrowIfNull(title);
         var cleaned = new StringBuilder(title.Length);
         foreach (var c in title)
@@ -110,19 +126,12 @@ public static class ExportFileName
         }
 
         var name = string.Join(' ', cleaned.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        name = Trim(Cut(Trim(name)));
-        if (name.Length == 0)
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"summary-v{versionSeq}");
-        }
+        return Trim(Cut(Trim(name), MaxBytes - room));
+    }
 
-        // The dialog adds ".md"; a title that already ends with it would otherwise give "x.md.md".
-        if (name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && name.Length > 3)
-        {
-            name = Trim(name[..^3]);
-        }
-
-        // Windows ignores spaces before the extension, so "AUX .txt" is still the device.
+    /// <summary>Keeps a device name from being one. Windows ignores spaces before the extension, so "AUX .txt" is still the device.</summary>
+    internal static string Safe(string name)
+    {
         var dot = name.IndexOf('.', StringComparison.Ordinal);
         var stem = (dot < 0 ? name : name[..dot]).TrimEnd(' ');
         return ReservedNames.Contains(stem, StringComparer.OrdinalIgnoreCase) ? stem + "_" + name[stem.Length..] : name;
@@ -130,7 +139,7 @@ public static class ExportFileName
 
     private static string Trim(string name) => name.TrimStart('.', ' ').TrimEnd('.', ' ');
 
-    private static string Cut(string name)
+    private static string Cut(string name, int maxBytes)
     {
         // At most MaxLength characters as the reader sees them, and at most MaxBytes in UTF-8 (file systems limit
         // names to 255 bytes, and the temporary name and extension need room too).
@@ -140,7 +149,7 @@ public static class ExportFileName
         while (elements.MoveNext())
         {
             bytes += Encoding.UTF8.GetByteCount(elements.GetTextElement());
-            if (++count > MaxLength || bytes > MaxBytes)
+            if (++count > MaxLength || bytes > maxBytes)
             {
                 return name[..elements.ElementIndex];
             }

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 
 namespace Mindweave.Desktop.Views;
@@ -48,6 +49,15 @@ public sealed partial class RootView : UserControl
         _topLevel = TopLevel.GetTopLevel(this);
         _topLevel?.AddHandler(KeyDownEvent, OnPromptKeyDown, RoutingStrategies.Tunnel);
 
+        // On the window too: the empty parts of a page are the window's own, and a file can be dropped there.
+        if (_topLevel is not null)
+        {
+            DragDrop.SetAllowDrop(_topLevel, true);
+            _topLevel.AddHandler(DragDrop.DragEnterEvent, OnDragOver);
+            _topLevel.AddHandler(DragDrop.DragOverEvent, OnDragOver);
+            _topLevel.AddHandler(DragDrop.DropEvent, OnDrop);
+        }
+
         // Typed text and IME commits are their own events: they must not reach a box behind the prompt either.
         _topLevel?.AddHandler(TextInputEvent, OnPromptTextInput, RoutingStrategies.Tunnel);
     }
@@ -56,9 +66,42 @@ public sealed partial class RootView : UserControl
     {
         _topLevel?.RemoveHandler(KeyDownEvent, OnPromptKeyDown);
         _topLevel?.RemoveHandler(TextInputEvent, OnPromptTextInput);
+        _topLevel?.RemoveHandler(DragDrop.DragEnterEvent, OnDragOver);
+        _topLevel?.RemoveHandler(DragDrop.DragOverEvent, OnDragOver);
+        _topLevel?.RemoveHandler(DragDrop.DropEvent, OnDrop);
         _topLevel = null;
         base.OnDetachedFromVisualTree(e);
     }
+
+    /// <summary>
+    /// A shared file dropped anywhere but on a box that takes files itself is imported (docs/design/sharing-import.md §5).
+    /// Not over a prompt, and not before the workbench shows.
+    /// </summary>
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        if (!e.Handled)
+        {
+            e.DragEffects = SharedFile(e) is null ? DragDropEffects.None : DragDropEffects.Copy;
+        }
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (!e.Handled && SharedFile(e) is { } path)
+        {
+            e.Handled = true;
+            (DataContext as ViewModels.RootViewModel)?.Import.Drop(path);
+        }
+    }
+
+    private string? SharedFile(DragEventArgs e) =>
+        TopPrompt is null
+        && DataContext is ViewModels.RootViewModel { Current: ViewModels.ShellViewModel } root
+        && e.DataTransfer.TryGetFiles() is { Length: > 0 } files
+        && files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList() is var paths
+        && root.Import.Takes(paths)
+            ? paths[0]
+            : null;
 
     /// <summary>The prompts, in drawing order: a later one is drawn over an earlier one.</summary>
     private IEnumerable<Border> Scrims => ((Panel)Content!).Children.OfType<Border>().Where(b => b.Classes.Contains("dialog-scrim"));

@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:sys="using:System"
+             x:Class="Mindweave.Desktop.Views.ImportView"
+             x:DataType="vm:ImportViewModel">
+  <!-- The import dialog (docs/design/sharing-import.md §5): the share, where it goes, what will happen; or why it is refused. -->
+  <!-- Never taller than the window: what does not fit scrolls, and the buttons and a problem stay in sight. -->
+  <Border Classes="dialog wide" Margin="24">
+    <DockPanel>
+      <TextBlock DockPanel.Dock="Top" Classes="dialog-title" Text="{x:Static t:UiText.ImportTitle}" Margin="0,0,0,12" />
+      <StackPanel DockPanel.Dock="Bottom" Classes="dialog-buttons" Margin="0,14,0,0">
+        <TextBlock Classes="caption" Text="{x:Static t:UiText.ImportBusy}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding IsBusy}" />
+        <Button Name="ImportCancel" Classes="secondary" Content="{Binding CloseText}" Command="{Binding CloseCommand}" IsCancel="True" />
+        <Button Name="ImportConfirm" Classes="primary" Content="{x:Static t:UiText.ImportConfirm}" Command="{Binding ImportCommand}" IsDefault="True" IsVisible="{Binding ShowsChoice}" />
+      </StackPanel>
+      <Border Name="ImportProblem" DockPanel.Dock="Bottom" Classes="notice error" Margin="0,12,0,0" IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" />
+          <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+        </DockPanel>
+      </Border>
+      <!-- The scroll bar stands in the dialog's padding, as in the share dialog. -->
+      <ScrollViewer Classes="autohide" Margin="0,0,-14,0" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="12" Margin="0,0,14,0">
+          <StackPanel Spacing="3">
+            <TextBlock Name="ImportShareTitle" Classes="import-share" Text="{Binding ShareTitle}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+            <TextBlock Name="ImportKind" Classes="caption" Text="{Binding KindText}" TextWrapping="Wrap"
+                       IsVisible="{Binding KindText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </StackPanel>
+          <StackPanel Name="ImportTargets" Spacing="4" IsVisible="{Binding ShowsChoice}" IsEnabled="{Binding !IsBusy}">
+            <TextBlock Classes="caption" Text="{x:Static t:UiText.ImportIntoHeading}" />
+            <ItemsControl ItemsSource="{Binding Targets}" AutomationProperties.Name="{x:Static t:UiText.ImportIntoHeading}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ImportTargetViewModel">
+                  <RadioButton GroupName="ImportTarget" IsChecked="{Binding IsChosen}" AutomationProperties.Name="{Binding Text}">
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                  </RadioButton>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+          <Border Name="ImportCounts" Classes="share-contents" IsVisible="{Binding Counts.Count, Converter={x:Static d:Converters.IsPositive}}">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="share-heading" Text="{x:Static t:UiText.ImportCountsHeading}" IsVisible="{Binding ShowsChoice}" />
+              <TextBlock Name="ImportAllHere" Classes="dialog-body" Text="{x:Static t:UiText.ImportAllHere}" IsVisible="{Binding IsAllHere}" AutomationProperties.LiveSetting="Polite" />
+              <ItemsControl ItemsSource="{Binding Counts}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="4" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="sys:String">
+                    <TextBlock Classes="import-count" Text="{Binding}" TextWrapping="Wrap" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

@@ -36,6 +36,13 @@ standard_used = []
 # the font's own name table states them.
 EMBEDDED = {"Avalonia.Fonts.Inter": [("Inter 3.019 (font)", "Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)", "OFL-1.1")]}
 
+# Third-party files kept in the repository and shipped inside the app: name, licence, project, copyright, the licence file
+# and what it carries under another licence (docs/design/sharing.md 6.7).
+VENDORED = [("KaTeX 0.19.1", "MIT", "https://katex.org", "Copyright (c) 2013-2020 Khan Academy and other contributors",
+             os.path.join("src", "Mindweave.Infrastructure", "Share", "katex", "LICENSE"),
+             ("KaTeX fonts", "Copyright (c) 2009-2010, Design Science, Inc. (<www.mathjax.org>); Copyright (c) 2014-2018 Khan Academy "
+              "(<www.khanacademy.org>), with Reserved Font Names KaTeX_*", "OFL-1.1"))]
+
 
 def standard(licence):
     if licence not in standard_used:
@@ -87,6 +94,11 @@ for name, version in packages:
     for part, owner, terms in EMBEDDED.get(name, []):
         texts.append(f"It contains {part}\n{owner}\nLicence: {terms} ({standard(terms)})")
     sections.append(head + ("\n" + "\n\n".join(texts) if texts else "(No licence text in the package; see the licence or URL above.)"))
+
+for name, licence, project, owner, file, (part, part_owner, terms) in VENDORED:
+    text = open(os.path.join(ROOT, file), encoding="utf-8").read().strip()
+    sections.append(f"{name}\nLicence: {licence}\nProject: {project}\nCopyright: {owner}\n\n[LICENSE]\n{text}\n\n"
+                    f"It contains {part}\n{part_owner}\nLicence: {terms} ({standard(terms)})")
 
 for licence in standard_used:
     text = open(STANDARD[licence], encoding="utf-8").read().strip("\n")

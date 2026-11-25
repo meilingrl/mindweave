@@ -20,7 +20,7 @@ public sealed partial class ConversationItemViewModel(ConversationId id, Convers
     /// needs attention, unread.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasMarker), nameof(IsGenerating), nameof(NeedsAttention), nameof(IsUnread), nameof(MarkerHint))]
+    [NotifyPropertyChangedFor(nameof(HasMarker), nameof(IsGenerating), nameof(NeedsAttention), nameof(IsUnread), nameof(MarkerHint), nameof(HelpText))]
     [NotifyPropertyChangedFor(nameof(SummarizeBlockedReason), nameof(CanSummarize), nameof(ArchiveBlockedReason), nameof(CanArchive), nameof(DeleteBlockedReason), nameof(CanDelete))]
     public partial ConversationMark Mark { get; set; }
 
@@ -59,6 +59,17 @@ public sealed partial class ConversationItemViewModel(ConversationId id, Convers
 
     /// <summary>The row's accessible name: its title, and whether it is part of the multi-selection (drawn only as a tick).</summary>
     public string AutomationName => IsChecked ? UiText.CheckedRowName(Title) : Title;
+
+    /// <summary>It came from a shared file and nothing was said in it (requirements §10.7): its title is muted.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UnexploredHint), nameof(HelpText))]
+    public partial bool IsUnexplored { get; set; }
+
+    /// <summary>The row's tooltip while it is not explored yet; null otherwise.</summary>
+    public string? UnexploredHint => IsUnexplored ? UiText.NotExplored : null;
+
+    /// <summary>Read after the name by a screen reader: the marker, or that it is not explored yet.</summary>
+    public string? HelpText => MarkerHint ?? UnexploredHint;
 
     /// <summary>The conversation it was branched from, when that one is listed too.</summary>
     internal ConversationId? ParentId { get; set; }

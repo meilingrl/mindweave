@@ -8,7 +8,7 @@ Based on the [evolution directions and engineering guidance](../evolution.md). E
 | E2 Block-based message content | **Built** (migration v3) | Core `ContentBlock`; table `message_block` |
 | E3 Request tracing and redaction at the source | **Built** (migration v3) | Application `Diagnostics/`; table `ai_request`; redaction in the client and the file log |
 | E4 Model capability description | **Built** (migration v3) | Core `ModelCapabilities`; the `capabilities` column of `model_config` and `generation_task` |
-| E5 Versioned exchange format | **Specification only**, implemented after the first release (D-021) | §E5 of this document |
+| E5 Versioned exchange format | **Built for shares** (one HTML file), and read back for structure-only ones; the package of a device copy is specification only | §E5 of this document, `src/Mindweave.Application/Exchange` |
 | E6 Performance baseline and architecture tests | **Built** | `tests/…/Performance/`, `scripts/perf.sh`, `SeamTests` |
 
 ## E2 Block-based message content
@@ -37,7 +37,11 @@ Based on the [evolution directions and engineering guidance](../evolution.md). E
 - 2026-11-17: 设置 › 模型连接 › 高级设置 (Settings › Model connection › Advanced settings) can declare “工具调用” (Tool calling) and “图片输入” (Image input); presets prefill them by service and model; features query them with `IModelSettings.ActiveModelHasAsync`. See [Model capabilities](model-capabilities.md).
 - Architecture tests forbid provider or model names in Core and Application source code; features can only decide by capability.
 
-## E5 Versioned exchange format (specification, implemented after the first release)
+## E5 Versioned exchange format
+
+The exchange document of a share is built as sharing.md §6.1 has it: one JSON document inside the shared HTML file, with a kind (`structure`, `content`, later `device`). It holds identities, titles, start times, branch sources with their quote, position and anchor, messages in order with their state and which answer replaced which, attachment names, tool counts, citations, the current summary version and summary links. What it leaves out is in sharing.md S7. The rules below on the name, the version and optional fields hold for it.
+
+The package below is the specification for a device copy. It predates attachments, citations, tool steps and summary links, and is brought up to the document above when device copies are built.
 
 An export package is a directory (or a zip of it), decoupled from the SQLite table structure:
 
@@ -53,7 +57,7 @@ mindweave-export/
 - `manifest.json`: `{"format": "mindweave-export", "version": 1, …}`. A reader that meets a higher major version refuses to import and explains why; within the same major version, only optional fields are added.
 - The conversation JSON stores stable IDs, title and branch source, message order, roles, states, retry relations, and the content listed by block (text blocks reference the `.md` files in the same directory; other blocks inline their structured data). Branches, anchors and summaries are added in the corresponding stages; anchors use (message ID, block index, offset within the block).
 - **Not exported:** credential references, URLs and credentials in model snapshots, `ai_request` diagnostic records, runtime state (generation tasks, reading positions, drafts).
-- Whether import generates new local IDs or keeps them is decided when E5 is implemented (D-021), based on the requirement for “importing into an existing workspace”.
+- Identities are carried unchanged, and import recognises everything by them (D-039, requirements §10.7).
 - Imports from external tools (exports of other chat apps) are implemented as mappings to this format; they do not write to the database directly.
 - A constraint in effect from now on: no outward output may serialize storage-layer records directly.
 

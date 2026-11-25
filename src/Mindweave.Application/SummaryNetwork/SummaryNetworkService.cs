@@ -1,4 +1,5 @@
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Import;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
@@ -34,6 +35,12 @@ public sealed record SummaryNetworkNode(
     /// summary's own title. A dot without a summary shows its conversation's name already.
     /// </summary>
     public IReadOnlyList<string> OtherTitles { get; init; } = [];
+
+    /// <summary>It came from a shared file and nothing was said in it: a hollow dot, not explored yet (requirements §10.7).</summary>
+    public bool IsUnexplored { get; init; }
+
+    /// <summary>The shared file it came from; null for the user's own.</summary>
+    public ImportMark? Import { get; init; }
 }
 
 public enum SummaryNetworkEdgeKind
@@ -54,7 +61,7 @@ public sealed record SummaryNetworkProjection(IReadOnlyList<SummaryNetworkNode> 
 /// The workspace's network, derived from conversations, branch sources and summaries on every read (no second graph
 /// store), plus the explorations' saved places. Never reads summary bodies.
 /// </summary>
-public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetworkStore network, IConversationStore conversations, IClock clock) : ISummaryNetworkLayout
+public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetworkStore network, IConversationStore conversations, IClock clock, IImportStore? imports = null) : ISummaryNetworkLayout
 {
     /// <summary>
     /// Every conversation as a node (a summary is an attribute of its node, not a node of its own), branch edges from
@@ -66,6 +73,7 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
         var entries = await summaries.ListAsync(workspace, cancellationToken).ConfigureAwait(false);
         var chains = await network.AncestorChainsAsync(workspace, cancellationToken).ConfigureAwait(false);
         var questions = await network.QuestionCountsAsync(workspace, cancellationToken).ConfigureAwait(false);
+        var marks = imports is null ? new Dictionary<ConversationId, ImportMark>() : await imports.MarksAsync(workspace, cancellationToken).ConfigureAwait(false);
         var summarized = entries.ToDictionary(e => e.Node.Conversation);
         var weights = ConversationWeights.Of(listed.ToDictionary(c => c.Conversation.Id, c => c.Parent), questions);
 
@@ -84,6 +92,7 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
                     true, weights[id], item.FirstQuestion)
                 {
                     OtherTitles = [ConversationNames.Of(item.Conversation.Title, item.Quote, item.FirstQuestion), entry.Current.Title],
+                    Import = marks.GetValueOrDefault(id),
                 });
                 continue;
             }
@@ -96,7 +105,11 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
             nodes.Add(new SummaryNetworkNode(
                 new SummaryNodeId(id.Value), id, root, shortTitle, shortTitle,
                 new SummaryMarkers(false, false, false), item.Conversation.CreatedAt, ancestors, archived,
-                false, weights[id], item.FirstQuestion));
+                false, weights[id], item.FirstQuestion)
+            {
+                IsUnexplored = item.IsUnexplored,
+                Import = marks.GetValueOrDefault(id),
+            });
         }
 
         var edges = new List<SummaryNetworkEdge>();
