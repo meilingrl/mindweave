@@ -90,6 +90,11 @@ public static partial class UiText
         Plural(count, "citation", "citations") + " of your own material: only its kind, and the title of a summary that is itself shared",
         string.Format(CultureInfo.InvariantCulture, "{0} 条引用自己材料的出处：只有种类；只有同在分享里的总结才有标题", count));
 
+    /// <summary>What an importing app needs and the page does not show.</summary>
+    public static string ShareHoldsIdentities => T(
+        "For each message an internal identity and its number in the conversation, and for a summary how far it covers, so that Mindweave can import it",
+        "每条消息的内部标识和它在会话中的序号，以及总结覆盖到哪里，供 Mindweave 导入时使用");
+
     public static string ShareHoldsLinesAndNotes(int links) => links == 0
         ? ShareHoldsLines(0)
         : T(

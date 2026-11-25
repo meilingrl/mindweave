@@ -581,6 +581,11 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
             }
 
             yield return UiText.ShareHoldsConversations;
+            if (content)
+            {
+                yield return UiText.ShareHoldsIdentities;
+            }
+
             yield return content ? UiText.ShareHoldsLinesAndNotes(document.Links.Count) : UiText.ShareHoldsLines(document.Links.Count);
             yield return UiText.ShareHoldsItself(document.AppVersion);
         }

@@ -60,11 +60,13 @@ public sealed class ShareContentUiTests : IDisposable
         Assert.Contains(UiText.ShareHoldsAttachments(["gauge.txt"], 1), share.Contents);
         Assert.Contains(UiText.ShareHoldsMessages, share.Contents);
         Assert.Contains(UiText.ShareHoldsSummaries(3), share.Contents);
+        Assert.Contains(UiText.ShareHoldsIdentities, share.Contents);
         Assert.DoesNotContain(share.Contents, c => c == UiText.ShareHoldsWebCitations(0));
 
         // The structure again: the list goes back with it.
         share.IncludesContent = false;
         Assert.DoesNotContain(UiText.ShareHoldsMessages, share.Contents);
+        Assert.DoesNotContain(UiText.ShareHoldsIdentities, share.Contents);
     }
 
     [AvaloniaFact]
