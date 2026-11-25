@@ -77,7 +77,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 
 - **B1 MCP server, B2 command line:** set aside for now (owner, 2026-11-25).
 - **A3 browser extension:** set aside for now (owner, 2026-11-25).
-- **The Responses protocol:** later (owner, 2026-11-25). It returns when one of these is true: the owner has an official OpenAI key, so it can be checked against the real service; or something the owner wants is offered only through Responses. It is then one task of the size of the Messages adapter, and nothing built before it has to change.
+- **The Responses protocol:** later (owner, 2026-11-25). It returns when one of these is true: the owner has an official OpenAI key, so it can be checked against the real service; or something the owner wants is offered only through Responses. It is then one task of the size of the Messages adapter, and nothing built before it has to change. Ways to test it without an official OpenAI key (looked up 2026-11-25, to be checked again when the work starts): a local server (Ollama serves `/v1/responses` since v0.13.3, without the parts that keep state on the server; free, and it needs a model on the machine); the owner's relay, where a Responses request to a GPT model passed a small check on 2026-10-23 (`prototypes/responses-compat`; paid); other services with a Responses endpoint, such as OpenRouter (beta) and Groq (each needs its own key). None of these proves the behaviour of OpenAI's own service.
 - **Running a model inside Mindweave:** not for now (Claude's call, 2026-11-25; the order the owner set says "through a local server").
 
 ## 7. Per topic
