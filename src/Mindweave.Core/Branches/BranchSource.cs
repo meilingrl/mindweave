@@ -24,6 +24,12 @@ public sealed record BranchSource(
     string? RenderProfile,
     DateTimeOffset CreatedAt)
 {
+    /// <summary>Where the quote starts in its block's Markdown, as a shared file said; a branch made here has its anchor instead.</summary>
+    public int? SourceOffset { get; init; }
+
+    /// <summary>It left from the end of a received conversation, not from a sentence in it (decision I4).</summary>
+    public bool IsContinuation => SourceMessage is not null && Quote is null;
+
     /// <summary>A branch that left from no answer: it has its parent only.</summary>
     public static BranchSource WithoutMessage(ConversationId child, ConversationId parent, DateTimeOffset at) =>
         new(child, parent, null, null, null, null, null, null, at);

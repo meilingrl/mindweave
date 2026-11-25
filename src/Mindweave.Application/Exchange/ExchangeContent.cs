@@ -44,8 +44,11 @@ public sealed record ExchangePosition(int Block, int Offset);
 /// <summary>The stored anchor of a branch as it is (§6.6, point 3); only the app that made it, in that version and profile, can read it.</summary>
 public sealed record ExchangeAnchor(int Version, string Profile, string Data);
 
-/// <summary>Where a branch left from: the answer, the quoted sentence and, when known, its place.</summary>
-public sealed record ExchangeBranchSource(MessageId Message, string Quote, ExchangePosition? Position, ExchangeAnchor? Anchor);
+/// <summary>
+/// Where a branch left from: the answer, the quoted sentence and, when known, its place. A continuation of a received
+/// conversation left from its last message and has no sentence (docs/design/sharing-import.md I4).
+/// </summary>
+public sealed record ExchangeBranchSource(MessageId Message, string? Quote, ExchangePosition? Position, ExchangeAnchor? Anchor);
 
 /// <summary>A conversation's current summary version.</summary>
 /// <param name="ToSeq">It covers the conversation up to the message of this number.</param>

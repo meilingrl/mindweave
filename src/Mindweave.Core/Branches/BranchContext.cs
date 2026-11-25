@@ -7,7 +7,11 @@ namespace Mindweave.Core.Branches;
 /// One conversation's share of a branch's context: its messages (already cut to the frozen range for an
 /// ancestor) and, if it is itself a branch, the quote it was created from.
 /// </summary>
-public sealed record ContextSegment(ConversationId Conversation, string? Quote, IReadOnlyList<Message> Messages);
+public sealed record ContextSegment(ConversationId Conversation, string? Quote, IReadOnlyList<Message> Messages)
+{
+    /// <summary>It arrived by import: someone else wrote it, so an address in it is not one the user gave (decision I3).</summary>
+    public bool IsReceived { get; init; }
+}
 
 /// <summary>A message as it is sent: the stored message and the text that goes out for it.</summary>
 public sealed record ContextItem(Message Message, string Text);

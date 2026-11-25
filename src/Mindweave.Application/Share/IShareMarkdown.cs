@@ -22,7 +22,7 @@ public sealed record ShareNode(string Kind, IReadOnlyList<ShareNode> Parts, stri
     public static ShareNode OfText(string text) => new(TextKind, [], text);
 }
 
-/// <summary>A shared branch that left from the text being drawn.</summary>
+/// <summary>A shared branch that left from a sentence of the text being drawn.</summary>
 public sealed record ShareMark(ConversationId Branch, ExchangeBranchSource Source);
 
 /// <summary>

@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Mindweave.Application.Exchange;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
@@ -8,7 +9,7 @@ namespace Mindweave.Infrastructure.Sqlite;
 internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
 {
     private const string SourceColumns =
-        "child_id, parent_id, source_message_id, source_block, quote, anchor, anchor_version, render_profile, created_at";
+        "child_id, parent_id, source_message_id, source_block, quote, anchor, anchor_version, render_profile, created_at, source_offset";
 
     public Task<Conversation> CreateAsync(ConversationId parent, ConversationId child, BranchSelection selection, DateTimeOffset at, CancellationToken cancellationToken)
     {
@@ -35,7 +36,7 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
                     """, ("$id", child.ToString()), ("$ws", conversation.WorkspaceId.ToString()), ("$at", at.Ms()));
                 connection.Execute(transaction, $"""
                     INSERT INTO branch_source ({SourceColumns})
-                    VALUES ($child, $parent, $message, $block, $quote, $anchor, $version, $profile, $at);
+                    VALUES ($child, $parent, $message, $block, $quote, $anchor, $version, $profile, $at, NULL);
                     """,
                     ("$child", child.ToString()),
                     ("$parent", parent.ToString()),
@@ -61,6 +62,114 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
         var ancestors = ReadRanges(connection, transaction, parent).Select(r => r.Ancestor).Append(parent).ToList();
         InsertRanges(connection, transaction, child, BranchRules.RangesWithoutSource(ancestors));
     }
+
+    /// <summary>
+    /// Makes a stored conversation a continuation of <paramref name="parent"/>: it left from <paramref name="message"/> with no
+    /// sentence, and uses the parent up to there (decision I4). False when the parent does not hold the message.
+    /// </summary>
+    internal static bool InsertContinuation(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, ConversationId parent, MessageId message, DateTimeOffset at)
+    {
+        if (SeqOf(connection, transaction, parent, message) is not { } seq)
+        {
+            return false;
+        }
+
+        connection.Execute(transaction,
+            "INSERT INTO branch_source (child_id, parent_id, source_message_id, created_at) VALUES ($child, $parent, $message, $at);",
+            ("$child", child.ToString()), ("$parent", parent.ToString()), ("$message", message.ToString()), ("$at", at.Ms()));
+        InsertRanges(connection, transaction, child, BranchRules.RangesForChild(parent, ReadRanges(connection, transaction, parent), seq));
+        return true;
+    }
+
+    /// <summary>
+    /// Gives a branch that has only its parent the message it left from, as a shared file says. Its context is set apart
+    /// (<see cref="SetContext"/>). False when the parent does not hold the message, or the sentence would not be an answer's.
+    /// </summary>
+    internal static bool SetSource(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, ExchangeBranchSource source) =>
+        connection.Execute(transaction, """
+            UPDATE branch_source
+            SET source_message_id = $message, source_block = $block, source_offset = $offset, quote = $quote, anchor = $anchor, anchor_version = $version, render_profile = $profile
+            WHERE child_id = $child AND source_message_id IS NULL
+              AND EXISTS (SELECT 1 FROM message m WHERE m.id = $message AND m.conversation_id = branch_source.parent_id AND ($quote IS NULL OR m.role = 'assistant'));
+            """,
+            ("$child", child.ToString()),
+            ("$message", source.Message.ToString()),
+            ("$block", source.Position?.Block),
+            ("$offset", source.Position?.Offset),
+            ("$quote", source.Quote),
+            ("$anchor", source.Anchor?.Data),
+            ("$version", source.Anchor?.Version),
+            ("$profile", source.Anchor?.Profile)) == 1;
+
+    /// <summary>
+    /// Sets the context of received branches from their sources, after a file gave some of them one: of each of
+    /// <paramref name="branches"/> and of the received branches below it. The user's own conversations are never rewritten,
+    /// so what hangs off one of them keeps its context too (docs/design/sharing-import.md §2).
+    /// </summary>
+    internal static void SetContext(SqliteConnection connection, SqliteTransaction transaction, IEnumerable<ConversationId> branches)
+    {
+        // Each once, and after its parent: a branch has one row for each ancestor.
+        var due = new PriorityQueue<ConversationId, long>();
+        var seen = new HashSet<ConversationId>();
+        void Add(ConversationId id)
+        {
+            if (seen.Add(id))
+            {
+                due.Enqueue(id, connection.Scalar<long>(transaction, "SELECT count(*) FROM branch_context_range WHERE child_id = $id;", ("$id", id.ToString())));
+            }
+        }
+
+        foreach (var branch in branches)
+        {
+            Add(branch);
+        }
+
+        while (due.TryDequeue(out var child, out _))
+        {
+            using (var command = connection.Command(transaction,
+                "SELECT s.parent_id, m.seq FROM branch_source s LEFT JOIN message m ON m.id = s.source_message_id WHERE s.child_id = $id;", ("$id", child.ToString())))
+            using (var reader = command.ExecuteReader())
+            {
+                if (!reader.Read())
+                {
+                    continue;
+                }
+
+                var parent = ConversationId.Parse(reader.GetString(0));
+                var above = ReadRanges(connection, transaction, parent);
+                var ranges = reader.NullableInt64(1) is { } seq
+                    ? BranchRules.RangesForChild(parent, above, (int)seq)
+                    : BranchRules.RangesWithoutSource([.. above.Select(r => r.Ancestor), parent]);
+                foreach (var range in ranges)
+                {
+                    connection.Execute(transaction, "UPDATE branch_context_range SET max_seq = $max WHERE child_id = $child AND ancestor_id = $ancestor;",
+                        ("$child", child.ToString()), ("$ancestor", range.Ancestor.ToString()), ("$max", range.MaxSeq));
+                }
+            }
+
+            foreach (var below in ReceivedChildren(connection, transaction, child))
+            {
+                Add(below);
+            }
+        }
+    }
+
+    private static List<ConversationId> ReceivedChildren(SqliteConnection connection, SqliteTransaction transaction, ConversationId parent)
+    {
+        using var command = connection.Command(transaction,
+            "SELECT s.child_id FROM branch_source s JOIN import_conversation i ON i.conversation_id = s.child_id WHERE s.parent_id = $id;", ("$id", parent.ToString()));
+        using var reader = command.ExecuteReader();
+        var children = new List<ConversationId>();
+        while (reader.Read())
+        {
+            children.Add(ConversationId.Parse(reader.GetString(0)));
+        }
+
+        return children;
+    }
+
+    private static int? SeqOf(SqliteConnection connection, SqliteTransaction transaction, ConversationId conversation, MessageId message) =>
+        (int?)connection.Scalar<long?>(transaction, "SELECT seq FROM message WHERE id = $id AND conversation_id = $conv;", ("$id", message.ToString()), ("$conv", conversation.ToString()));
 
     private static void InsertRanges(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, IReadOnlyList<BranchContextRange> ranges)
     {
@@ -100,7 +209,10 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
                 .Select(range => new ContextSegment(
                     range.Ancestor,
                     GetSource(connection, range.Ancestor)?.Quote,
-                    SqliteConversationStore.GetMessages(connection, null, range.Ancestor, range.MaxSeq)))
+                    SqliteConversationStore.GetMessages(connection, null, range.Ancestor, range.MaxSeq))
+                {
+                    IsReceived = SqliteImportStore.IsReceived(connection, null, range.Ancestor),
+                })
                 .ToArray(),
             cancellationToken);
 
@@ -125,15 +237,8 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
     /// <summary>The source message, checked to be a finished answer of the parent with saved text in the chosen block.</summary>
     private static Message ReadSource(SqliteConnection connection, SqliteTransaction transaction, ConversationId parent, BranchSelection selection)
     {
-        var seq = connection.Scalar<long?>(transaction,
-            "SELECT seq FROM message WHERE id = $id AND conversation_id = $parent;",
-            ("$id", selection.SourceMessage.ToString()), ("$parent", parent.ToString()));
-        if (seq is null)
-        {
-            throw new BranchRejectedException(BranchRejection.SourceNotFound);
-        }
-
-        var message = SqliteConversationStore.GetMessages(connection, transaction, parent, (int)seq.Value)[^1];
+        var seq = SeqOf(connection, transaction, parent, selection.SourceMessage) ?? throw new BranchRejectedException(BranchRejection.SourceNotFound);
+        var message = SqliteConversationStore.GetMessages(connection, transaction, parent, seq)[^1];
         if (BranchRules.CheckSource(message) is { } rejection)
         {
             throw new BranchRejectedException(rejection);
@@ -179,5 +284,8 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
             reader.NullableString(5),
             (int?)reader.NullableInt64(6),
             reader.NullableString(7),
-            reader.Time(8));
+            reader.Time(8))
+        {
+            SourceOffset = (int?)reader.NullableInt64(9),
+        };
 }

@@ -124,7 +124,7 @@ public sealed class ShareMarkdown : IShareMarkdown
         {
             var text = _readable.ToString();
             var owners = new string?[text.Length];
-            foreach (var (mark, quote) in marks.Reverse().Select(m => (m, Quote: WithPlainBreaks(m.Source.Quote))).OrderByDescending(m => m.Quote.Length))
+            foreach (var (mark, quote) in marks.Reverse().Where(m => m.Source.Quote is not null).Select(m => (m, Quote: WithPlainBreaks(m.Source.Quote!))).OrderByDescending(m => m.Quote.Length))
             {
                 if (PlaceOf(mark, quote, text) is { } at)
                 {

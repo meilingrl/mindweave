@@ -82,13 +82,13 @@ internal sealed class ShareContentFilter(ShareContents contents, IReadOnlySet<Co
     private static ExchangeMessage Question(Message message) =>
         new(message.Id, message.Seq, message.Role, message.CreatedAt.ToUniversalTime(), message.State, message.Text)
         {
-            Attachments = [.. ContentBlocks.AttachmentsOf(message.Blocks).Select(a => string.IsNullOrWhiteSpace(a.Name) ? null : a.Name)],
+            Attachments = [.. ContentBlocks.AttachmentNamesOf(message.Blocks).Select(name => string.IsNullOrWhiteSpace(name) ? null : name)],
         };
 
     private ExchangeMessage Answer(Message message) =>
         new(message.Id, message.Seq, message.Role, (message.CompletedAt ?? message.CreatedAt).ToUniversalTime(), message.State, message.Text)
         {
-            Activity = Activity([.. message.Blocks.OfType<ToolCallBlock>().Select(c => c.Tool)]),
+            Activity = Activity([.. message.Blocks.OfType<ToolCallBlock>().Select(c => c.Tool)]) ?? Received(message.Blocks.OfType<ActivityCountBlock>().FirstOrDefault()),
             Citations = [.. ContentBlocks.CitationsOf(message.Blocks).Select(Citation)],
         };
 
@@ -104,6 +104,10 @@ internal sealed class ShareContentFilter(ShareContents contents, IReadOnlySet<Co
         return new ExchangeActivity(attachments, summaries, searches, pages, tools.Count - attachments - summaries - searches - pages);
     }
 
+    /// <summary>A received answer's counts, as they arrived.</summary>
+    private static ExchangeActivity? Received(ActivityCountBlock? counts) =>
+        counts is null ? null : new ExchangeActivity(counts.AttachmentSearches, counts.SummarySearches, counts.WebSearches, counts.PagesRead, counts.OtherCalls);
+
     private ExchangeCitation Citation(CitationBlock citation) => citation.Kind switch
     {
         CitationKind.Web when citation.Url is { } url && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps) =>
@@ -113,11 +117,11 @@ internal sealed class ShareContentFilter(ShareContents contents, IReadOnlySet<Co
         _ => new ExchangeCitation(citation.Number, citation.Kind),
     };
 
-    /// <summary>Null for a branch that left from no sentence: it has its parent only.</summary>
+    /// <summary>Null for a branch that left from no message: it has its parent only. A continuation left from a message and no sentence.</summary>
     private static ExchangeBranchSource? Source(BranchSource source, int? offset) =>
-        source is not { SourceMessage: { } message, Quote: { } quote }
-            ? null
-            : new ExchangeBranchSource(
+        source.SourceMessage is not { } message ? null
+        : source.Quote is not { } quote ? new ExchangeBranchSource(message, null, null, null)
+        : new ExchangeBranchSource(
                 message,
                 quote,
                 offset is { } at && source.SourceBlock is { } block ? new ExchangePosition(block, at) : null,

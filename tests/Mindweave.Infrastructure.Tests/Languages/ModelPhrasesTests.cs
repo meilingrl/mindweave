@@ -140,6 +140,7 @@ public class ModelPhrasesTests
         [
             ("PastedText", p => p.PastedText),
             ("AttachmentMarker", p => p.AttachmentMarker("NAME")),
+            ("AttachmentNotIncluded", p => p.AttachmentNotIncluded),
             ("MaterialWhole", p => p.MaterialWhole("NAME")),
             ("MaterialDigest", p => p.MaterialDigest("NAME")),
             ("MaterialDigestAndParts", p => p.MaterialDigestAndParts("NAME", 12, [3, 7, 11])),
@@ -152,6 +153,10 @@ public class ModelPhrasesTests
             ("CitationLabel.Material", p => p.CitationLabel(CitationKind.Material, "TITLE")),
             ("CitationLabel.Summary", p => p.CitationLabel(CitationKind.Summary, "TITLE")),
             ("CitationLabel.Web", p => p.CitationLabel(CitationKind.Web, "TITLE")),
+            ("CitationLabel.Attachment.Untitled", p => p.CitationLabel(CitationKind.Attachment, "")),
+            ("CitationLabel.Material.Untitled", p => p.CitationLabel(CitationKind.Material, "")),
+            ("CitationLabel.Summary.Untitled", p => p.CitationLabel(CitationKind.Summary, "")),
+            ("CitationLabel.Web.Untitled", p => p.CitationLabel(CitationKind.Web, "")),
             ("CitationsHeading", p => p.CitationsHeading),
             ("EarlierSummarized", p => p.EarlierSummarized(3, 12)),
             ("QuotedQuestion", p => p.QuotedQuestion("QUOTED", "QUESTION")),

@@ -104,6 +104,9 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
             },
             cancellationToken);
 
+    /// <summary>The user asked it here: what arrived by import was asked by someone else, at a time of theirs.</summary>
+    private const string Asked = "NOT EXISTS (SELECT 1 FROM import_conversation i WHERE i.conversation_id = m.conversation_id)";
+
     public Task<ActivityFacts> ActivityAsync(ActivityQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -119,7 +122,7 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
 
                 var questions = Count($"""
                     SELECT count(*) FROM message m JOIN conversation c ON c.id = m.conversation_id
-                    WHERE m.role = 'user' {inConversation};
+                    WHERE m.role = 'user' AND {Asked} {inConversation};
                     """);
                 var conversations = Count($"""
                     SELECT count(*) FROM conversation c
@@ -146,7 +149,7 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
                     using var command = connection.Command(null, $"""
                         SELECT count(DISTINCT {day}), count(DISTINCT CASE WHEN m.created_at >= $recent THEN {day} END), min({day})
                         FROM message m JOIN conversation c ON c.id = m.conversation_id
-                        WHERE m.role = 'user' {inConversation};
+                        WHERE m.role = 'user' AND {Asked} {inConversation};
                         """, [.. parameters]);
                     using var reader = command.ExecuteReader();
                     reader.Read();
@@ -159,7 +162,7 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
                 milestones.AddRange(Numbered(connection, MilestoneKind.Question, query.QuestionThresholds, query.Zone, scope, $"""
                     SELECT m.created_at AS at, row_number() OVER (ORDER BY m.created_at, m.rowid) AS num
                     FROM message m JOIN conversation c ON c.id = m.conversation_id
-                    WHERE m.role = 'user' {inConversation}
+                    WHERE m.role = 'user' AND {Asked} {inConversation}
                     """));
                 milestones.AddRange(Numbered(connection, MilestoneKind.Summary, query.SummaryThresholds, query.Zone, scope, $"""
                     SELECT n.created_at AS at, row_number() OVER (ORDER BY n.created_at, n.rowid) AS num
@@ -193,7 +196,7 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
     {
         using var command = connection.Command(null, $"""
             SELECT min(m.created_at), max(m.created_at) FROM message m JOIN conversation c ON c.id = m.conversation_id
-            WHERE m.role = 'user' {inConversation};
+            WHERE m.role = 'user' AND {Asked} {inConversation};
             """, scope);
         using var reader = command.ExecuteReader();
         reader.Read();

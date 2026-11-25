@@ -37,6 +37,12 @@ public sealed record AttachmentBlock(ResourceId Resource, string? Name, string M
 }
 
 /// <summary>
+/// Stands for an attachment that did not travel in a share (docs/design/sharing-import.md §3): its name as the share had it,
+/// null for a pasted text. There is nothing to open and nothing to send.
+/// </summary>
+public sealed record AbsentAttachmentBlock(string? Name) : ContentBlock;
+
+/// <summary>
 /// A tool call the model made during a run (architecture §15.3): its call ID, the tool's name, the arguments as the model
 /// sent them (JSON text, possibly invalid), the tool's risk, and <paramref name="Summary"/>, one readable line for step
 /// details. Never part of the text sent as context later (<see cref="ContentBlocks.TextOf"/>).
@@ -49,6 +55,12 @@ public sealed record ToolCallBlock(string CallId, string Tool, string Arguments,
 /// <paramref name="Findings"/> what the result points at (summaries found, attachment parts read), for step details.
 /// </summary>
 public sealed record ToolResultBlock(string CallId, ToolResultStatus Status, string Preview, ResourceId? Resource, string? Detail, IReadOnlyList<ToolFinding>? Findings = null) : ContentBlock;
+
+/// <summary>
+/// Stands for the tool steps of a received answer (docs/design/sharing-import.md §3): how often it used tools, by kind. The
+/// steps themselves did not travel. Never part of the text sent as context.
+/// </summary>
+public sealed record ActivityCountBlock(int AttachmentSearches, int SummarySearches, int WebSearches, int PagesRead, int OtherCalls) : ContentBlock;
 
 /// <summary>What a 出处 is (docs/design/agent-loop.md L11): a web page or search result, or material of this app.</summary>
 public enum CitationKind
@@ -72,10 +84,20 @@ public enum CitationKind
 /// character range of the resource's text (<paramref name="Start"/> inclusive, <paramref name="End"/> exclusive). Since L11
 /// a run's local results are numbered too: <see cref="Kind"/> says what the source is, and a summary's node is
 /// <see cref="Target"/>. Written when the answer ends, after its tool blocks; only numbers the text cites and the run really
-/// found have one.
+/// found have one. A received answer's 出处 has no stored material (<see cref="WithoutMaterial"/>): neither a time nor a resource.
 /// </summary>
-public sealed record CitationBlock(int Number, string Title, Uri? Url, DateTimeOffset FetchedAt, ResourceId Resource, int Start, int End) : ContentBlock
+public sealed record CitationBlock(int Number, string Title, Uri? Url, DateTimeOffset? FetchedAt, ResourceId? Resource, int Start, int End) : ContentBlock
 {
+    /// <summary>
+    /// A 出处 as a share carries it (docs/design/sharing-import.md §3): a web page's title and address; for the sharer's own
+    /// material its kind, and a title only for a summary that is in the share. Without a title <see cref="Title"/> is empty.
+    /// </summary>
+    public static CitationBlock WithoutMaterial(int number, CitationKind kind, string? title, Uri? url) =>
+        new(number, title ?? string.Empty, url, null, null, 0, 0) { Kind = kind };
+
+    /// <summary>There is something behind it: stored material, or an address for the browser. Otherwise it is plain text.</summary>
+    public bool CanBeOpened => Resource is not null || Url is not null;
+
     public CitationKind Kind { get; init; } = CitationKind.Web;
 
     /// <summary>For a summary: its node's ID (<c>D</c> format).</summary>
@@ -155,6 +177,13 @@ public static class ContentBlocks
         return [.. blocks.OfType<CitationBlock>().OrderBy(c => c.Number)];
     }
 
+    /// <summary>The names of everything that was attached, in order, what did not travel included; null for a pasted text.</summary>
+    public static IReadOnlyList<string?> AttachmentNamesOf(IReadOnlyList<ContentBlock> blocks)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        return [.. blocks.Where(b => b is AttachmentBlock or AbsentAttachmentBlock).Select(b => (b as AttachmentBlock)?.Name ?? (b as AbsentAttachmentBlock)?.Name)];
+    }
+
     public static IEnumerable<AttachmentBlock> AttachmentsOf(IReadOnlyList<ContentBlock> blocks)
     {
         ArgumentNullException.ThrowIfNull(blocks);
@@ -191,6 +220,7 @@ public static class ContentBlocks
     {
         TextBlock t => t.Markdown,
         AttachmentBlock a => BriefOf(a, phrases),
+        AbsentAttachmentBlock => phrases.AttachmentNotIncluded,
         _ => null,
     };
 
