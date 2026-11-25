@@ -39,6 +39,11 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - A deeper branch gets the same paragraph; it names only the nearest selection.
   - Accepted cost: about 60 input tokens in branches; a branch used as a fresh start stays tied to the passage until the question says otherwise.
 - **Q3, 2026-11-25 (owner): no self-check cards and no guide-me mode.** Both are dropped outright, in any form: no card, no mode, no line in the answer prompt about quizzing or guiding, and no follow-up suggestion that offers a test. Requirements §5.4 stays as written.
+- **Q4, 2026-11-25 (owner): the answer prompt carries a note the user writes and the titles of matching summaries. No extracted facts.**
+  - The note: one free-text field in Settings, at most about 500 characters, one for all workspaces. It goes into every answer's prompt, marked as the user's own preferences. No model call; nothing is derived. It is not shared.
+  - The titles: before each answer, one local keyword search of this workspace's summaries with the question and, in a branch, the selected passage. The top three titles above a match threshold go into the prompt with "build on these; do not explain them again from the start". Titles only; with tools on, the model can open one through the summary search.
+  - Facts extracted by the model (level 3 of "Memory") are not built.
+  - Accepted cost: up to about 200 input tokens for the note and about 50 for the titles; one stored preference; a Settings field whose look the owner confirms; a wrong match can make the model skip a needed explanation; nothing on screen shows which titles were sent; the Settings text on what is sent to the AI (requirements §9.4) gains a line.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
