@@ -37,10 +37,9 @@ public static partial class UiText
     public static string BranchesHeading => T("Explorations branched from here", "从这里分出的探索");
 
     /// <summary>A mark in the conversation's margin for an answer with branches: "2 个分支 · 「蒸汽机车」".</summary>
-    public static string BranchMark(int count, string firstQuote) => BranchMarkOf(count, Quoted(firstQuote));
-
-    /// <summary>The same, the first branch named as its entry names it.</summary>
-    public static string BranchMarkOf(int count, string first) => T(
+    /// <param name="count">How many.</param>
+    /// <param name="first">The first one as its entry names it: the sentence it left from, quoted, or a continuation's title.</param>
+    public static string BranchMark(int count, string first) => T(
         string.Format(CultureInfo.InvariantCulture, "{0} · {1}", Plural(count, "branch", "branches"), first),
         string.Format(CultureInfo.InvariantCulture, "{0} 个分支 · {1}", count, first));
 
