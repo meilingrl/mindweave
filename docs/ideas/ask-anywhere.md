@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Last discussed: 2026-11-26 (quoting and connections are agreed; search by meaning is agreed; prompt caching is being discussed).
+**Status:** in discussion with the owner since 2026-11-25. Last discussed: 2026-11-26 (quoting and connections are agreed; search by meaning is agreed; the section on prompt caching waits for the owner's confirmation).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -77,6 +77,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-26 | The vectors come from an embedding model on a saved connection (owner): one more model setting, empty by default, which leaves search as it is today. An embedding model that Mindweave carries itself can follow behind the same setting. |
 | 2026-11-26 | The section on search by meaning in §7 is agreed as written, Claude's calls included (owner). |
 | 2026-11-26 | Prompt caching: the first increment has all three steps, in this order (owner): record and show cached tokens; stop changing the start of the request; mark the cache points for Messages. |
+| 2026-11-26 | On a Messages connection the cache is kept for one hour (owner). Claude added: this is the default of a setting on the connection (off, 5 minutes, 1 hour), and Mindweave sends no requests on its own to keep a cache alive. |
 
 ## 6. Set aside
 
@@ -344,3 +345,89 @@ Three steps, each usable when merged:
 #### After this section is agreed
 
 Requirement and architecture text follows as a separate commit that the owner confirms: requirements §9.6 (which says that vector search is not introduced), §10.4.4 (the two tools), §7 (title search), and evolution D5, where Q13 is marked as answered.
+
+### Prompt caching for branch trees (C2; waiting for the owner to confirm this section)
+
+The owner's decisions are in §5. Everything else in this section is Claude's call, and the owner can change it.
+
+#### What was found (code at f9edc39)
+
+- A branch's context is its ancestors from the root down, then its own messages; the quoted passage comes with the branch's first question. Sibling branches, and a branch and its parent, begin with the same text. The tree is a prefix tree.
+- In a run, each step's request starts with the run's instructions and a line that counts the rounds left (`AnswerRunner.Run.cs`, `Compose`). The line changes at every step, so no step can be served from the cache, with any provider.
+- Older tool results are shortened in place as a run goes on, and the set of offered tools can differ between questions.
+- `ai_request` stores prompt and completion tokens, not cached tokens.
+
+#### How it works
+
+**Step 1: measure.** Each request records two more numbers when the provider reports them: input tokens read from the cache, and input tokens written to it. The request's details show them. The statistics show, per model, the share of input that was read from the cache. A provider that does not report them shows as "not reported", never as zero.
+
+**Step 2: a stable start.** A request is ordered so that what was sent before is sent again unchanged, and what is new comes after it:
+
+1. the fixed instructions;
+2. the tools, in a fixed order;
+3. the ancestors, from the root down;
+4. the conversation so far;
+5. what changes with this request: the line that counts the rounds, and the current question.
+
+Rules that keep it so:
+
+- Nothing that changes from request to request stands before the conversation. The counting line moves to the end. Its wording is not changed here.
+- A tool result is shortened at most once, and is sent in that form from then on.
+- When part of the context is replaced by a context summary, the start changes once from that point and is stable again afterwards. This is accepted.
+- A test fixes the rule: in a run, each request begins with exactly what the previous request sent; and the first requests of two sibling branches are identical up to the branch point.
+
+This step helps with every provider that caches on its own, at no extra price.
+
+**Step 3: cache points for Messages.** On a Messages connection, the request marks up to three places: the end of the instructions and tools, the end of the ancestors (the part siblings share), and the end of the conversation so far. Long runs get a further mark where the protocol needs one. Marks are sent only for a model that declares prompt caching, which the presets fill in.
+
+**The lifetime.** A setting in the connection's advanced settings: off, 5 minutes, or 1 hour. The default is 1 hour (owner). Mindweave sends no requests on its own to keep a cache alive.
+
+**Storage.** New columns on `ai_request`, so one migration.
+
+#### What it needs, and what leaves the machine
+
+- **macOS and Windows:** no platform work.
+- **Leaves the machine:** nothing new. The provider keeps the start of recent requests on its side for the lifetime of the cache.
+- **Verification:** steps 1 and 2 against the fake server, and by reading what providers report in normal use. Step 3 against the real service with the owner's key, within the owner's budget.
+
+#### Out of scope
+
+- Requests that only keep a cache alive, or that fill it before a question.
+- A lifetime per conversation.
+- What the instructions and prompts say. That belongs to the reply quality discussion (§4); this topic only fixes the order.
+- Publishing the measured numbers as a write-up ([more directions](more-directions.md), technical pieces). It can follow once there are numbers, as an outward-facing step the owner decides.
+
+#### Failure cases
+
+| Case | What happens |
+| --- | --- |
+| The provider does not report cached tokens | Recorded as not reported; the statistics say so |
+| A service that speaks Messages refuses the marks | The request fails with the reason; setting the lifetime to off is the remedy. Nothing is resent on its own |
+| The start is shorter than the provider's minimum | It is not cached; nothing needs doing |
+| The next question comes after the lifetime has passed | The start is written again at the writing price; the statistics show it |
+| The current model is switched | The new model starts with an empty cache, because caches are per model |
+| The tools offered change between two questions | With Messages, the cache is missed from the start for that question; tools stand first in that protocol |
+| Part of the context is compressed | One miss from that point, then stable again |
+
+#### Acceptance scenarios
+
+1. After a question to a provider that reports cached tokens, the request's details show how many input tokens were read from the cache.
+2. The statistics show, per model, the share of input read from the cache, and what was written to it.
+3. In a run with three tool steps, the second and third request each begin with exactly what the previous one sent (test).
+4. The first requests of two sibling branches from the same answer are identical up to the branch point (test).
+5. On a Messages connection, a second question within the hour reports the earlier conversation as read from the cache.
+6. A sibling branch asked after the first reports the ancestors as read from the cache.
+7. With the lifetime set to off, no marks are sent and nothing is reported as written.
+8. With a provider that reports nothing, the statistics show "not reported".
+
+#### First increment
+
+Three steps in this order (owner), each usable when merged:
+
+1. Measure.
+2. The stable start. It changes the run loop, so it is coordinated with the reply quality discussion, which owns the run's instructions.
+3. The cache points and the lifetime setting. It needs the Messages adapter (step 3 of the connections increment).
+
+#### After this section is agreed
+
+Requirement and architecture text follows as a separate commit that the owner confirms: the order of the context in architecture §6, the statistics in the requirements, and evolution D4 pointing to it.
