@@ -77,9 +77,9 @@ The owner's principle: whether importing or exporting, things can only stay the 
   - a conversation or message the app already has is left as it is: it already exists, and nothing is copied;
   - a conversation the app has never seen arrives as new;
   - a conversation it already has gains only the messages it lacks;
-  - for single-valued things (a title, the current summary version, archived or not) the newer one wins.
+  - for single-valued things (a title, the current summary version, archived or not) the newer one wins. *Narrowed on 2026-11-25 ([sharing-import.md](sharing-import.md) I2): this holds for device copies only; a shared file never changes them.*
 - Importing the same file again changes nothing, however often it is done.
-- When both sides continued the same conversation differently after their last exchange, this side keeps its conversation untouched, and the other continuation arrives once as a separate conversation, marked as coming from elsewhere. Importing the file again recognises it and adds nothing.
+- *Narrowed on 2026-11-25 ([sharing-import.md](sharing-import.md) I4): a received conversation is read-only, so the following case arises only between the user's own devices.* When both sides continued the same conversation differently after their last exchange, this side keeps its conversation untouched, and the other continuation arrives once as a separate conversation, marked as coming from elsewhere. Importing the file again recognises it and adds nothing.
 - Import never deletes. A file's silence about a conversation has three possible causes (deleted there, not selected, created here later), so silence is never read as deletion.
 - The database backup is a different thing: it protects the local machine across version changes and deletions. It is unchanged and outside this design.
 
@@ -178,7 +178,7 @@ The owner judged the prototype in [prototypes/share-page](../../prototypes/share
 The owner accepted these together:
 
 - **Deletions in a device copy.** The copy lists the identities of conversations deleted on the other device, with no content. On import the app offers to delete them here too, through the existing delete confirmation; it never does so by itself. A shared file never carries this list.
-- **Importing a structure-only share** gives an outline: its dots and titles appear as directions the recipient can explore in their own conversations. There are no messages to continue from.
+- **Importing a structure-only share** gives an outline: its dots and titles appear as directions the recipient can explore in their own conversations. There are no messages to continue from. *Settled on 2026-11-25 ([sharing-import.md](sharing-import.md) I1): the outline is real, empty conversations.*
 - **Entry points, failure cases, out of scope, acceptance and the first increment** as in §6, §9, §11, §10 and §12.
 
 ## 5. Approaches considered
@@ -241,6 +241,8 @@ The dialog's look is the owner's to judge from a running build or screenshots be
 
 ### 6.4 Import (step 2)
 
+The note for this step is [sharing-import.md](sharing-import.md) (approved 2026-11-25). It holds where it differs from the outline below: a received conversation is read-only and the user continues in a conversation of their own; a shared file changes nothing that is already here.
+
 - Entry: dragging a file onto the window, or "Import…" in the workspace menu. The user chooses the workspace: the current one or a new one.
 - The app reads only the data block and never runs the page.
 - Before anything is written, a summary says what will happen: how many conversations are new, how many gain messages, how many are already here, how many arrive as another continuation.
@@ -265,7 +267,7 @@ A reviewer read this design against the code as a builder would. Its questions a
 4. **A branch that left from an earlier attempt of an answer.** That attempt is included, although S6 leaves earlier attempts out, because a shared branch depends on it. It is shown folded and labelled as an earlier answer. The format carries which answer replaced which, so an importing app never shows two standing answers.
 5. **Where Markdown is turned into HTML** is not in Core or Application, which have no Markdown library; the exchange document carries Markdown.
 6. **Times** are carried as instants, with no time zone of the sharer. The page shows them, and groups days, in the reader's own time zone, so a day boundary can fall differently from the sharer's picture.
-7. **"The newer one wins"** needs the time a title was last changed, which is not stored today. It is added with step 2's migration and enters the format as an optional field, which E5 allows inside one format version. Step 1 needs no migration.
+7. **"The newer one wins"** needs the time a title was last changed, which is not stored today. *Moved to step 3 on 2026-11-25 ([sharing-import.md](sharing-import.md) I2).* It was to be added with step 2's migration and enters the format as an optional field, which E5 allows inside one format version. Step 1 needs no migration.
 8. **Archived conversations** are dots like the others (session-network.md §3), so they are ticked with their exploration and can be unticked. The page does not say that a conversation is archived: that is the user's state in the app (S7).
 
 ## 7. Left to the builder
@@ -276,7 +278,7 @@ A reviewer read this design against the code as a builder would. Its questions a
 - Folding at a paragraph boundary; the fold height.
 - Code structure. Following the glossary: `Share` for the selection, the dialog and the page writer; the exchange document and import under the names §13 proposes.
 - For step 2, how the other continuation of a conversation gets identities that a second import recognises (derived from the incoming identities, not random).
-- For step 2, how an imported outline (S11) is stored and drawn. The writer's suggestion: as directions like recommended nodes, which the product already shows as "not yet explored", with the outline's branch lines between them; opening one starts the recipient's own conversation with its title as the question. A design note for step 2 settles it before code.
+- *Settled on 2026-11-25 by [sharing-import.md](sharing-import.md) I1 and I4, which replace the two step 2 points here.* For step 2, how an imported outline (S11) is stored and drawn. The writer's suggestion: as directions like recommended nodes, which the product already shows as "not yet explored", with the outline's branch lines between them; opening one starts the recipient's own conversation with its title as the question. A design note for step 2 settles it before code.
 
 ## 8. Design notes per step
 

@@ -1,6 +1,6 @@
 # Sharing, step 2: import and continue (design note)
 
-**Status:** working draft, in discussion with the owner since 2026-11-25. Not adopted. It is the short note that [sharing.md](../design/sharing.md) §8 asks for before step 2's code: it settles what that design left open for import. Where it differs from sharing.md, it says so, and sharing.md is corrected when this note is adopted. Decisions are the owner's unless marked as the writer's call.
+**Status:** approved by the owner on 2026-11-25 (D-041), not built. It is the short note that [sharing.md](sharing.md) §8 asks for before step 2's code, and it settles what that design left open for import. Where the two differ, this note holds for import; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
 
 ## Findings in the code (2026-11-25)
 
@@ -181,12 +181,12 @@ Each merge states how to try it, what was run and what was not verified.
 - The muted and hollow looks, to be shown to the owner.
 - Limits on file size and counts, set from the app's existing limits.
 
-## 11. Text that changes when this note is adopted
+## 11. Text that changed with this note
 
 | Where | Change |
 | --- | --- |
-| [sharing.md](../design/sharing.md) §6.6 point 7, §7 | "The newer one wins" and the time of a title's change belong to step 3 (I2); an outline is empty conversations, not directions like recommended nodes (I1) |
+| [sharing.md](sharing.md) §6.6 point 7, §7 | "The newer one wins" and the time of a title's change belong to step 3 (I2); an outline is empty conversations, not directions like recommended nodes (I1) |
 | Requirements §10.7, Import | A received conversation is read-only and the user's questions continue in a conversation of their own (points 4 and 7 and their acceptance rows; two continuations move to device copies); point 8: a structure-only share arrives as empty conversations; a shared file never changes a title or the current summary; the approval rule for received URLs |
 | Architecture §16.4, §16.5 | No separate outline; received conversations are read-only and two continuations belong to device copies; single-valued fields change only with device copies; the migration of §6 here |
-| [sharing.md](../design/sharing.md) S4, §6.4 | Two continuations arise only between the user's own devices (I4) |
+| [sharing.md](sharing.md) S4, §6.4 | Two continuations arise only between the user's own devices (I4) |
 | The exchange document | Each message's stored number and each summary version's coverage (added in the 1b build on 2026-11-25) |
