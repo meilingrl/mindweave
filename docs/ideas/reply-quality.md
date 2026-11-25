@@ -17,7 +17,8 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 | Q3 | Self-check cards and a guide-me mode (dropped, see the decisions) | Q1 |
 | Q4 | What the user already knows, and memory (idea 7, "Memory") | Q1 |
 | Q5 | Follow-up suggestions per answer (idea 2) | Q1, Q2 |
-| Q6 | Stop rules, the clarification card, and the two agent-loop to-dos (ideas 5, 8; agent-loop §8) | Q1 (the run prompt becomes "answer prompt + tool section") |
+| Q6 | The tool section: stop and refine rules, naming an attachment (idea 5; agent-loop §8) | Q1 (the run prompt becomes "answer prompt + tool section") |
+| Q6b | The clarification card (idea 8) | Q1 |
 | Q7 | Rewriting follow-up questions (idea 4; reopens L9, decided 2026-11-19) | Q6 |
 | Q8 | Relevant passages from fetched pages (idea 3) | Nothing |
 | Q9 | Better summaries (idea 10) | Nothing |
@@ -44,6 +45,17 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - The titles: before each answer, one local keyword search of this workspace's summaries with the question and, in a branch, the selected passage. The top three titles above a match threshold go into the prompt with "build on these; do not explain them again from the start". Titles only; with tools on, the model can open one through the summary search.
   - Facts extracted by the model (level 3 of "Memory") are not built.
   - Accepted cost: up to about 200 input tokens for the note and about 50 for the titles; one stored preference; a Settings field whose look the owner confirms; a wrong match can make the model skip a needed explanation; nothing on screen shows which titles were sent; the Settings text on what is sent to the AI (requirements §9.4) gains a line.
+- **Q5, 2026-11-25 (owner): two or three follow-up suggestions under each answer, written in the same response.**
+  - The answer prompt asks for a small marked block at the end of the answer. The app parses it, removes it from the body and shows chips. No extra request.
+  - Short questions with different intents: go deeper, apply it, go wider. None offers a test (Q3).
+  - A suggestion can name a phrase in the answer; its chip then opens a branch from that phrase with the question filled in.
+  - Clicking fills the input box. Nothing is sent by itself.
+  - Shown under the latest answer of a conversation only. Stored with the answer, so they survive a restart.
+  - Not part of the answer body: not in context, titles, summaries, export or sharing.
+  - One setting turns them off.
+  - A missing or broken block gives no chips and leaves the answer as it is.
+  - Accepted cost: about 80 input and 100 output tokens per answer; the tail of a streaming answer is held back so the block never shows; a mangled block can leave a stray line in the body; a new kind of stored block (whether it needs a migration is checked at design time); the owner confirms the look of the chips.
+  - Not chosen: a separate small request after each answer.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
