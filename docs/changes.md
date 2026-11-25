@@ -17,6 +17,15 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.15 · 2026-11-25
+
+- Added sharing with content ([sharing.md](design/sharing.md), increment 1b): by choice, a share carries questions, folded answers with Markdown and formulas, branch marks and summaries; structure only stays the default
+- Added KaTeX 0.19.1 with its fonts and licences, put into a share only when it holds a formula
+- Changed the share dialog's list of what leaves: a card apart from the notes, where what a reader can read stands out
+- Documents: Changed seam E5 (the exchange format) to what is built for shares
+- Try: `scripts/daily.sh trial`, then "Share…" in a conversation's menu, choose to include content, save the file and open it in a browser
+- Not verified: Safari, Firefox and Windows; the dialog's speed with content on a large workspace; the new list in a real window; the page's look, which drew no request from you but was not confirmed by name. Your trials ran da3c14a; the dialog's list changed after them. The foot of the page says the file can be opened in Mindweave, which is true only once import exists
+
 ## 0.6.14 · 2026-11-25
 
 - Documents: Added D-040: why the macOS file panels block the app, and the trial as an `.app` that was tried and dropped (kept at the tag `archive/trial-as-app`)

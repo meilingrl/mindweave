@@ -83,6 +83,8 @@ public static class CompositionRoot
         services.AddSingleton<IWorkspaceSwitcher>(sp => sp.GetRequiredService<WorkspaceSwitchRequests>());
         services.AddSingleton<ConversationDeletionRequests>();
         services.AddSingleton<IConversationDeletionPrompt>(sp => sp.GetRequiredService<ConversationDeletionRequests>());
+        services.AddSingleton<Application.Share.IShareMarkdown, Markdown.ShareMarkdown>();
+        services.AddSingleton<Application.Share.IShareContents, Application.Share.ShareContentService>();
         services.AddSingleton<ShareRequests>();
         services.AddSingleton<ISharePrompt>(sp => sp.GetRequiredService<ShareRequests>());
         services.AddSingleton<BackupRequests>();

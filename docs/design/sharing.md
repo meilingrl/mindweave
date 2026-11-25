@@ -1,6 +1,6 @@
 # Sharing a thinking path (design)
 
-**Status:** approved by the owner on 2026-11-25 (D-039). Increment 1a (§12) is built (0.6.13); the rest is not. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. The requirements and architecture text that follows from it is listed in §13; the owner confirmed it on 2026-11-25.
+**Status:** approved by the owner on 2026-11-25 (D-039). Step 1 (§12) is built: 1a in 0.6.13, 1b in 0.6.15; steps 2 and 3 are not. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. The requirements and architecture text that follows from it is listed in §13; the owner confirmed it on 2026-11-25.
 
 Related: [session-network.md](session-network.md) (every conversation is a dot; the timeline), [evolution-seams.md](evolution-seams.md) E5 (the exchange format), [attachments.md](attachments.md), [web-search.md](web-search.md), [reasoning-and-status.md](reasoning-and-status.md), requirements §8.3 (export) and §10.1 (full import and export, sync). The page's look: [prototypes/share-page](../../prototypes/share-page/README.md).
 
@@ -201,7 +201,7 @@ One model, in Application, built from the stores and holding no stored record:
 
 - the share: format name and version (E5: `mindweave-export`, version 1), title, the time it was made, the app version, and its kind: `structure`, `content` or `device`;
 - conversations: identity, title, start time, parent identity, number of questions, whether it has a summary;
-- with content: per conversation, its messages in order (identity, role, time, state, text as Markdown, attachment names, the tool count line, citations as S7 allows), its branch source (the parent message's identity, the quoted text, and the position as block index and offset, per E5), and its current summary version (identity, title, body, time);
+- with content: per conversation, its messages in order (identity, role, time, state, text as Markdown, attachment names, the tool count line, citations as S7 allows), its branch source (the parent message's identity, the quoted text, and the position as block index and offset, per E5), and its current summary version (identity, title, body, time). For import, each message also carries its stored sequence number, gaps included, and the summary the number it covers up to (owner, 2026-11-25);
 - summary links between two shared conversations (identities; the note only with content);
 - for a device copy only (step 3): everything S7 holds back from a share except keys, connections and addresses; the list of deleted identities.
 
@@ -267,6 +267,20 @@ A reviewer read this design against the code as a builder would. Its questions a
 6. **Times** are carried as instants, with no time zone of the sharer. The page shows them, and groups days, in the reader's own time zone, so a day boundary can fall differently from the sharer's picture.
 7. **"The newer one wins"** needs the time a title was last changed, which is not stored today. It is added with step 2's migration and enters the format as an optional field, which E5 allows inside one format version. Step 1 needs no migration.
 8. **Archived conversations** are dots like the others (session-network.md §3), so they are ticked with their exploration and can be unticked. The page does not say that a conversation is archived: that is the user's state in the app (S7).
+
+### 6.7 Details settled while building 1b (builder's calls, 2026-11-25)
+
+1. **Markdown is read at export, by the app's own pipeline.** The formula delimiters come from a parser that depends on the UI library, so this is in Desktop, behind `IShareMarkdown` in Application. The result is not HTML but a tree of a few named elements. The file holds it as data beside the exchange document, and the page builds elements from it by name. The page has no Markdown of its own and never turns text into markup.
+2. **The file therefore holds each answer twice**: its Markdown, which an importing app reads, and its drawn form, made from that same document when the file is saved. This replaces "the page draws from the data block" of §6.2 for answers and summaries. Questions, names, citations and everything else are still drawn from the data block.
+3. **Where the app shows nothing** (a footnote's text, a custom container), the page shows nothing either. HTML is the exception: requirements §10.7 has it shown as text, and the app leaves it out.
+4. **Formulas are drawn by KaTeX 0.19.1** (MIT; its fonts SIL OFL 1.1), because the app's own formula library is a port of it. It is kept as published in `src/Mindweave.Infrastructure/Share/katex`, only a share with a formula carries it, and its notice is in that file and in `THIRD-PARTY-NOTICES.txt`. A formula it cannot read is shown as it was written. It takes about 640 KB of the file; without a formula the page itself is about 38 KB.
+5. **The page's policy with content is stricter than the structure-only one**: each script is named by its hash, so no other script and no event handler can run. Fonts may come only from inside the file. A structure-only file is unchanged.
+6. **The answer that stands** is the latest attempt that ended with any text. When a retry failed without text, the attempt before it is shared, rather than the question without an answer.
+7. **A summary citation's title** is the one its summary has in the share, not the one stored with the citation, which can be an earlier version's.
+8. **Where sentences of two branches overlap**, the shorter one is on top, and two branches from the same words share one mark that leads to the first; both are listed under the answer.
+9. **Data the page does not show.** Message identities, sequence numbers, how far a summary covers, and a branch's position and anchor serve only an importing app. They hold no text of their own beyond the quote. A gap in the numbers tells that something was left out, such as a replaced attempt, but not what. The dialog's list names the identities, the numbers and the coverage (owner, 2026-11-25).
+10. **Printing** shows every answer of the chosen conversation in full. It does not print the other conversations.
+11. **The dialog's list of what leaves** (owner, 2026-11-25) is a card apart from the notes. What a reader can read stands out in it, one labelled row each, as a warning once message text leaves. The rest of what is in the file, and what is not, are quiet rows below.
 
 ## 7. Left to the builder
 

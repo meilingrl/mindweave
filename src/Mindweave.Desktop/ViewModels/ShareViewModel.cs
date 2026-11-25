@@ -48,14 +48,17 @@ public sealed record ShareLineView(ShareLineKind Kind, double FromX, double From
 /// <summary>The date over the root that starts a new day.</summary>
 public sealed record ShareDayView(string Text, double X, double Y);
 
+/// <summary>Something a reader of the file can read: what it is, and how much of it.</summary>
+public sealed record ShareReadableRow(string Label, string Detail);
+
 /// <summary>A conversation in the dialog: a dot of the timeline with a tick and the name it would leave with.</summary>
-public sealed partial class ShareDotViewModel(ShareViewModel owner, ShareableConversation conversation, double x, double y, ShareDotViewModel? parent) : ViewModelBase
+public sealed partial class ShareDotViewModel(ShareViewModel owner, ShareableConversation conversation, string name, double x, double y, ShareDotViewModel? parent) : ViewModelBase
 {
     public ConversationId Id { get; } = conversation.Id;
 
     public ShareDotViewModel? Parent { get; } = parent;
 
-    public string Name { get; } = conversation.Name ?? UiText.UntitledConversation;
+    public string Name { get; } = name;
 
     /// <summary>The dot's centre on the dialog's canvas.</summary>
     public double X { get; } = x;
@@ -112,6 +115,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
     private const double TickWidth = 26;
 
     private readonly IShares _shares;
+    private readonly IShareContents _contents;
     private readonly IConversations _conversations;
     private readonly ISummaries _summaries;
     private readonly ISystemShell _shell;
@@ -120,6 +124,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
     private readonly ShareRequests _requests;
     private readonly UiThrottle _recheck;
     private readonly SerialRefresh _reload;
+    private readonly SerialRefresh _build;
     private readonly List<string> _leftOut = [];
     private volatile bool _watching;
     private bool _opening;
@@ -127,14 +132,19 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
     private WorkspaceId _workspace;
     private ConversationId _conversation;
     private ShareSource _source = new([], []);
+
+    /// <summary>The document of what is ticked, with content, as the list shows it; null until it is read for these ticks.</summary>
+    private ExchangeDocument? _content;
+    private int _ticks;
     private ShareSelection _selection = ShareSelection.Exploration(new Dictionary<ConversationId, ConversationId?>(), default);
 
-    public ShareViewModel(IShares shares, IConversations conversations, ISummaries summaries, ISystemShell shell, AppEnvironment environment, TimeProvider time, ShareRequests requests, IUiDispatcher dispatcher)
+    public ShareViewModel(IShares shares, IShareContents contents, IConversations conversations, ISummaries summaries, ISystemShell shell, AppEnvironment environment, TimeProvider time, ShareRequests requests, IUiDispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(conversations);
         ArgumentNullException.ThrowIfNull(summaries);
         _shares = shares;
+        _contents = contents;
         _conversations = conversations;
         _summaries = summaries;
         _shell = shell;
@@ -145,6 +155,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
 
         // While open: an answer finishing, a title arriving, a summary saved, a conversation deleted.
         _reload = new SerialRefresh(ReloadAsync);
+        _build = new SerialRefresh(BuildAsync);
         _recheck = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () =>
         {
             if (IsOpen && !IsBusy)
@@ -177,6 +188,13 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     public partial string Title { get; set; } = string.Empty;
 
+    /// <summary>Whether the share carries what was said (S6): off unless chosen, each time the dialog opens.</summary>
+    [ObservableProperty]
+    public partial bool IncludesContent { get; set; }
+
+    /// <summary>The line saying what does not leave.</summary>
+    public string LeavesOut => IncludesContent ? UiText.ShareContentLeavesOut : UiText.ShareLeavesOut;
+
     /// <summary>Every conversation of the workspace, in start order.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<ShareDotViewModel> Dots { get; private set; } = [];
@@ -193,9 +211,22 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial double CanvasHeight { get; private set; }
 
-    /// <summary>What the file will hold, one line each (S7: nothing leaves that is not listed).</summary>
+    /// <summary>
+    /// What the file will hold (S7: nothing leaves that is not listed): how much, what its reader can read, and the rest.
+    /// With content all of it is empty while it is read.
+    /// </summary>
     [ObservableProperty]
-    public partial IReadOnlyList<string> Contents { get; private set; } = [];
+    public partial string Counts { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial IReadOnlyList<ShareReadableRow> Readable { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial string AlsoHolds { get; private set; } = string.Empty;
+
+    /// <summary>What was said is being read.</summary>
+    [ObservableProperty]
+    public partial bool IsReading { get; private set; }
 
     /// <summary>Answers of ticked conversations still being generated (§9); null without any.</summary>
     [ObservableProperty]
@@ -218,6 +249,9 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
     /// <summary>The last read of the conversations; tests await it.</summary>
     internal Task Loading { get; private set; } = Task.CompletedTask;
 
+    /// <summary>The last read of what was said; tests await it.</summary>
+    internal Task Building { get; private set; } = Task.CompletedTask;
+
     public void Open(WorkspaceId workspace, ConversationId conversation)
     {
         if (IsBusy)
@@ -233,6 +267,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         _source = new ShareSource([], []);
         Title = string.Empty;
         Notice = null;
+        IncludesContent = false;
         Draw();
         IsOpen = true;
         _watching = true;
@@ -251,7 +286,14 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         ShowSelection();
     }
 
-    private bool CanSave() => !IsBusy && _selection.Ticked.Count > 0 && !string.IsNullOrWhiteSpace(Title);
+    /// <summary>Names go with the choice: with content a conversation without a title leaves by the name the app shows (§6.6, point 1).</summary>
+    partial void OnIncludesContentChanged(bool value)
+    {
+        OnPropertyChanged(nameof(LeavesOut));
+        Draw();
+    }
+
+    private bool CanSave() => !IsBusy && (!IncludesContent || _content is not null) && _selection.Ticked.Count > 0 && !string.IsNullOrWhiteSpace(Title);
 
     /// <summary>
     /// Asks where, reads the conversations again and writes the file. A ticked conversation deleted meanwhile is left out
@@ -272,11 +314,17 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
             }
 
             Apply(await _shares.ReadAsync(_workspace, CancellationToken.None));
-            var document = Document();
+            var document = IncludesContent ? await ReadContentAsync() : Document();
             if (document.Conversations.Count == 0)
             {
                 Say(UiText.ShareNothingLeft, error: true);
                 return;
+            }
+
+            if (IncludesContent)
+            {
+                _content = document;
+                ShowContents();
             }
 
             if (!document.SameContents(shown.Without(shown.Conversations.Select(c => c.Id).Except(document.Conversations.Select(c => c.Id)))))
@@ -302,6 +350,10 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         finally
         {
             IsBusy = false;
+            if (_content is null)
+            {
+                RequestBuild(); // A read while saving was dropped.
+            }
         }
     }
 
@@ -374,6 +426,8 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         var same = source.Conversations.SequenceEqual(_source.Conversations) && source.Links.SequenceEqual(_source.Links);
         if (same)
         {
+            // What was said can have changed with the same names and counts.
+            RequestBuild();
             return;
         }
 
@@ -396,7 +450,48 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         Notice = _leftOut.Count == 0 ? text : string.Join(' ', new[] { text, UiText.ShareLeftOut(_leftOut) }.Where(t => t is not null));
     }
 
-    private ExchangeDocument Document() => ExchangeDocument.Structure(Title, _source, _selection, _time.GetUtcNow(), _environment.Version);
+    private ExchangeDocument Document() => IncludesContent && _content is { } content
+        ? content with { Title = Title.Trim(), MadeAt = _time.GetUtcNow() }
+        : ExchangeDocument.Structure(Title, _source, _selection, _time.GetUtcNow(), _environment.Version);
+
+    private Task<ExchangeDocument> ReadContentAsync() =>
+        _contents.BuildAsync(Title, _workspace, _source, _selection, _time.GetUtcNow(), _environment.Version, CancellationToken.None);
+
+    private void RequestBuild()
+    {
+        if (IncludesContent && _source.Conversations.Count > 0)
+        {
+            Building = _build.Request();
+        }
+    }
+
+    /// <summary>Reads what would leave for the ticks of now; a read the ticks have moved past is dropped (another is queued).</summary>
+    private async Task BuildAsync()
+    {
+        var (ticks, opened) = (_ticks, _opened);
+        ExchangeDocument document;
+        try
+        {
+            document = await ReadContentAsync();
+        }
+#pragma warning disable CA1031 // Unreadable conversations are said; closing still works.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+            Say(UiText.ShareReadFailed, error: true);
+            return;
+        }
+
+        if (IsOpen && IncludesContent && !IsBusy && ticks == _ticks && opened == _opened)
+        {
+            _content = document;
+            ShowContents();
+        }
+    }
+
+    private string NameOf(ShareableConversation conversation) =>
+        (IncludesContent ? conversation.ContentName : conversation.Name) ?? UiText.UntitledConversation;
 
     /// <summary>Lays the dots out as the timeline does (session-network.md §5.1), wide enough for each tick and whole name.</summary>
     private void Draw()
@@ -406,7 +501,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
             new SummaryNodeId(c.Id.Value), c.Parent is { } p ? new SummaryNodeId(p.Value) : null, SummaryNetworkSession.LocalDay(c.StartedAt), i))]);
         var places = TimelineColumns.Widen(
             arrangement.Positions,
-            ordered.ToDictionary(c => new SummaryNodeId(c.Id.Value), c => TickWidth + SummaryNetworkLayout.LabelWidth(c.Name ?? UiText.UntitledConversation)),
+            ordered.ToDictionary(c => new SummaryNodeId(c.Id.Value), c => TickWidth + SummaryNetworkLayout.LabelWidth(NameOf(c))),
             TimelineColumns.MinColumn);
         var top = places.Values.Select(p => p.Y).DefaultIfEmpty(0).Min();
         (double X, double Y) At(ConversationId id) => places.TryGetValue(new SummaryNodeId(id.Value), out var p) ? (p.X + EdgeX, ((p.Y - top) * LaneScale) + EdgeTop) : default;
@@ -419,7 +514,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         while (pending.TryDequeue(out var next))
         {
             var (x, y) = At(next.Id);
-            dots[next.Id] = new ShareDotViewModel(this, next, x, y, next.Parent is { } parent ? dots.GetValueOrDefault(parent) : null);
+            dots[next.Id] = new ShareDotViewModel(this, next, NameOf(next), x, y, next.Parent is { } parent ? dots.GetValueOrDefault(parent) : null);
             foreach (var branch in branches[next.Id])
             {
                 pending.Enqueue(branch);
@@ -427,7 +522,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         }
 
         Dots = [.. ordered.Where(c => dots.ContainsKey(c.Id)).Select(c => dots[c.Id])];
-        CanvasWidth = ordered.Select(c => At(c.Id).X + TickWidth + SummaryNetworkLayout.LabelWidth(c.Name ?? UiText.UntitledConversation)).DefaultIfEmpty(0).Max() + EdgeX;
+        CanvasWidth = ordered.Select(c => At(c.Id).X + TickWidth + SummaryNetworkLayout.LabelWidth(NameOf(c))).DefaultIfEmpty(0).Max() + EdgeX;
         CanvasHeight = Dots.Select(d => d.Y).DefaultIfEmpty(0).Max() + EdgeBottom;
         var today = SummaryNetworkSession.LocalDay(_time.GetUtcNow());
         Days = [.. arrangement.DayStarts.Select(id => dots[new ConversationId(id.Value)])
@@ -457,16 +552,54 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
             .. _source.Links.Where(l => dots.ContainsKey(l.A) && dots.ContainsKey(l.B)).Select(l => Line(ShareLineKind.Link, dots[l.A], dots[l.B])),
         ];
 
-        var document = Document();
-        Contents =
-        [
-            UiText.ShareCounts(document.Explorations, document.Conversations.Count, document.Questions),
-            UiText.ShareHoldsConversations,
-            UiText.ShareHoldsLines(document.Links.Count),
-            UiText.ShareHoldsItself(document.AppVersion),
-        ];
         var answering = Dots.Where(d => d.IsTicked && d.IsAnswering).Select(d => d.Name).ToList();
-        AnsweringNote = answering.Count > 0 ? UiText.ShareAnswering(answering) : null;
+        AnsweringNote = answering.Count == 0 ? null : IncludesContent ? UiText.ShareContentAnswering(answering) : UiText.ShareAnswering(answering);
+        _ticks++;
+        _content = null;
+        ShowContents();
+        RequestBuild();
+    }
+
+    /// <summary>The list of what the file will hold (S7). With content it is read first, and until then nothing can be saved.</summary>
+    private void ShowContents()
+    {
+        IsReading = IncludesContent && _content is null;
+        var document = Document();
+        Counts = IsReading ? string.Empty : UiText.ShareCounts(document.Explorations, document.Conversations.Count, document.Questions);
+        Readable = IsReading ? [] : [.. RowsOf(document)];
+        AlsoHolds = IsReading ? string.Empty
+            : document.Kind == ExchangeDocument.ContentKind ? UiText.ShareContentAlsoHolds(document.Links.Count, document.OwnCitations, document.AppVersion)
+            : UiText.ShareAlsoHolds(document.Links.Count, document.AppVersion);
         SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>What was said first; a row only for what is there.</summary>
+    private static IEnumerable<ShareReadableRow> RowsOf(ExchangeDocument document)
+    {
+        if (document.Kind == ExchangeDocument.ContentKind)
+        {
+            yield return new(UiText.ShareMessagesLabel, UiText.ShareMessagesDetail(document.Questions, document.EarlierAnswers));
+            if (document.Summaries > 0)
+            {
+                yield return new(UiText.ShareSummariesLabel, UiText.ShareSummariesDetail(document.Summaries));
+            }
+        }
+
+        if (document.Attachments.Count > 0)
+        {
+            yield return new(UiText.ShareAttachmentsLabel, UiText.ShareAttachmentsDetail([.. document.Attachments.OfType<string>()], document.Attachments.Count(a => a is null)));
+        }
+
+        if (document.WebCitations > 0)
+        {
+            yield return new(UiText.ShareWebCitationsLabel, UiText.ShareWebCitationsDetail(document.WebCitations));
+        }
+
+        if (document.LinkNotes > 0)
+        {
+            yield return new(UiText.ShareNotesLabel, UiText.ShareNotesDetail(document.LinkNotes));
+        }
+
+        yield return new(UiText.ShareTitlesLabel, UiText.ShareTitlesDetail(document.Conversations.Count));
     }
 }

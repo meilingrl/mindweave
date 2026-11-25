@@ -35,7 +35,7 @@ This directory records the choices that the handoff document lets implementers r
 
 | Document | Content |
 | --- | --- |
-| [Sharing a thinking path](sharing.md) | Approved 2026-11-25 (evolution D8), increment 1a built (0.6.13): a share as one HTML file with the exchange data inside, structure only by default, what never leaves, the page a reader sees, import and continuing, copies between the user's devices, acceptance scenarios and increments |
+| [Sharing a thinking path](sharing.md) | Approved 2026-11-25 (evolution D8), step 1 built (0.6.13, 0.6.15): a share as one HTML file with the exchange data inside, structure only by default, what never leaves, the page a reader sees, import and continuing, copies between the user's devices, acceptance scenarios and increments |
 
 ## Model access
 

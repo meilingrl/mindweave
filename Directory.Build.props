@@ -23,7 +23,7 @@
     <ContinuousIntegrationBuild Condition="'$(Configuration)' == 'Release'">true</ContinuousIntegrationBuild>
     <!-- The third number rises with every merge into main; the owner calls the second (docs/design/versioning.md).
          The commit tells daily and dev builds apart. -->
-    <Version>0.6.14</Version>
+    <Version>0.6.15</Version>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="MindweaveChannel" Value="$(MindweaveChannel)" />

@@ -4,7 +4,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and increment 1a, the structure-only share, is built (0.6.13). Next are 1b (share with content), then import and device copies, each after a short note.
+- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). Next are import, then device copies, each after a short note.
 - Four design discussions are open with you on task branches: reply quality; return and review; safety, diagnostics and upkeep; ask from anywhere and local AI. Nothing in them is agreed as a whole.
 
 ## Next steps
@@ -39,7 +39,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - the answer output limit;
   - the English prompts.
 - The application icon (0.6.11): on Windows; the small sizes in daily use.
-- Sharing (0.6.13): on Windows; the page in Safari and Firefox; on 1,000 conversations the dialog took about 1.2 s to open in a debug build. The foot of the page says the file can be opened in Mindweave, which is true only once import exists.
+- Sharing (0.6.13, 0.6.15): on Windows; the page in Safari and Firefox; on 1,000 conversations the dialog took about 1.2 s to open in a debug build, and its speed with content was not measured; the dialog's new list in a real window. The foot of the page says the file can be opened in Mindweave, which is true only once import exists.
 - macOS file panels (0.6.13): picking real attachments; quitting from the Dock while a panel is open; an Intel Mac.
 - 0.6.10: a real model reading the rest of a long result; a real MCP server stopped during a call. On Windows: all of it.
 - The UI points of 0.5.11 to 0.5.14, 0.6.2, 0.6.4, 0.6.6 and 0.6.7 (D-037): on Windows; a real model's tool steps while the page stays.

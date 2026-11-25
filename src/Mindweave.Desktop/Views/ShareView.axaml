@@ -4,7 +4,6 @@
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:v="using:Mindweave.Desktop.Views"
-             xmlns:sys="using:System"
              x:Class="Mindweave.Desktop.Views.ShareView"
              x:DataType="vm:ShareViewModel">
   <!-- The share dialog (docs/design/sharing.md §6.3): title, the dots with ticks, what will leave, the snapshot line, Save. -->
@@ -94,31 +93,55 @@
               </Panel>
             </ScrollViewer>
           </Border>
+          <StackPanel Spacing="2">
+            <CheckBox Name="ShareIncludeContent" IsChecked="{Binding IncludesContent}" Content="{x:Static t:UiText.ShareIncludeContent}" />
+            <TextBlock Classes="caption" Text="{x:Static t:UiText.ShareIncludeContentHint}" TextWrapping="Wrap" Margin="28,0,0,0" />
+          </StackPanel>
           <Border Name="ShareAnswering" Classes="notice warning" IsVisible="{Binding AnsweringNote, Converter={x:Static ObjectConverters.IsNotNull}}">
             <DockPanel>
               <TextBlock Classes="notice-icon" Text="!" />
               <TextBlock Text="{Binding AnsweringNote}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
             </DockPanel>
           </Border>
-          <StackPanel Spacing="4">
-            <TextBlock Classes="caption" Text="{x:Static t:UiText.ShareContentsHeading}" />
-            <ItemsControl Name="ShareContents" ItemsSource="{Binding Contents}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <StackPanel Spacing="2" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="sys:String">
-                  <DockPanel>
-                    <Ellipse DockPanel.Dock="Left" Classes="dialog-bullet" />
-                    <TextBlock Classes="dialog-body" Text="{Binding}" />
-                  </DockPanel>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Name="ShareLeavesOut" Classes="dialog-body" Text="{x:Static t:UiText.ShareLeavesOut}" />
-          </StackPanel>
+          <!-- What leaves, apart from the notes round it: what a reader can read stands out, and the rest is quiet. -->
+          <Border Name="ShareContents" Classes="share-contents" AutomationProperties.Name="{x:Static t:UiText.ShareContentsHeading}">
+            <StackPanel Spacing="10">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Classes="share-heading" Text="{x:Static t:UiText.ShareContentsHeading}" />
+                <TextBlock Name="ShareCounts" Classes="caption" Text="{Binding Counts}" TextWrapping="Wrap" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,0" />
+              </DockPanel>
+              <TextBlock Classes="dialog-body" Text="{x:Static t:UiText.ShareReading}" IsVisible="{Binding IsReading}" />
+              <Border Name="ShareReadable" Classes="notice share-readable" Classes.warning="{Binding IncludesContent}" IsVisible="{Binding !IsReading}">
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Classes="notice-icon" Text="!" IsVisible="{Binding IncludesContent}" />
+                    <TextBlock Classes="share-label strong" Text="{x:Static t:UiText.ShareReadableHeading}" />
+                  </StackPanel>
+                  <ItemsControl Name="ShareReadableRows" ItemsSource="{Binding Readable}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Spacing="5" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ShareReadableRow">
+                        <Grid ColumnDefinitions="186,*">
+                          <TextBlock Classes="share-label" Text="{Binding Label}" />
+                          <TextBlock Grid.Column="1" Classes="share-detail" Text="{Binding Detail}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+              <Grid ColumnDefinitions="186,*" RowDefinitions="Auto,Auto" RowSpacing="8" Margin="11,0,0,0">
+                <TextBlock Classes="share-quiet" Text="{x:Static t:UiText.ShareAlsoLabel}" IsVisible="{Binding !IsReading}" />
+                <TextBlock Name="ShareAlsoHolds" Grid.Column="1" Classes="share-quiet" Text="{Binding AlsoHolds}" IsVisible="{Binding !IsReading}" />
+                <TextBlock Grid.Row="1" Classes="share-quiet" Text="{x:Static t:UiText.ShareLeavesOutLabel}" />
+                <TextBlock Name="ShareLeavesOut" Grid.Row="1" Grid.Column="1" Classes="share-quiet" Text="{Binding LeavesOut}" />
+              </Grid>
+            </StackPanel>
+          </Border>
           <TextBlock Name="ShareSnapshot" Classes="caption" Text="{x:Static t:UiText.ShareSnapshot}" TextWrapping="Wrap" />
         </StackPanel>
       </ScrollViewer>

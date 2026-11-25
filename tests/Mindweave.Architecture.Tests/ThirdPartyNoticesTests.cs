@@ -20,6 +20,9 @@ public class ThirdPartyNoticesTests
 
     [Theory]
     [InlineData("Copyright 2020 The Inter Project Authors")] // the font inside Avalonia.Fonts.Inter
+    [InlineData("\nKaTeX 0.19.1\n")] // draws the formulas of a shared page; kept in the repository, not a package
+    [InlineData("Copyright (c) 2013-2020 Khan Academy and other contributors")]
+    [InlineData("It contains KaTeX fonts")]
     [InlineData("SIL OPEN FONT LICENSE")] // of Inter, and of the KaTeX fonts inside RaTeX.Avalonia
     public void The_embedded_fonts_are_named_with_their_licence(string text) => Assert.Contains(text, Notices(), StringComparison.Ordinal);
 }
