@@ -89,6 +89,19 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - Everything the prompt keeps today stays: open questions, uncertainty as it was, corrections, the title and the short name.
   - Accepted cost: about 60 input tokens per summary plus the note; only new summaries and new versions change, so a new version can be laid out differently from the one before; whether summaries read better is the owner's judgment.
   - Not chosen: optional summary styles.
+- **Q10, 2026-11-26 (owner): the existing evaluation is extended; quality is also judged from the owner's daily use.**
+  - About eight new scenarios with fictional facts: a branch on a jargon term; a branch on a whole paragraph; "simpler please"; a question with two readings; a question on a topic that has a summary; a follow-up in the "开" (On) web setting; a detail deep in a long page; a summary of a conversation that jumps between ideas.
+  - Mechanical checks, which also run with the fake model: the suggestion block is there, parses, has two or three items and is not in the body; a branch answer does not restate the parent answer; a summary has the gist and, where terms exist, the list; no number is written for an attachment that has none.
+  - A side-by-side report of two prompt versions per scenario. The owner's reading decides.
+  - With a flag, a judge model adds two hints: which of two answers is clearer (asked twice, positions swapped), and whether each cited sentence is supported by the passage it cites. Evaluation only; a hint, never a pass or fail.
+  - Feedback from the owner's daily use counts beside the evaluation.
+  - **Cost and time** (the owner, 2026-11-26: they matter). Proposed how, waiting for the owner's yes:
+    - Per scenario and in total, for both versions with the difference: input tokens, output tokens, model requests, tool calls, seconds to the first text, seconds in all. The app already records all of these per request; the report shows tokens and total seconds today and gains the time to the first text.
+    - The fixed size of what Q1–Q9 add (answer prompt, branch paragraph, note, summary titles, tool section, suggestion block) is counted with the app's own estimator in the ordinary tests, with a limit for each, so growth is caught without a paid run.
+    - Money: tokens times the prices given in the evaluation's configuration; without prices, tokens only.
+    - Time from one run is one sample and moves with the service's load. Output tokens and the number of requests are the steady signs; a time difference counts only when it is large or repeats.
+    - The judge's own tokens are reported apart from the answers under test.
+  - Accepted cost: a full run grows from about 12 answers under test to about 20, and with the judge about 30 more requests; every real run is paid and within a budget the owner gives; a judge is noisy; eight scenarios to keep working.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
