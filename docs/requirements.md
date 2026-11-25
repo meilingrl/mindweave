@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.28  
+**Version:** v0.29  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -70,6 +70,7 @@ Existing products cover parts of this, such as branching, returning, summarizati
 | Context summary | Internal material the system generates to compress earlier background for continuing a chat. It is not a summary node, does not enter the summary network, and produces no candidates or read state |
 | Recommended question (after the first release) | A question shown in new exploration that the user may be interested in; it is only filled into the input box and is not sent automatically; see §10.3.1 |
 | Recommended node (after the first release; short for recommended exploration node) | A potential exploration direction whose full content has not been generated. It includes a question, the reason for the recommendation and the existing summary it extends from (the basis summary). It does not pose as a saved summary; see §10.3.2 |
+| Recap (回顾) (after the first release, v0.29) | A short text the system writes for a conversation that has rested and carries weight: one or two key points, and at most two questions left open. It is what the app shows when the user comes back. It is not a summary node: it has no versions, no read state and no ring, and the user does not manage it; see §10.7 |
 | Spatial view, timeline view (v0.25) | The two views of the summary network (§7.3): the spatial view arranges each exploration as a group by its structure; the timeline view lines explorations up in the order they started |
 | Time thread (v0.25) | The quiet arrow in the spatial view from each exploration's root to the next exploration's root in time |
 | Summary link (after the first release) | A topical or semantic relation between summaries, created by the user or confirmed by the user; distinct from conversation lineage, which can be recorded directly; see §10.3.3–10.3.4 |
@@ -87,7 +88,7 @@ Each branch keeps one direct parent conversation and its exact entry point, and 
 
 The summary network is the entry point for review and further exploration (the interface calls the page “Mindweave”, everywhere; the user, 2026-11-24: it is not a network of summaries. “Summary network” is the term of these documents and of the code). Since v0.25 it draws **every conversation** of the workspace as a dot, summarized or not; a conversation with a summary wears a thin ring, and its summary is a layer on top that can be opened. Lines between dots are real lineage: a branch line joins a branch conversation to the conversation it came from. Between explorations, the time thread shows which exploration came after which. Because every conversation is a dot, no "via unsummarized conversations" path edges are needed. The full vision allows cross-topic, many-to-many relations and does not limit it to a copy of the conversation tree.
 
-In the first release, one conversation corresponds to one stable summary node, and the node keeps versions from different stages; a conversation that has not been summarized has no summary node, but it still has its dot. A summary covers the message range fixed when the summary request is accepted. Generating again for the same conversation produces a candidate version, which the user adopts or discards; this does not create a duplicate node and does not overwrite handwritten changes. The full vision allows combining several related branches into one summary; the first release does not implement this.
+In the first release, one conversation corresponds to one stable summary node, and the node keeps versions from different stages; a conversation that has not been summarized has no summary node, but it still has its dot. A summary covers the message range fixed when the summary request is accepted. Generating again for the same conversation produces a candidate version, which the user adopts or discards; this does not create a duplicate node and does not overwrite handwritten changes. The full vision allows combining several related branches into one summary; the first release does not implement this. After the first release, a summary may cover a conversation together with all its branches (§10.7.6).
 
 In the summary network, "lineage" and "related content" should be distinguishable. Recommended nodes and summary links, added after the first release (§10.3), each use a different line style with a text explanation, and do not rewrite lineage. When the summary network has no content yet, the user can still create a conversation directly.
 
@@ -153,7 +154,7 @@ Sent user messages and finished AI answers cannot be rewritten [review completio
 
 ### 6.3 Returning and re-entering
 
-- When the user uses “返回来源” (Back to source) from a child conversation, the app locates the entry in the parent conversation's original text, restores reading there, and shows a recognizable hint of where the branch came from.
+- When the user uses “返回来源” (Back to source) from a child conversation, the app locates the entry in the parent conversation's original text, restores reading there, and shows a recognizable hint of where the branch came from. Once the child conversation has a recap, its entry in the parent carries it (§10.7.2).
 - When the user enters a child conversation again from an existing entry in the parent conversation, the child conversation's latest reading position is restored. This is navigation; it does not add a branch or a bookmark.
 - On an ordinary switch from the conversation list or the summary network, the target's own reading position is restored; the app is not forced to jump back to its branch source.
 - The current reading position is kept before entering another conversation. Returning and switching do not discard text that has been typed but not yet sent.
@@ -191,7 +192,7 @@ States should be expressed in separate dimensions, rather than mixed into one "l
 
 Taking part in the original conversation does not mean the user has read its summary; having read the summary does not mean the user has read the whole original conversation either. A recommended direction that has not been generated is not existing knowledge. A generated candidate version can be marked read by the same rules, but it does not automatically become the adopted version.
 
-Node marks in the summary network and in lists are derived from version states [review completion · MW-C07]; in the summary network, unread and candidate update are shown on the dot of the summary's conversation, beside its summary ring (v0.25), and all of them in its details: **unread** means the current version has no read record; **has candidate update** means a candidate version exists, and it is shown separately from unread; **has later content** means the source conversation has finished messages after the range the current version covers. When the current version changes (adopting a candidate, setting as current, switching after deleting the current one), the unread mark follows the new current version's own read record.
+Node marks in the summary network and in lists are derived from version states [review completion · MW-C07]; in the summary network, unread and candidate update are shown on the dot of the summary's conversation, beside its summary ring (v0.25), and all of them in its details: **unread** means the current version has no read record; **has candidate update** means a candidate version exists, and it is shown separately from unread; **has later content** means the source conversation has finished messages after the range the current version covers. When the current version changes (adopting a candidate, setting as current, switching after deleting the current one), the unread mark follows the new current version's own read record. A conversation whose recap has questions left open wears a dashed ring of its own (§10.7.4); it is a mark of the conversation, not of a summary version, and says nothing about reading or understanding.
 
 ### 7.2 Conversation titles and two-level node naming
 
@@ -316,7 +317,7 @@ Previewing, dismissing or hiding a recommendation does not equal having explored
 
 Automatic categorization and cross-topic relations are produced with the system's help. The user can correct, dismiss or remove them, and is not required to maintain them one by one by hand in order to chat normally. Automatic relations do not rewrite real lineage.
 
-Of these, the first batch (recommended questions for new exploration, recommended nodes scaled to the size of the summary network, and summary links within the same workspace created or confirmed by the user) has been settled as an increment after the first release; see §10.3. Extending a single summary on request, relations across workspaces, and automatic categorization are still vision.
+Of these, the first batch (recommended questions for new exploration, recommended nodes scaled to the size of the summary network, and summary links within the same workspace created or confirmed by the user) has been settled as an increment after the first release; see §10.3. Extending on request is settled in §10.7.5. Relations across workspaces and automatic categorization are still vision, and nothing is planned for them (user, 2026-11-25).
 
 ### 10.3 The first increments after the first release (v0.13)
 
@@ -344,7 +345,7 @@ The user decided on 2026-11-10 to add recommendations and summary links once the
 #### 10.3.2 Recommended nodes in the summary network
 
 - The number depends on n, the number of conversations in this workspace (since v0.25; before, the number of saved summaries): when n is 0, nothing is recommended; for 1–10, 1 is recommended; for 11–30, 2; for more than 30, 3.
-- Each recommended node contains a question, a one-sentence reason, and the one existing summary it extends from (the basis summary); without any summary there is no recommendation. It is shown as a light dashed dot, connected to the basis summary by a dashed line, with a “推荐” (Recommended) text label; it is not told apart by color alone. Its line style differs from lineage edges and summary link edges.
+- Each recommended node contains a question, a one-sentence reason, and the one existing summary it extends from (the basis summary); without any summary there is no recommendation (a recommended node the user asks for with “延伸” (Extend) may instead be based on a conversation with a recap, §10.7.5). It is shown as a light dashed dot, connected to the basis summary by a dashed line, with a “推荐” (Recommended) text label; it is not told apart by color alone. Its line style differs from lineage edges and summary link edges.
 - Its position is computed on the fly near the basis summary. It is not written into the layout and creates no state to save. “显示全部” (Show all) counts them within the visible range; title search looks only at conversations, not recommended nodes.
 - Clicking a recommended node shows the question, the reason and the basis summary, and offers “开始探索” (Start exploring) and “忽略” (Ignore). “开始探索” opens the new exploration page and fills the question into the input box without sending automatically. The root conversation is created only when the first question is sent, and the recommendation is then removed from the summary network. The new conversation does not record a lineage relation to the basis summary: a recommendation is not a selection in original text and cannot pose as a branch source. The conversation remembers that it came from this recommendation, and after its first summary it automatically gets a summary link to the basis summary (§10.3.5).
 - “忽略” (Ignore) removes the recommendation and remembers it. The empty slot left after ignoring is not refilled automatically until “换一批” (new batch) or until the tier goes up. The summary network toolbar offers “换一批推荐” (New batch of recommendations) and “隐藏推荐” (Hide recommendations) (this affects only display and deletes nothing; while hidden, new recommendations are not prepared automatically). The states of “隐藏推荐” and “显示关联” (Show links) are remembered [scope for detailed design].
@@ -614,6 +615,80 @@ Built after the first release, by the user's decisions of 2026-11-10 to 2026-11-
 - **Restoring a backup inside the app.** The user can restore a backup from the list of backups, or delete backups. Restoring brings back all workspaces, not one. Before it, running work is stopped (the user is asked first), drafts are saved, and the current data is kept as a backup of its own, so the restore can be undone.
 - **Workspace name suggestions.** When a workspace is renamed, the AI can suggest names from the titles of its conversations (a conversation without one by the start of its first question), the names of its summaries and its current name. Suggestions may also be prepared in the background (on by default; it can be turned off); such a request gives way to questions, summaries, titles and names.
 
+### 10.7 Return and review (v0.29)
+
+The user decided on 2026-11-25 and 2026-11-26 what the app does between two sessions of use: what it keeps of an earlier exploration, and where that shows when the user comes back. This section does not change the first-release scope in §5 or the first-release acceptance in §11. There is no review schedule, no reminder and no assessing of what the user learned (§5.4).
+
+**Common rules**
+
+- One new thing is kept, the recap (§4). Every place of return shows the same recap; no place has material of its own.
+- A recap is a hint written by the AI, not existing knowledge. It does not count as a summary, has no read state, and does not rewrite conversations, lineage or summary text.
+- Nothing new opens when the user comes back. The app starts where the user was, and no recap page or panel is shown at start.
+- When no model is connected or the credential is invalid, no recap is written, nothing is shown about it, and every page works as it does without recaps.
+- Settings can turn recaps off (“自动写回顾” (Write recaps automatically), on by default). When it is off, no new recap is written; recaps already written stay and still show.
+- Requests follow §9.2: they count toward the global limit of two AI requests, with lower priority than user questions, automatic titles and summaries. They are not resent automatically after a restart. If the product records AI usage, these requests count too and can be told apart.
+- Only the conversation's own messages and its earlier recap are given to the AI for a recap. Settings state this (§9.4), and explain that writing recaps incurs small call costs.
+- A recap is written in the interface language at the time (§10.5); a recap already written stays as it is.
+- A recap is deleted with its conversation or workspace. Archiving keeps it.
+- A recap is not part of the first release's Markdown export.
+
+#### 10.7.1 When a recap is written
+
+A recap is not written each time a conversation is left. It is written only when all of the following hold:
+
+- **Rest.** 36 hours have passed since both the conversation's last answer finished and the conversation was last read.
+- **Weight.** The conversation's weight (§7.3: the questions asked in it and in its branches) is above the average weight of the conversations in its workspace. In a workspace with fewer than 5 conversations, the conversation instead needs 3 questions of its own or a weight of 3.
+- **More than one question.** A conversation in which only one question was asked never gets a recap.
+- **Not archived.** An archived conversation gets no new recap.
+- **New content.** A recap records the last message it covers. A conversation that has a recap is due again only when it has finished answers after that message and has rested again. With no new messages, no second recap is ever written.
+
+The check itself makes no AI request. It runs when the app starts and once an hour while it runs. At most 3 recaps are written per check and 10 per day, the most recently active conversations first; the others wait for a later check. The request contains the conversation's earlier recap and the messages after it, not the whole conversation again; a first recap is made from the conversation's own messages. The hours, the limits and the excerpt lengths are [for detailed design].
+
+When a request fails or returns nothing usable, nothing is saved and the conversation is tried again at a later check. A recap is saved only if the conversation still has no answer newer than the ones the request covered. When the AI finds nothing left open, the recap has key points only.
+
+A conversation that has finished answers after its recap keeps the recap; the details state that it is older than the conversation.
+
+#### 10.7.2 The recap at a branch entry
+
+- Using “返回来源” (Back to source) right after reading a branch stays as in §6.3; nothing is added to it.
+- Once a branch conversation has a recap, its entry in the parent conversation shows the recap: the key points, then the questions left open. An entry whose branch has no recap shows the branch as before.
+
+#### 10.7.3 Questions left open, in new exploration
+
+- “新探索” (new exploration) lists up to 3 questions left open, taken from the recaps of this workspace, the most recent first, above the recommended questions (§10.3.1). Each names the conversation it belongs to.
+- Clicking one opens that conversation with the question filled into its input box. Nothing is sent automatically, and the user can edit it first.
+- The light placeholder in the input box stays the first recommended question: Tab fills it into a new exploration, and a question left open belongs to another conversation.
+- A question left open ends in three ways. When a question filled in from it is sent (edited or not), it is removed. When the user marks it “不感兴趣” (not interested), it is removed and remembered, and does not come back with the same recap. When the conversation gets a newer recap, that recap's questions replace the old ones.
+- A question whose conversation is archived or deleted is not listed.
+
+#### 10.7.4 Recaps in the summary network
+
+- The details of a selected dot show its conversation's recap and list its questions left open; clicking a question behaves as in §10.7.3.
+- A conversation whose recap has at least one question left open wears a dashed ring round its dot, in both views. There is one ring however many questions there are, and it goes when the last one has ended. Nothing is added beside the dot, and the layout does not change.
+- The ring is never the only sign: the details say in words that the conversation has questions left open, and the legend has a line for the ring. It can be told apart from the summary ring, which the same dot may also wear, and from a recommended node, without relying on color alone.
+
+#### 10.7.5 Extending on request
+
+- The details of a selected dot that has a summary or a recap offer “延伸” (Extend). One request returns up to 3 recommended nodes beside that dot, each with a question and a one-sentence reason. Nothing is requested until the user clicks.
+- They are recommended nodes in every respect of §10.3.2: the same drawing and label, “开始探索” (Start exploring) and “忽略” (Ignore), positions computed on the fly and never saved, and no recommendations derived from them. They do not count toward the automatic number of §10.3.2.
+- The basis of such a node is the summary of the dot, or, when the dot has no summary, its conversation with its recap. Only titles, the summary excerpt and the recap are given to the AI, under the common rules of §10.3.
+- The summary link “来自推荐” of §10.3.5 is created only when the basis is a summary. A conversation started from a node based on a recap gets no summary link.
+- A question left open continues inside its conversation; an extension starts a new exploration. The two are never shown as the same thing.
+- When the basis is deleted, its pending recommended nodes are removed.
+
+#### 10.7.6 A summary of a conversation with its branches
+
+- “总结” (Summarize) has two scopes: the conversation alone (§6.4), or the conversation together with all its branches, at any depth. On a root conversation the second scope is a summary of the whole exploration.
+- The result is a version of that conversation's own summary node, under the rules of §4.2, §6.4, §7.1 and §8.1: one node per conversation, candidates that the user adopts or discards, read state per version. No new kind of node exists, and nothing new is drawn in the summary network.
+- The request is accepted only when no covered conversation has a queued or generating answer (§6.4). The version records which branches it covers and the range fixed in each when the request is accepted.
+- “有后续” (has later content, §7.1) also holds when any covered branch has finished messages after its fixed range, or when a branch was created under a covered conversation after the summary.
+- When the covered conversations do not fit the model's context, a branch that has a summary or a recap is given as that text and the others in full, and the summary states which branches were taken in shortened form. If it still does not fit, the request is refused with the reason, and no partial summary is saved.
+- A covered branch that is deleted later does not change the summary's text; its range states that a covered branch no longer exists. Archived conversations follow §8.2.
+
+#### 10.7.7 Answers that build on recaps
+
+Where an answer's prompt is given the titles of the user's own summaries that match the question, the same search also looks through the key points of recaps in the workspace, under the same limit. A match on a recap gives the conversation's title and its key points. How the prompt uses the matches is not set here.
+
 ## 11. First-release acceptance scenarios
 
 | Scenario | Observable expected result |
@@ -816,3 +891,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.26 · 2026-11-23:** Following the user's points of 2026-11-23 after trying the app: an answer being written does not move the page (§6.3); the citations list is collapsed by default (§10.4.5); the summary network's legend may be an icon (§10.3). Does not change the first-release scope and acceptance; no migration.
 - **v0.27 · 2026-11-24:** After a check of the documents against the product. By the user's decisions of 2026-11-24: no mobile development (§10.1); the interface calls the network page Mindweave everywhere (§4.2); later content is a mark of the details (§7.1); a call with side effects that was stopped is recorded as unknown (§10.4.4); four built features are written down (§10.6). Passages that earlier versions left behind are corrected without changing what they decided: saving a layout by hand, the delete rule and attachments, the network's names, the run rules, names of settings, pending marks. Changed §4, §5.2, §6.1, §7, §8.2, §9.2, §9.5, §10.1, §10.3.5, §10.4.1, §10.4.3–§10.4.6, §10.6, §11–§13.
 - **v0.28 · 2026-11-24:** Following the user's decisions of 2026-11-24: the tool that searches saved summaries is called “检索总结” (search summaries) in the interface (§10.4.4, §10.4.5); “检索附件” is offered during a run once a result is not sent whole (§10.4.4); a page that is only a check that the visitor is not a robot counts as a failed fetch (§10.4.5). Does not change the first-release scope and acceptance.
+- **v0.29 · 2026-11-26:** Following the user's decisions of 2026-11-25 and 2026-11-26 (return and review), added §10.7: a recap for a conversation that has rested and carries weight, written automatically under a rest rule, a weight rule and daily limits; the recap at a branch entry; questions left open in new exploration; the dashed ring and the recap in the summary network's details; “延伸” (Extend) on a dot with a summary or a recap; a summary of a conversation with its branches; answers that build on recaps. §4 adds the recap; §4.2, §6.3, §7.1, §10.2 and §10.3.2 point to it. Relations across workspaces and automatic categorization stay vision with nothing planned. Does not change the first-release scope and acceptance; needs migrations (recaps, a recommendation's basis, a summary version's covered branches).
