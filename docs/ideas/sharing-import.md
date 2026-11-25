@@ -17,7 +17,7 @@
 - Each dot of a structure-only share arrives as a conversation with its title and no messages. Branch lines are kept: a branch that came from an outline has no source sentence.
 - Structure-only and with-content imports are then one mechanism: conversations, some with messages and some without. The timeline, the spatial view and the sidebar tree need no second kind of dot.
 - When a share with content of the same conversations is imported later, the empty conversations gain their messages and the branches gain their source sentences (sharing.md S4: only stay the same or grow).
-- Asking in an empty conversation makes it the user's own conversation on that topic.
+- Asking in an empty conversation starts the user's own conversation as a branch of it (I4).
 - Cost: a migration that lets a branch exist without a source sentence, and every place that shows "where this left from" handles its absence. Empty conversations are shown as not explored yet.
 
 Considered: a separate outline drawn as its own kind of dot (new storage, drawing and layout in both views; recommended nodes cannot be reused because they hang off a summary); an outline page (a page for one scenario, with the structure outside the Mindweave page).
@@ -42,6 +42,17 @@ The owner accepted these together:
 - **There is no special way to undo an import.** What arrived is deleted like anything else.
 - **Stand-ins, the flow in the app, the failure cases and the building order** as in §3 to §8 below.
 
+### I4 A received conversation is read-only; the user's questions attach as new conversations (2026-11-25)
+
+An independent read of this note against the code found that asking inside a received conversation puts two people's messages under one identity. A newer file from the sharer then collides with what the recipient asked, and the "separate continuation" of sharing.md S4 leaves the conversation's branches divided between two copies. The owner's decision, in the owner's words: a conversation that arrives by import is essentially read-only, and conflicts over the same conversation are resolved by attaching new nodes.
+
+- No message is ever added to a received conversation by the user: no question, and no retry of an answer.
+- The user can still read it, branch from any sentence in it, rename it, summarize it, archive it and delete it.
+- A question typed at the end of a received conversation starts the user's own conversation as a **continuation**: a branch of it that left from its last message, with no quoted sentence, and with the whole conversation as its context. Asking in an empty received conversation starts a branch of it with no context.
+- A newer file from the sharer therefore always only adds. Two continuations of one conversation cannot arise from shares.
+- The rule of sharing.md S4 for two continuations (the other one arrives once, marked) stays for device copies, where both sides are the same user. It is worked out in step 3's note.
+- Shared back, the user's continuations and branches arrive at the sharer as branches of the sharer's own conversations.
+
 ## 1. What import does
 
 1. Read the data block of the shared file. The page is never run.
@@ -65,24 +76,25 @@ They carry out sharing.md S4 and I2. A share only adds.
 
 A name from the file is stored as a title the user did not write (the automatic kind), so the recipient's later renaming works as for any conversation. A conversation the file leaves unnamed arrives without a title.
 
-**Messages.** The exchange document carries each message's stored number in its conversation.
+**Messages.** The exchange document carries each message's stored number in its conversation. A received conversation holds only messages that came from files (I4), so a newer file can only bring more of them.
 
 - A message whose identity the store has is left as it is.
 - A message the store lacks is added at its own number.
-- **Two continuations.** If that number is held here by a different message, the conversation was continued differently on the two sides. Then nothing is added to the stored conversation. The file's version of it arrives as a separate conversation: the messages both sides share, then the file's own, with new identities derived from the file's identities and the stored conversation's, so that a second import finds them already here. It has the same parent as the original, says "another continuation" in its details, and carries the file's branches that left from the file's own messages.
-- Which answer replaced which travels with the messages, so an imported conversation never shows two standing answers.
+- If that number is held here by a different message, the file does not fit what is stored. This cannot come from sharing as designed. That conversation is skipped and counted in the dialog; nothing in it changes.
+- A conversation that is the user's own (not received) never gains messages from a shared file. If a file holds messages for it that the store lacks, they are skipped and counted. Step 3 handles this for device copies.
 
 **Branch sources.**
 
-- A branch whose conversation is new gets its source from the file: the source message, the quoted sentence, the position, and the stored anchor when the file has one. Without an anchor the app finds the quoted sentence in the answer when it is first shown.
+- A branch whose conversation is new gets its source from the file: the source message, the quoted sentence, the position, and the stored anchor when the file has one. The app can use the anchor only when the file was made with the same anchor version and render profile; then returning to the source marks the sentence. Otherwise returning goes to the source answer without marking the sentence. Finding the sentence afresh in the drawn answer is not part of step 2.
 - A structure-only file has no sources: the branch is stored with its parent only (I1).
-- A stored branch without a source gains one when a later file has it. A stored source is never replaced.
-- The frozen context of a branch (which of its ancestors' messages it may use) is rebuilt from the sources: up to the source message in the parent, and the parent's own ranges above it. A branch without a source has no context from its ancestors.
+- A received branch without a source gains one when a later file has it. A stored source is never replaced.
+- The frozen context of a received branch (which of its ancestors' messages it may use) is built from the sources: up to the source message in the parent, and the parent's own ranges above it. A branch without a source still has its row for every ancestor, saying that it may use nothing of it, so that it counts as a branch in both views, in archiving and in the deletion checks.
+- When a source arrives later, the context of that branch and of the received branches below it is set from the file. The context of the user's own conversations is never rewritten: their answers were given with what they had.
 
 **Summaries.**
 
 - A conversation without a summary gains the file's version as its current one.
-- A conversation with a summary gains a version it lacks as a further saved version; the current one does not change (I2).
+- A conversation with a summary gains a version it lacks as a further saved version; the current one does not change (I2). This includes a received conversation the user summarized themselves.
 - A version the store has is left as it is. Everything arrives unread.
 
 **Summary links** between two conversations are added when both have summaries here and no link joins them yet; notes come with a share with content.
@@ -101,22 +113,25 @@ A name from the file is stored as a title the user did not write (the automatic 
 
 - Imported text is drawn like any answer: no image is loaded, and HTML inside it is shown as text.
 - When the user continues asking, imported messages are sent to the model as the conversation's history. That is what continuing means, and it is the same exposure as pasting someone's text into a question.
-- The one new rule is in I3: a URL from an imported message is not "the user's own" for the web fetch approval. Tools with side effects already ask every time (requirements §10.4.6).
+- The one new rule is in I3: a URL from a received conversation is not "the user's own" for the web fetch approval, also when it reaches a run through the context of the user's continuation or branch. Since a received conversation holds only received messages (I4), the mark on the conversation is enough. Tools with side effects already ask every time (requirements §10.4.6).
 - Imported text is never read as a change to settings, tools or servers, as with any conversation content.
 
 ## 5. In the app
 
 - **Entry:** dragging the file onto the window, or "Import…" in the workspace menu, through the app-modal file panel (D-040).
-- **The dialog:** the share's title and kind; the workspace to import into, the current one or a new one named after the share; the counts of what is new, what gains messages, what is already here, what arrives as another continuation, and what is skipped because it lives in another workspace; Import and Cancel. When everything is already here, it says so and offers only Close.
+- **The dialog:** the share's title and kind; the workspace to import into, the current one or a new one named after the share; the counts of what is new, what gains messages, what is already here, and what is skipped (it lives in another workspace, or does not fit what is stored); the workspace offered first is the one that already holds most of the file's conversations; Import and Cancel. When everything is already here, it says so and offers only Close.
 - **After:** the app opens the first imported root conversation.
 - **The mark:** a conversation's details say which shared file it came from and when it was imported. There is no list of imports.
+- **A received conversation** shows its messages without the actions that would add to it (retry). Its input box says that the question continues in a conversation of the user's own; sending creates the continuation and opens it. A continuation's "return to where this left from" goes to the end of the received conversation.
 - **Empty conversations** are muted in the sidebar and hollow in the Mindweave page, with "not explored yet" in their details. Opening one shows the input box and nothing else; a branch without a source shows no "return to where this left from".
 - The dialog, the muted rows and the hollow dots wait for the owner's confirmation of their look.
 
 ## 6. Storage (one migration)
 
-- `branch_source` allows a branch with a parent and no source message, quote or anchor. This rebuilds the table, so it is tried on a copy of the owner's data first and the owner decides.
-- A record of each import (the share's title and kind, when it was imported) and, per conversation, which import brought it and whether it is another continuation of which conversation.
+- `branch_source` allows a branch with a parent and no source message (an empty received branch), and one with a source message and no quoted sentence (a continuation).
+- `branch_context_range` can say that a branch may use nothing of an ancestor.
+- Both tables are rebuilt in the one migration, so it is tried on a copy of the owner's data first and the owner decides.
+- A record of each import (the share's title and kind, when it was imported) and, per conversation, that it was received and through which import.
 - Stand-ins for attachments and citations that have no stored material behind them. Whether these need columns or fit the blocks' own data is the builder's to settle.
 - No stored time of a title's change (I2).
 
@@ -133,8 +148,8 @@ A name from the file is stored as a title the user did not write (the automatic 
 
 ## 8. Increments
 
-- **2a: structure-only import.** The migration; empty conversations and branches without a source in the store, the sidebar, the Mindweave page and the conversation page; the entry points and the dialog; the import record; refusal of every other kind of file.
-- **2b: import with content.** Messages at their numbers, sources, summaries and links; the stand-ins; filling empty conversations; another continuation; the approval rule for imported URLs; continuing to ask.
+- **2a: structure-only import.** The migration; empty conversations and branches without a source in the store, the sidebar, the Mindweave page and the conversation page; asking in an empty received conversation starts a branch of the user's own; the entry points and the dialog; the import record; refusal of every other kind of file.
+- **2b: import with content.** Messages at their numbers, sources, summaries and links; the stand-ins; filling empty conversations; received conversations as read-only; continuing in a conversation of the user's own; the approval rule for received URLs.
 
 Each merge states how to try it, what was run and what was not verified.
 
@@ -143,25 +158,24 @@ Each merge states how to try it, what was run and what was not verified.
 2a:
 
 1. A structure-only share imported into a new workspace: every dot is there with its title and its branch lines, in both views and in the sidebar, muted; no conversation has a message.
-2. Asking in an empty branch conversation gives an ordinary answer; the conversation is no longer muted; it has no "return to where this left from".
+2. Asking in an empty received conversation starts a conversation of the user's own as its branch and gives an ordinary answer there; the received one stays empty and muted.
 3. The same file again: everything is already here, and nothing changes.
 4. A damaged file, a file of another kind, a file in a newer format and a device copy are each refused with nothing changed.
 5. The migration on a copy of the owner's data: every existing branch keeps its source, and the app's tests for returning to a source pass.
 
 2b:
 
-6. A share with content imported into a new workspace: questions, answers, source sentences and summaries are there; returning from a branch goes to its sentence; asking a further question continues from the imported messages.
-7. A structure-only import, then the same share with content: the empty conversations gain their messages and sources; a title the user changed in between stays.
+6. A share with content imported into a new workspace: questions, answers, source sentences and summaries are there; returning from a branch goes to its source answer, and marks the sentence when the file's anchor can be used. Typing a question at the end of a received conversation starts a continuation of the user's own whose answer builds on the received messages; the received conversation is unchanged and offers no retry.
+7. A structure-only import, the user asks in an empty conversation, then the same share with content arrives: the empty conversations gain their messages and sources; the user's branch is unchanged and still hangs off its conversation; a title the user changed in between stays.
 8. A newer share of an exploration imported earlier adds only the new conversations and messages.
-9. The recipient asks in an imported conversation, then imports a newer share in which the sharer also continued it: the recipient's conversation is unchanged, and the sharer's continuation arrives once as a separate conversation under the same parent; importing again adds nothing.
+9. The recipient continues from a received conversation, then imports a newer share in which the sharer also continued it: the received conversation gains the sharer's messages; the recipient's continuation is unchanged and keeps the context it had. Shared back, the continuation arrives at the sharer as a branch of their own conversation.
 10. A share whose conversation the recipient has renamed and summarized: the title and the current summary stay; the file's summary is a further saved version.
-11. An imported answer contains a URL; the user asks the model to read it: the approval card appears.
+11. A received answer contains a URL; in a continuation the user asks the model to read it: the approval card appears.
 12. An imported question with an attachment shows the name as not included; a web citation offers only "open in browser".
 13. A file whose conversation lives in another workspace: it and its branches are skipped, and the dialog names the workspace.
 
 ## 10. Left to the builder
 
-- The derivation of identities for another continuation, as long as a second import finds them.
 - How the stand-ins are stored, and how a citation without stored material is modelled in Core.
 - Whether the import record is one table or two.
 - The muted and hollow looks, to be shown to the owner.
@@ -172,6 +186,7 @@ Each merge states how to try it, what was run and what was not verified.
 | Where | Change |
 | --- | --- |
 | [sharing.md](../design/sharing.md) §6.6 point 7, §7 | "The newer one wins" and the time of a title's change belong to step 3 (I2); an outline is empty conversations, not directions like recommended nodes (I1) |
-| Requirements §10.7, Import | Point 8 and its acceptance row: a structure-only share arrives as empty conversations the user can ask in; a shared file never changes a title or the current summary; the approval rule for imported URLs |
-| Architecture §16.4, §16.5 | No separate outline; single-valued fields change only with device copies; the migration of §6 here |
-| The exchange document | Each message's stored number and each summary version's coverage (asked of the 1b build on 2026-11-25) |
+| Requirements §10.7, Import | A received conversation is read-only and the user's questions continue in a conversation of their own (points 4 and 7 and their acceptance rows; two continuations move to device copies); point 8: a structure-only share arrives as empty conversations; a shared file never changes a title or the current summary; the approval rule for received URLs |
+| Architecture §16.4, §16.5 | No separate outline; received conversations are read-only and two continuations belong to device copies; single-valued fields change only with device copies; the migration of §6 here |
+| [sharing.md](../design/sharing.md) S4, §6.4 | Two continuations arise only between the user's own devices (I4) |
+| The exchange document | Each message's stored number and each summary version's coverage (added in the 1b build on 2026-11-25) |
