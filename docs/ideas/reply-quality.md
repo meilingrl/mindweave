@@ -23,7 +23,7 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 | Q8 | Relevant passages from fetched pages (idea 3) | Nothing |
 | Q9 | Better summaries (idea 10) | Nothing |
 | Q10 | The evaluation of explanations and of citations (ideas 6, 9) | What Q1–Q9 keep |
-| Q11 | Out of scope, failure cases, acceptance scenarios, the first increment | All |
+| Q11 | The increments; then the owner says whether the draft is agreed | All |
 
 ### Decisions
 
@@ -95,13 +95,71 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - A side-by-side report of two prompt versions per scenario. The owner's reading decides.
   - With a flag, a judge model adds two hints: which of two answers is clearer (asked twice, positions swapped), and whether each cited sentence is supported by the passage it cites. Evaluation only; a hint, never a pass or fail.
   - Feedback from the owner's daily use counts beside the evaluation.
-  - **Cost and time** (the owner, 2026-11-26: they matter). Proposed how, waiting for the owner's yes:
+  - **Cost and time** are part of the evaluation (owner, 2026-11-26):
     - Per scenario and in total, for both versions with the difference: input tokens, output tokens, model requests, tool calls, seconds to the first text, seconds in all. The app already records all of these per request; the report shows tokens and total seconds today and gains the time to the first text.
     - The fixed size of what Q1–Q9 add (answer prompt, branch paragraph, note, summary titles, tool section, suggestion block) is counted with the app's own estimator in the ordinary tests, with a limit for each, so growth is caught without a paid run.
     - Money: tokens times the prices given in the evaluation's configuration; without prices, tokens only.
     - Time from one run is one sample and moves with the service's load. Output tokens and the number of requests are the steady signs; a time difference counts only when it is large or repeats.
     - The judge's own tokens are reported apart from the answers under test.
   - Accepted cost: a full run grows from about 12 answers under test to about 20, and with the judge about 30 more requests; every real run is paid and within a budget the owner gives; a judge is noisy; eight scenarios to keep working.
+
+### Out of scope
+
+- Self-check cards and a guide-me mode, in any form (Q3).
+- A clarification card that pauses a run (Q6b).
+- A model request that rewrites a follow-up question (Q7).
+- Facts about the user extracted by the model (Q4).
+- Optional summary styles (Q9).
+- A default self-critique pass, long report-style answers, and an interview about the user's level ("Considered and not proposed").
+- Showing on screen which summary titles were sent with an answer.
+- Recording the prompt version with each request (it needs a migration).
+- Search by meaning (the ask-anywhere session) and unresolved marks (the return-and-review session).
+
+### Failure cases
+
+| Case | What happens |
+| --- | --- |
+| The suggestion block is missing, broken or cut off | No chips; the answer is unaffected |
+| An answer is stopped, fails or is interrupted | No chips for it |
+| An answer is retried or regenerated | The new attempt has its own suggestions; the old attempt's are not shown |
+| A suggestion names a phrase that is not in the answer | The chip is a plain question, with no branch |
+| Suggestions are turned off | The prompt does not ask for the block; the other reading of an unclear question is named in a sentence only |
+| The summary search fails or finds nothing above the threshold | The answer is made without the titles line; no error is shown |
+| The note is empty | No note section in the prompt |
+| The note is longer than the limit | Settings does not accept the extra text; nothing is cut silently |
+| No passage of a long page matches | The start of the page, as today |
+| A long result is data, not prose | Its start, as today |
+| The model ignores the answer prompt | The answer is still an answer; the evaluation and the owner's reading show it |
+| The answer prompt, note and titles leave too little room | They count in the context budget like the run prompt; the titles line is dropped first, then earlier turns are compressed as today |
+
+### Acceptance scenarios
+
+1. A plain question without tools: the request starts with the answer prompt; the answer gives the core idea first and defines a term at first use.
+2. "Just the number" or "rewrite this sentence": the answer does only that, with no added explanation.
+3. A branch on a term: the answer explains the term in the context of the passage and does not answer the parent question again.
+4. A later question in the same branch: the request still carries the branch paragraph.
+5. A finished answer shows two or three chips under it; clicking one fills the input box and sends nothing; a chip that names a phrase opens a branch from it with the question filled in.
+6. The chips are not in the answer body, the context of the next question, the title, a summary, an export or a shared page; they are still there after a restart, under the latest answer only.
+7. A question with two readings: the answer says which reading it takes, and a chip offers the other.
+8. A note in Settings is sent with the next answer and the next summary; clearing it removes it from the next request.
+9. A question on a topic that has a summary: its title is in the request; with no matching summary there is no titles line.
+10. A short follow-up ("What about the second one?"): the summary search and the pre-search both use the title and the selection with the question.
+11. A run stops searching once the material answers the question, and names an attachment without a number.
+12. A page of 10,000 words with the answer near the end: the first result the model gets contains that passage.
+13. A new summary starts with a gist, is grouped by concept and lists the key terms; an existing summary is unchanged until a new version is made.
+14. The evaluation report shows two prompt versions side by side per scenario, with tokens, requests, time to the first text and total time for each.
+15. No screen offers a test, a quiz or a guided mode.
+
+### Increments (proposed)
+
+| # | Content | The owner sees |
+| --- | --- | --- |
+| 1 | **Prompts and the yardstick.** The answer prompt with the branch paragraph and the line on two readings (Q1, Q2, Q6b); the tool section, run prompt version 4 (Q6); the summary prompt (Q9, without the note); the evaluation: new scenarios, checks, the side-by-side report, cost and time, size limits, the optional judge (Q10); the fix for attachment digests cut by the output limit. No change on screen. | A trial build to read answers and summaries in; one evaluation report, if a budget is given |
+| 2 | **Follow-up suggestions** (Q5), and the chip for the other reading (Q6b). | Screenshots of the chips, then a build |
+| 3 | **The note and the summary titles** (Q4), with the follow-up rule for the search (Q7); the note in the summary prompt (Q9). | A screenshot of the Settings field, then a build |
+| 4 | **Best-matching passages of a long page** (Q8). | Nothing on screen; the evaluation scenario |
+
+Each increment is a task branch of its own and merges after the full test suite passes. Requirement and architecture text for an increment is a separate commit the owner confirms.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
