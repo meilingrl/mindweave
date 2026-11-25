@@ -1,6 +1,6 @@
 # Reply quality
 
-**Status:** in discussion with the owner since 2026-11-25; decisions are recorded under "Discussion". Nothing outside that section is agreed. First draft 2026-11-22. Based on a research pass of the same day over open-source projects: their prompts, code and documents were read; the adaptations to Mindweave and all cost estimates are inferences, not measurements.
+**Status:** in discussion with the owner since 2026-11-25, reopened on 2026-11-26 at Q5; decisions are recorded under "Discussion". Nothing outside that section is agreed. First draft 2026-11-22. Based on a research pass of the same day over open-source projects: their prompts, code and documents were read; the adaptations to Mindweave and all cost estimates are inferences, not measurements.
 
 **Related:** [agent-loop.md](../design/agent-loop.md) (run loop, L1–L12, section 8), [web-search.md](../design/web-search.md), [requirements §10.4](../requirements.md).
 
@@ -10,7 +10,7 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 
 ### Approach in short
 
-One answer prompt opens every answer, in the interface language, with a version number. Its lines are defaults; the user's question wins. Pieces join it by condition: a branch paragraph in a branch, the user's note when there is one, the titles of matching summaries when there are any and the tool section when tools are offered. An answer is the answer and nothing else: nothing is offered under it. The summary prompt gets a gist, a body by concept and key terms. A long page reaches the model as its best-matching passages. Nothing here adds a model request to an answer. The evaluation set measures all of it, with cost and time, and the owner's reading and daily use decide what is good.
+One answer prompt opens every answer, in the interface language, with a version number. Its lines are defaults; the user's question wins. Pieces join it by condition: a branch paragraph in a branch, the user's note when there is one, the titles of matching summaries when there are any and the tool section when tools are offered. The summary prompt gets a gist, a body by concept and key terms. A long page reaches the model as its best-matching passages. Nothing here adds a model request to an answer. The evaluation set measures all of it, with cost and time, and the owner's reading and daily use decide what is good.
 
 ### Order of the questions
 
@@ -49,7 +49,10 @@ One answer prompt opens every answer, in the interface language, with a version 
   - The titles: before each answer, one local keyword search of this workspace's summaries with the question and, in a branch, the selected passage. The top three titles above a match threshold go into the prompt with "build on these; do not explain them again from the start". Titles only; with tools on, the model can open one through the summary search.
   - Facts extracted by the model (level 3 of "Memory") are not built.
   - Accepted cost: up to about 200 input tokens for the note and about 50 for the titles; one stored preference; a Settings field whose look the owner confirms; a wrong match can make the model skip a needed explanation; nothing on screen shows which titles were sent; the Settings text on what is sent to the AI (requirements §9.4) gains a line.
-- **Q5: no follow-up suggestions.** The owner said yes on 2026-11-25 and withdrew it on 2026-11-26: answers stay plain, and nothing under an answer offers possible next questions. No block in the response, no chips, no setting. Recommended questions for a workspace (requirements §10.3.1) are unchanged.
+- **Q5: reopened, 2026-11-26.** The owner said yes on 2026-11-25 to follow-up suggestions under each answer, withdrew that on 2026-11-26 ("keep answers plain; no need to offer possible follow-up questions"), and reopened the discussion the same day because the record of the withdrawal went further than what was said. Three things are kept apart:
+  - **A. Exploration recommendations in a workspace**: recommended questions, recommended nodes and conversations started from a recommendation (requirements §10.3.1, §10.3.2, §10.3.5). Built, and outside this draft. Nothing here changes or removes them.
+  - **B. Chips under an answer**: the mechanism first agreed as Q5 (a marked block in the response, parsed and shown as chips). Withdrawn by the owner.
+  - **C. What the model writes at the end of its own answer text**: for example a closing sentence that points to a related direction. The owner has decided nothing about this. Open.
 - **Q6, 2026-11-25 (owner): five lines join the tool section; the run prompt goes to version 4.**
   - Stop: answer once the material answers the question; about three relevant sources is usually enough; if two searches in a row bring nothing new, stop and say what is missing.
   - Refine: when a search falls short, search again with terms found in the results, not with the same words.
@@ -63,7 +66,7 @@ One answer prompt opens every answer, in the interface language, with a version 
   - It works for every answer, with or without tools, and nothing pauses.
   - Accepted cost: about 30 input tokens; a wrong pick costs one more question and answer.
   - Not chosen: a card that pauses the run and waits for a choice (idea 8).
-  - Changed 2026-11-26 with Q5: the other reading was to be offered as a follow-up suggestion; it is now named in the sentence only. This wording waits for the owner's yes.
+  - Open since 2026-11-26: the other reading was to be offered as a chip (Q5). With the chips withdrawn, the wording above (the other reading named in the sentence) is a proposal, not yet confirmed by the owner.
 - **Q7, 2026-11-25 (owner): follow-up questions keep the L9 rule; no model request rewrites them.**
   - The summary title search of Q4 uses the same rule as the pre-search: for a short or referring question, the conversation title and the branch selection go in front. One rule, in one place, serves both searches.
   - The evaluation set gains a follow-up scenario in the "开" (On) web setting, so the rule is measured on a real service.
@@ -101,7 +104,7 @@ One answer prompt opens every answer, in the interface language, with a version 
 ### Out of scope
 
 - Self-check cards and a guide-me mode, in any form (Q3).
-- Follow-up suggestions under an answer, in any form (Q5).
+- Chips with follow-up suggestions under an answer (Q5, part B). What the model writes in its own answer text is not covered by this line.
 - A clarification card that pauses a run (Q6b).
 - A model request that rewrites a follow-up question (Q7).
 - Facts about the user extracted by the model (Q4).
@@ -129,7 +132,7 @@ One answer prompt opens every answer, in the interface language, with a version 
 2. "Just the number" or "rewrite this sentence": the answer does only that, with no added explanation.
 3. A branch on a term: the answer explains the term in the context of the passage and does not answer the parent question again.
 4. A later question in the same branch: the request still carries the branch paragraph.
-5. An answer ends with its own text; nothing under it offers next questions, and the answer does not close with a list of them.
+5. No chips with suggested questions appear under an answer. (How an answer's own text may end is open, Q5 part C.)
 6. A question with two readings: the answer says which reading it takes and names the other.
 7. A note in Settings is sent with the next answer and the next summary; clearing it removes it from the next request.
 8. A question on a topic that has a summary: its title is in the request; with no matching summary there is no titles line.
