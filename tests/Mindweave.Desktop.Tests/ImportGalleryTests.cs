@@ -15,7 +15,8 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// Importing a structure-only share, for looking at (MINDWEAVE_SCREENSHOT_DIR, run with <c>--filter FullyQualifiedName~ImportGallery</c>):
-/// the menu, the dialog, the muted rows, the hollow dots in both views and an empty conversation. import-*.png
+/// the menu, the dialog, the muted rows, the hollow dots in both views and an empty conversation: import-*.png, and
+/// import-sample-*.html to import by hand.
 /// </summary>
 [Trait("Category", "Gallery")]
 [Collection(Text.LanguageTests.Name)]
@@ -65,6 +66,8 @@ public class ImportGalleryTests
                 window.UpdateLayout();
             }
 
+            // The shared file itself, to import by hand.
+            await File.WriteAllBytesAsync(System.IO.Path.Combine(Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR")!, $"import-sample-{(english ? "en" : "zh")}.html"), SharePage.Encode(share), CancellationToken.None);
             app.ShellPage.IsWorkspaceMenuOpen = true;
             await Task.Delay(400, CancellationToken.None); // The menu fades in.
             Screenshots.Capture(window, $"import-1-menu-{look}");
