@@ -807,13 +807,16 @@ Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered a
 
 - The app reads only the data block and never runs the page. Imported text is drawn like any answer (§5): no image is loaded.
 - One import is one transaction.
-- Rules, by identity: present → left as it is; unknown → added; a known conversation gains the messages it lacks; a conversation present in another workspace is reported, not moved.
-- **Two continuations.** When the file and the store each hold messages the other lacks after their last common message, the stored conversation is not changed, and the incoming one is written as a separate conversation whose identities are derived from the incoming ones, so that a second import finds it already there.
+- Rules, by identity: present → left as it is; unknown → added; a received conversation gains the messages it lacks, each at its stored number; a conversation present in another workspace is reported, not moved, and its branches in the file are skipped with it.
+- **A received conversation is read-only** (requirements §10.7): the conversation records that it was received, and no use case adds a message to it. The user's question at its end creates a branch whose source is its last message, with no quoted sentence. So a shared file only ever extends a received conversation, and a number held by a different message means the file does not fit: that conversation is skipped.
+- **Two continuations** exist only with device copies. When the copy and the store each hold messages the other lacks after their last common message, the stored conversation is not changed, and the incoming one is written as a separate conversation whose identities are derived from the incoming ones, so that a second import finds it already there.
 - Import never deletes.
-- An imported conversation records that it came from a shared file. A structure-only share is stored as an outline, apart from conversations.
-- For single-valued fields (title, current summary version, archived state) the newer value wins; this needs the time of the last title change to be stored.
+- A structure-only share is stored as conversations without messages. A branch may have a parent and no source message (an empty received branch), or a source message and no quoted sentence (a continuation). Its context rows exist for every ancestor and may say that nothing of the ancestor is used, so that the tree reads of §11, archiving (§9.2) and the deletion checks (§4.2) see it as a branch. The context of received branches is set from the file's sources, also when a source arrives later; the context of the user's own conversations is never rewritten.
+- A branch source from a file carries the source message, the quoted sentence, the position in the answer's Markdown and, when the file has it, the stored anchor. The anchor is used only when its version and render profile match (§5); otherwise returning goes to the source answer.
+- For the web fetch approval (§15.7), URLs in received conversations do not count as the user's own, along the whole context chain.
+- A shared file never changes single-valued fields (title, current summary version, archived state). With a device copy the newer value wins; this needs the time of the last title change to be stored.
 - A device copy carries the identities of deleted conversations, which the app records from the release that adds device copies. Import only offers them for deletion, through the deletion flow of §9.1.
 
 ### 16.5 Migrations
 
-The share itself needs none. Import adds the mark of where a conversation came from, the stored outline and the time of the last title change. Device copies add the record of deleted identities. Each is tried on a copy of real data first (§12.2).
+The share itself needs none. Import rebuilds `branch_source` and `branch_context_range` for branches without a source sentence, and adds the record of imports and of which conversations were received. Device copies add the time of the last title change and the record of deleted identities. Each is tried on a copy of real data first (§12.2).

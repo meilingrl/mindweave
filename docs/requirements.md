@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.29  
+**Version:** v0.30  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -667,22 +667,25 @@ Before the file is saved, the dialog lists what will leave: the numbers of conve
 
 **Import.**
 
-1. A shared file can be brought into Mindweave by dragging it onto the window or from the workspace menu. The user chooses the workspace: the current one or a new one. Before anything is written, the app says how many conversations are new, how many gain messages, how many are already there and how many arrive as another continuation.
+1. A shared file can be brought into Mindweave by dragging it onto the window or from the workspace menu. The user chooses the workspace: the current one or a new one. Before anything is written, the app says how many conversations are new, how many gain messages, how many are already there and how many are skipped.
 2. Import only keeps or adds. Each conversation and message is recognised by its identity:
    - what the app already has is left as it is and is not copied;
    - a conversation it has never seen arrives as new;
    - a conversation it already has gains only the messages it lacks.
 3. Importing the same file again changes nothing.
-4. When both sides continued the same conversation differently since their last exchange, the user's own conversation is left untouched, and the other continuation arrives once as a separate conversation, marked as such.
+4. **A received conversation is read-only.** No message is added to it by the user: it takes no new question and offers no retry of an answer. The user can read it, branch from any sentence in it, rename it, summarize it, archive it and delete it. A newer file from the sharer therefore only adds to it; a shared file never adds messages to a conversation that is the user's own. Importing a shared file also never changes a title, the current summary version or the archived state of what is already there; a summary version the app lacks arrives as a further saved version.
 5. Import never deletes. That a file does not contain a conversation is never read as a deletion.
 6. A conversation that already exists in another workspace is reported as already there, with that workspace's name. It is not moved or copied.
-7. After importing a share with content, the user can keep asking and branching in its conversations with their own model. What the share left out is absent from the context. Imported conversations are marked as coming from a shared file.
-8. A structure-only share arrives as an outline: its titles appear as directions the user can explore in conversations of their own.
+7. **Continuing.** A question typed at the end of a received conversation starts a conversation of the user's own that continues from it: a branch that left from its last message, with the whole received conversation as its context, answered by the user's own model. What the share left out is absent from the context. Shared back, such conversations arrive at the sharer as branches of their own conversations. Received conversations are marked as coming from a shared file.
+8. A structure-only share arrives as empty conversations with their titles and branch lines, shown as not explored yet. Asking in one starts a branch of the user's own. A later share with content of the same conversations fills them with their messages and the sentences their branches left from.
+9. What a share left out has a stand-in: an attachment shows its name as not included; a web citation offers only opening the page in the browser; the tool steps are the one count line.
+10. A URL in a received question or answer is not one the user wrote: before the model reads it, the approval card of §10.4.5 appears, also in the user's own continuation or branch.
+11. Returning from a received branch goes to the answer it left from, and marks the sentence when the file's position can be used by this app.
 
 **Device copies.**
 
 1. The user can save a copy of a workspace for another of their devices. It carries everything a share holds back, including attachment originals, all saved summary versions and summary links, except keys, connections and addresses.
-2. It is imported by the same rules as a share. Titles, the current summary version and the archived state take the newer value.
+2. It is imported by the same rules as a share, with two differences, because both sides are the same user. Titles, the current summary version and the archived state take the newer value. And when both devices continued the same conversation differently since their last exchange, this device's conversation is left untouched, and the other continuation arrives once as a separate conversation, marked as such.
 3. A device copy also lists the conversations deleted on the device it came from, without their content. After the import the app offers to delete them here too, through the usual deletion confirmation (§8.2). It never deletes them by itself.
 4. Database backup and restore (§10.6) is a different thing: it protects the data on one machine. It is unchanged.
 
@@ -844,14 +847,17 @@ Sharing, import and device copies acceptance (v0.29, §10.7; not part of the fir
 | Share a structure-only conversation that has no title yet | It is named “未命名会话” (Untitled conversation); the dialog shows that name before saving |
 | Open a shared file in a browser set to Chinese, with a dark system theme | The page's own words are in Chinese and the page is dark; the switches change both; the conversation text is unchanged; printing is light |
 | Share while an answer in a ticked conversation is still being generated | That answer is not in the file, and the dialog says so |
-| Import a share with content into a new workspace and ask a further question in one of its conversations | The conversations, branches and summaries are there, marked as coming from a shared file; the new answer continues from the imported messages |
+| Import a share with content into a new workspace and type a further question at the end of one of its conversations | The conversations, branches and summaries are there, marked as coming from a shared file. The question starts a conversation of the user's own as a branch; its answer builds on the received messages; the received conversation is unchanged and offers no retry |
 | Import the same file again | Everything is reported as already there; nothing changes |
 | Import a newer share of the same exploration | Only the new conversations and messages are added |
-| Both sides continued the same conversation, then one imports the other's share | The user's conversation is unchanged; the other continuation arrives once as a separate marked conversation; importing again adds nothing |
-| Import a structure-only share | It arrives as an outline of directions; choosing one starts a conversation of the user's own |
+| The recipient continues from a received conversation, the sharer continues it too, and the recipient imports the newer share | The received conversation gains the sharer's messages; the recipient's continuation is unchanged. Shared back, it arrives at the sharer as a branch of their own conversation |
+| Import a share of a conversation the recipient has renamed and summarized | The title and the current summary stay; the file's summary is a further saved version |
+| A received answer contains a URL, and in a continuation the user asks the model to read it | The approval card appears |
+| Import a structure-only share, ask in one of its conversations, then import the same share with content | The dots arrive as empty conversations with their branch lines; the question starts a branch of the user's own; the later import fills the empty conversations and leaves the user's branch as it is |
 | Import a damaged file, a file of another kind, and a file in a newer format | Each is refused with its reason; nothing changes |
 | Save a device copy of a workspace with attachments and import it into an empty data folder | Conversations, branches, summaries with their versions, summary links and attachments open there |
 | Import a later device copy, then import it again | The first import adds only the changes; the second changes nothing |
+| Continue the same conversation on two devices, then import one device's copy on the other | This device's conversation is unchanged; the other continuation arrives once as a separate marked conversation; importing again adds nothing |
 | Delete a conversation on one device, save a device copy and import it on the other | The app offers to delete that conversation there; when the user declines, it stays |
 
 These scenarios verify functional behavior. Passing them still does not prove that the product is more useful than other approaches.
@@ -919,3 +925,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.27 · 2026-11-24:** After a check of the documents against the product. By the user's decisions of 2026-11-24: no mobile development (§10.1); the interface calls the network page Mindweave everywhere (§4.2); later content is a mark of the details (§7.1); a call with side effects that was stopped is recorded as unknown (§10.4.4); four built features are written down (§10.6). Passages that earlier versions left behind are corrected without changing what they decided: saving a layout by hand, the delete rule and attachments, the network's names, the run rules, names of settings, pending marks. Changed §4, §5.2, §6.1, §7, §8.2, §9.2, §9.5, §10.1, §10.3.5, §10.4.1, §10.4.3–§10.4.6, §10.6, §11–§13.
 - **v0.28 · 2026-11-24:** Following the user's decisions of 2026-11-24: the tool that searches saved summaries is called “检索总结” (search summaries) in the interface (§10.4.4, §10.4.5); “检索附件” is offered during a run once a result is not sent whole (§10.4.4); a page that is only a check that the visitor is not a robot counts as a failed fetch (§10.4.5). Does not change the first-release scope and acceptance.
 - **v0.29 · 2026-11-25:** Following the user's decisions of 2026-11-24 and 2026-11-25 (D-039), added §10.7 sharing, import and device copies: a share is a set of conversations from one workspace saved as one HTML file; it carries only the structure unless the user chooses the content; what never leaves; the page a reader sees; a share is a snapshot and no record is kept; import only keeps or adds and never copies what is already there; a device copy carries a whole workspace between the user's devices and offers deletions without making them. §4 gains the concepts share and device copy; §8.3 and §10.1 point to §10.7; §11 adds its acceptance. Does not change the first-release scope and acceptance.
+- **v0.30 · 2026-11-25:** Following the user's decisions of 2026-11-25 on import (D-041; [import note](design/sharing-import.md)), §10.7: a received conversation is read-only, and the user's question at its end starts a conversation of their own that continues from it; a shared file never changes a title, the current summary or the archived state; a structure-only share arrives as empty conversations that a later share with content fills; stand-ins for what a share left out; a URL in received text needs approval; two continuations of one conversation arise only between the user's own devices and move to device copies. §11's acceptance follows. Does not change the first-release scope and acceptance.
