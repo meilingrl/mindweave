@@ -115,6 +115,8 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | exchange document (交换文档): the one outward form of conversations, which a share and a device copy both carry (seam E5) | `Exchange` (the document `ExchangeDocument`) |
 | import (导入) of a shared file or a device copy (requirements v0.29 §10.7) | `Import` |
 | device copy (设备副本) (requirements v0.29 §10.7) | `DeviceCopy` |
+| continuation (接续): the user's own conversation that continues a received one, a branch of it with no quoted sentence (requirements v0.30 §10.7) | `BranchSource.IsContinuation` |
+| stand-in (替身): what shows that an attachment or the tool steps did not travel in a share (requirements v0.30 §10.7) | `AbsentAttachmentBlock`, `ActivityCountBlock`; a citation without stored material is a `CitationBlock` without a resource |
 
 Reserved words are used only with these meanings: `Network` means a network connection (such as a connection failure, `NetworkRead`), and `Graph` means the general graph structure in layout algorithms. `Web` is used only for web search and web pages; `Source` is already used for branch sources (`BranchSource`), citations always use `Citation`, and the provenance of a resource uses `Provenance`.
 
@@ -792,7 +794,7 @@ Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered a
 - It is the only outward form of conversations (seam E5): a model of its own, never a stored record. It has a format name, a format version, the time it was made, the app version and a kind: structure, content or device.
 - It carries stored identities unchanged; import depends on them. A reader refuses a higher major format version; within one major version only optional fields are added.
 - **Filtering happens once, when the document is built.** Writers and the page never receive what requirements §10.7 keeps home, so no later step can leak it.
-- For a share with content it carries, per conversation, the messages in order with their Markdown, attachment names, the tool count line and the citations §10.7 allows; the branch source as the source message's identity, the quoted text and, when known, the position in the answer's Markdown; and the current summary version. It carries which answer replaced which, so that an import never shows two standing answers.
+- For a share with content it carries, per conversation, the messages in order with their Markdown, attachment names, the tool count line and the citations §10.7 allows; the branch source as the source message's identity, the quoted text when it left from one (a continuation left from none) and, when known, the position in the answer's Markdown; and the current summary version. It carries which answer replaced which, so that an import never shows two standing answers.
 - Times are instants, with no time zone.
 
 ### 16.3 The shared file

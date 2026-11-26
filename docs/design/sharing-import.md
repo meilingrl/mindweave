@@ -81,6 +81,7 @@ A name from the file is stored as a title the user did not write (the automatic 
 - A message whose identity the store has is left as it is.
 - A message the store lacks is added at its own number.
 - If that number is held here by a different message, the file does not fit what is stored. This cannot come from sharing as designed. That conversation is skipped and counted in the dialog; nothing in it changes.
+- Below a number that is here, only an earlier attempt that another answer replaced may arrive. Anything else would change what the user's continuations and branches were asked about, so the conversation does not fit and is skipped the same way.
 - A conversation that is the user's own (not received) never gains messages from a shared file. If a file holds messages for it that the store lacks, they are skipped and counted. Step 3 handles this for device copies.
 
 **Branch sources.**
@@ -139,7 +140,6 @@ A name from the file is stored as a title the user did not write (the automatic 
 
 | Case | What happens |
 | --- | --- |
-| An answer is being generated in a conversation that would gain messages | The dialog asks the user to finish or stop it first |
 | A device copy before step 3 exists | Refused, saying a newer Mindweave is needed |
 | Impossible contents: a malformed identity, a quote or a message over the app's limits, a number used twice in one conversation, a parent that is not in the file or the store | Refused as damaged; nothing changes |
 | The user's own share, imported where it was made | Everything is reported as already here |
@@ -206,7 +206,7 @@ Each merge states how to try it, what was run and what was not verified.
 6. **The record of an import names the file a conversation first came through.** A file that only fills conversations leaves no record of its own.
 7. **A continuation in the exchange document** has a source without a sentence: `quote` is optional. The shared page then names the conversation it left from and leads back to that message. A received branch's stored place (`source_offset`) travels on when it is shared again.
 8. **Summary links** come with either kind of share, as §2 says; a structure-only one has no notes. They are counted in the dialog.
-9. **"An answer is being generated in a conversation that would gain messages" (§7) cannot happen**: only received conversations gain messages, and none is ever generated in them. A summary the user is having written there when a file brings one becomes a candidate, as for any conversation with a summary.
+9. **No answer is ever generated in a conversation that gains messages**: only received conversations gain messages. The row of §7 that asked the user to stop one first was struck (owner, 2026-11-26). A summary the user is having written there when a file brings one becomes a candidate, as for any conversation with a summary.
 10. **The statistics count the user's own questions.** Received ones are left out of the questions, the active days and the milestones.
 11. **A continuation is listed by its title**, under the answer it left from; when the last message is a question without an answer, under the answer before it.
 12. **The limits**: 200,000 messages in a file, 2,000,000 characters for an answer or a summary, the app's own limits for questions, quotes, anchors and attachments per question, and 1,000,000 for a message's number.
