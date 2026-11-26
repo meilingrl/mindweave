@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.30  
+**Version:** v0.31  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -79,7 +79,7 @@ Existing products cover parts of this, such as branching, returning, summarizati
 | Tool (after the first release) | A capability the model can call during a run, such as searching attachments, searching summaries or web search; each tool has a risk level; see §10.4.4 |
 | Citation (after the first release) | The resource, and the place in it, that a numbered marker in an answer ([1], [2], …) points to; the original text can be viewed. Distinct from a branch's anchor; see §10.4.5 |
 | Share (v0.29) | A set of conversations from one workspace, saved as one file that anyone can open in a browser and that Mindweave can import. By default it carries only the structure of the conversations; see §10.7 |
-| Device copy (v0.29) | A file with everything in a workspace, which the user saves on one device and imports on another; see §10.7 |
+| Device copy (v0.29) | A complete copy of the user's work in one file, which the user saves and can import on the same device or another. It is a backup, not a sync; see §10.7 |
 
 ### 4.1 Conversation branch structure
 
@@ -684,10 +684,13 @@ Before the file is saved, the dialog lists what will leave: the numbers of conve
 
 **Device copies.**
 
-1. The user can save a copy of a workspace for another of their devices. It carries everything a share holds back, including attachment originals, all saved summary versions and summary links, except keys, connections and addresses.
-2. It is imported by the same rules as a share, with two differences, because both sides are the same user. Titles, the current summary version and the archived state take the newer value. And when both devices continued the same conversation differently since their last exchange, this device's conversation is left untouched, and the other continuation arrives once as a separate conversation, marked as such.
-3. A device copy also lists the conversations deleted on the device it came from, without their content. After the import the app offers to delete them here too, through the usual deletion confirmation (§8.2). It never deletes them by itself.
-4. Database backup and restore (§10.6) is a different thing: it protects the data on one machine. It is unchanged.
+1. The user can save a complete copy of their work. It holds all workspaces unless the user unticks some. It carries everything a share holds back, including attachment originals, saved web pages and tool results, every saved summary version and summary links. It does not carry keys, connections and addresses, settings, drafts, reading positions, recommendations, or usage statistics. Every copy is complete; there is no copy of only what changed.
+2. **A device copy is a backup, not a sync.** Importing one adds what the device lacks: workspaces, conversations, messages, branches, attachments, summary versions and summary links. Nothing already there is changed or deleted. A title, a name, the current summary version or the archived state that differs keeps this device's value. What it brings is the user's own, not read-only, except conversations that were received from a shared file, which stay received. Importing the same copy again changes nothing.
+3. **Questions asked on both sides.** When the copy and the device each hold questions the other lacks in the same conversation, they join into one line in the order they were asked, each answer with its question, and it stays one conversation. A summary whose end now lies after a question it did not know shows “后续内容未纳入” (later content not included).
+4. Deletions do not travel. A conversation that was deleted on this device and is in the copy comes back with the import.
+5. A workspace is created where it is missing. Two devices that were each used before keep their own workspaces side by side; they are not joined.
+6. The copy is one package file. Unpacked, it can also be read in a browser, as a share with content can.
+7. Database backup and restore (§10.6) is a different thing: it protects the data on one machine across version changes and deletions, and restoring it replaces everything. It is unchanged.
 
 **Failure.**
 
@@ -855,10 +858,11 @@ Sharing, import and device copies acceptance (v0.29, §10.7; not part of the fir
 | A received answer contains a URL, and in a continuation the user asks the model to read it | The approval card appears |
 | Import a structure-only share, ask in one of its conversations, then import the same share with content | The dots arrive as empty conversations with their branch lines; the question starts a branch of the user's own; the later import fills the empty conversations and leaves the user's branch as it is |
 | Import a damaged file, a file of another kind, and a file in a newer format | Each is refused with its reason; nothing changes |
-| Save a device copy of a workspace with attachments and import it into an empty data folder | Conversations, branches, summaries with their versions, summary links and attachments open there |
+| Save a device copy and import it into an empty data folder | Every workspace, conversation, branch, summary with its versions, summary link and attachment opens there; a received conversation is still read-only. A copy saved with one workspace unticked holds nothing of it; no copy holds a key or a connection address |
 | Import a later device copy, then import it again | The first import adds only the changes; the second changes nothing |
-| Continue the same conversation on two devices, then import one device's copy on the other | This device's conversation is unchanged; the other continuation arrives once as a separate marked conversation; importing again adds nothing |
-| Delete a conversation on one device, save a device copy and import it on the other | The app offers to delete that conversation there; when the user declines, it stays |
+| Ask further in the same conversation on two devices, then import one device's copy on the other | The conversation is one line in the order the questions were asked, each answer with its question; its branches still return to their sentences; a summary made on one side shows later content not included; importing the other way gives the same line there; importing again changes nothing |
+| Rename, archive or re-summarize a conversation on one device, then import the other device's copy | This device's title, archived state and current summary stay |
+| Delete a conversation on this device, then import a copy that still holds it | The conversation comes back |
 
 These scenarios verify functional behavior. Passing them still does not prove that the product is more useful than other approaches.
 
@@ -926,3 +930,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.28 · 2026-11-24:** Following the user's decisions of 2026-11-24: the tool that searches saved summaries is called “检索总结” (search summaries) in the interface (§10.4.4, §10.4.5); “检索附件” is offered during a run once a result is not sent whole (§10.4.4); a page that is only a check that the visitor is not a robot counts as a failed fetch (§10.4.5). Does not change the first-release scope and acceptance.
 - **v0.29 · 2026-11-25:** Following the user's decisions of 2026-11-24 and 2026-11-25 (D-039), added §10.7 sharing, import and device copies: a share is a set of conversations from one workspace saved as one HTML file; it carries only the structure unless the user chooses the content; what never leaves; the page a reader sees; a share is a snapshot and no record is kept; import only keeps or adds and never copies what is already there; a device copy carries a whole workspace between the user's devices and offers deletions without making them. §4 gains the concepts share and device copy; §8.3 and §10.1 point to §10.7; §11 adds its acceptance. Does not change the first-release scope and acceptance.
 - **v0.30 · 2026-11-25:** Following the user's decisions of 2026-11-25 on import (D-041; [import note](design/sharing-import.md)), §10.7: a received conversation is read-only, and the user's question at its end starts a conversation of their own that continues from it; a shared file never changes a title, the current summary or the archived state; a structure-only share arrives as empty conversations that a later share with content fills; stand-ins for what a share left out; a URL in received text needs approval; two continuations of one conversation arise only between the user's own devices and move to device copies. §11's acceptance follows. Does not change the first-release scope and acceptance.
+- **v0.31 · 2026-11-26:** Following the user's decisions of 2026-11-26 on device copies (D-042; [device copies note](design/sharing-device.md)), §10.7: a device copy is a backup, not a sync. It holds all workspaces by default; importing it only adds, and what differs keeps this device's value; questions asked on both sides in one conversation join into one line by time; deletions do not travel, and what was deleted comes back from a copy. This replaces v0.29 and v0.30's "the newer value wins", the offer of deletions, and the separate conversation for another continuation. §4 and §11 follow. Does not change the first-release scope and acceptance.

@@ -803,7 +803,7 @@ Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered a
 - Nothing is fetched: no remote script, font or image. Links in answers and citations are ordinary links.
 - Answers must read as they do in the app (§5): emphasis next to Chinese punctuation, tables, and the four formula delimiters. HTML inside an answer is escaped. Formulas are drawn by a library carried in the file.
 - The timeline in the page follows the rules of §11.2's timeline layout.
-- A device copy is a package holding the same page, the exchange document and the attachment originals by content hash (§15.2).
+- A device copy is a package (a zip with an extension of its own) holding the exchange document of kind device, split by workspace, the attachment originals by content hash (§15.2), and readable pages drawn as a share with content is. It is read entry by entry by known names; a path in it is never used as a path on disk, and every original is checked against its hash.
 
 ### 16.4 Import
 
@@ -811,14 +811,15 @@ Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered a
 - One import is one transaction.
 - Rules, by identity: present → left as it is; unknown → added; a received conversation gains the messages it lacks, each at its stored number; a conversation present in another workspace is reported, not moved, and its branches in the file are skipped with it.
 - **A received conversation is read-only** (requirements §10.7): the conversation records that it was received, and no use case adds a message to it. The user's question at its end creates a branch whose source is its last message, with no quoted sentence. So a shared file only ever extends a received conversation, and a number held by a different message means the file does not fit: that conversation is skipped.
-- **Two continuations** exist only with device copies. When the copy and the store each hold messages the other lacks after their last common message, the stored conversation is not changed, and the incoming one is written as a separate conversation whose identities are derived from the incoming ones, so that a second import finds it already there.
+- **A device copy only adds** (requirements §10.7): it is matched by identity like a share, what it brings is the user's own, and no stored value is changed. Summaries are matched by their conversation; versions missing here are added as saved versions.
+- **Joined by time.** When a device copy and the store each hold messages the other lacks in one conversation, the conversation's line is rebuilt in the order the questions were asked, each question with its answers and attempts, each side's own order kept. Its messages are numbered anew, and what refers to a place in it by number follows the message it meant: the context ranges of branches that left from it and the coverage of its summaries. A summary version's coverage ends before the first message it did not know. Both sides reach the same line, and a second import changes nothing. A received conversation is read-only, so it never has two lines.
 - Import never deletes.
 - A structure-only share is stored as conversations without messages. A branch may have a parent and no source message (an empty received branch), or a source message and no quoted sentence (a continuation). Its context rows exist for every ancestor and may say that nothing of the ancestor is used, so that the tree reads of §11, archiving (§9.2) and the deletion checks (§4.2) see it as a branch. The context of received branches is set from the file's sources, also when a source arrives later; the context of the user's own conversations is never rewritten.
 - A branch source from a file carries the source message, the quoted sentence, the position in the answer's Markdown and, when the file has it, the stored anchor. The anchor is used only when its version and render profile match (§5); otherwise returning goes to the source answer.
 - For the web fetch approval (§15.7), URLs in received conversations do not count as the user's own, along the whole context chain.
-- A shared file never changes single-valued fields (title, current summary version, archived state). With a device copy the newer value wins; this needs the time of the last title change to be stored.
-- A device copy carries the identities of deleted conversations, which the app records from the release that adds device copies. Import only offers them for deletion, through the deletion flow of §9.1.
+- No import changes single-valued fields (title, current summary version, archived state); neither a shared file nor a device copy.
+- Deletions are not recorded and do not travel; a device copy can bring back what was deleted.
 
 ### 16.5 Migrations
 
-The share itself needs none. Import rebuilds `branch_source` and `branch_context_range` for branches without a source sentence, and adds the record of imports and of which conversations were received. Device copies add the time of the last title change and the record of deleted identities. Each is tried on a copy of real data first (§12.2).
+The share itself needs none. Import rebuilds `branch_source` and `branch_context_range` for branches without a source sentence, and adds the record of imports and of which conversations were received. Device copies need none. Each is tried on a copy of real data first (§12.2).
