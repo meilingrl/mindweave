@@ -1,6 +1,6 @@
 # Sharing, step 3: device copies (design note)
 
-**Status:** working draft, in discussion with the owner since 2026-11-26. Not adopted. It is the short note that [sharing.md](../design/sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](../design/sharing-import.md). Decisions are the owner's unless marked as the writer's call.
+**Status:** approved by the owner on 2026-11-26 (D-042), not built. It is the short note that [sharing.md](sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](sharing-import.md). Where it differs from sharing.md, this note holds for device copies; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
 
 ## What a device copy is
 
@@ -169,11 +169,11 @@ Neither has a migration. Each merge states how to try it, what was run and what 
 - A workspace exists once per device it was created on. Two devices that were each used before have their own first workspaces; a copy brings the other one beside this one, and the two are not joined.
 - After V2's joining, the numbers of that conversation's messages differ from those in a share made earlier from one side. A recipient who imported that share and later imports a newer one may find that conversation skipped as not fitting (sharing-import.md §2).
 
-## 11. Text that changes when this note is adopted
+## 11. Text that changed with this note
 
 | Where | Change |
 | --- | --- |
-| [sharing.md](../design/sharing.md) S3, S4, S11, §6.5 | A device copy is a backup that only adds; no "newer one wins", no deletion offer, no separate conversation for two continuations: they join by time |
+| [sharing.md](sharing.md) S3, S4, S11, §6.5 | A device copy is a backup that only adds; no "newer one wins", no deletion offer, no separate conversation for two continuations: they join by time |
 | Requirements §10.7, Device copies | All workspaces by default; only adds; joined by time; deleted things in a copy come back; what a copy holds; the acceptance rows |
 | Architecture §16 | The package; joining by time and numbering anew; no migration for device copies; the times of single values and the record of deletions are dropped |
-| [evolution-seams.md](../design/evolution-seams.md) E5 | The device kind of the exchange document |
+| [evolution-seams.md](evolution-seams.md) E5 | The device kind of the exchange document |

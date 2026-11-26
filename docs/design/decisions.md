@@ -264,3 +264,12 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **A URL in received text needs your approval** before the model reads it.
 - The note is [sharing-import.md](sharing-import.md). It corrects [sharing.md](sharing.md) where the two differed.
 
+## D-042 Device copies are a backup, not a sync (you, 2026-11-26)
+
+- **Your question** settled it: why solve consistency at all, when this is a backup and not a sync? The note had been written for two devices that both change and must end up alike.
+- **Importing a device copy only adds.** A title, a current summary or an archived state that differs keeps this device's value. "The newer one wins" (D-039, D-041) is dropped.
+- **Deletions are not recorded and do not travel.** What you deleted here and the copy still has comes back, as restoring a backup should. The deletion offer of the sharing design is dropped.
+- **Questions asked on both sides in one conversation join into one line by time.** You first chose a branch attached after the last shared question, on my recommendation; an independent read showed that the same questions would then sit under different conversations on different devices. This also replaces the "separate conversation, marked" of D-039.
+- **A copy holds all workspaces by default**, and every copy is complete.
+- **No migration.** Two increments: save a copy, import a copy. The note is [sharing-device.md](sharing-device.md).
+
