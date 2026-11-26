@@ -1,6 +1,6 @@
 # Sharing, step 2: import and continue (design note)
 
-**Status:** approved by the owner on 2026-11-25 (D-041). Increment 2a (§8) is built (0.6.18); 2b is not. It is the short note that [sharing.md](sharing.md) §8 asks for before step 2's code, and it settles what that design left open for import. Where the two differ, this note holds for import; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
+**Status:** approved by the owner on 2026-11-25 (D-041). Built: 2a in 0.6.18, 2b in 0.6.19. It is the short note that [sharing.md](sharing.md) §8 asks for before step 2's code, and it settles what that design left open for import. Where the two differ, this note holds for import; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
 
 ## Findings in the code (2026-11-25)
 
@@ -81,6 +81,7 @@ A name from the file is stored as a title the user did not write (the automatic 
 - A message whose identity the store has is left as it is.
 - A message the store lacks is added at its own number.
 - If that number is held here by a different message, the file does not fit what is stored. This cannot come from sharing as designed. That conversation is skipped and counted in the dialog; nothing in it changes.
+- Below a number that is here, only an earlier attempt that another answer replaced may arrive. Anything else would change what the user's continuations and branches were asked about, so the conversation does not fit and is skipped the same way.
 - A conversation that is the user's own (not received) never gains messages from a shared file. If a file holds messages for it that the store lacks, they are skipped and counted. Step 3 handles this for device copies.
 
 **Branch sources.**
@@ -139,7 +140,6 @@ A name from the file is stored as a title the user did not write (the automatic 
 
 | Case | What happens |
 | --- | --- |
-| An answer is being generated in a conversation that would gain messages | The dialog asks the user to finish or stop it first |
 | A device copy before step 3 exists | Refused, saying a newer Mindweave is needed |
 | Impossible contents: a malformed identity, a quote or a message over the app's limits, a number used twice in one conversation, a parent that is not in the file or the store | Refused as damaged; nothing changes |
 | The user's own share, imported where it was made | Everything is reported as already here |
@@ -195,6 +195,24 @@ Each merge states how to try it, what was run and what was not verified.
 10. **A file dropped on an input box is an attachment**, as before. Anywhere else in the window one `.html` or `.htm` file is taken; more than one file, or another kind, is not. "Import…" offers the same kinds.
 11. **Links between conversations are not added by 2a.** A structure-only share has no summary to link; a link between two conversations that are both here is 2b's, with the rest of the links.
 12. **The page of an empty received conversation** has no branch header either. The user's own branch of one shows the path above it, without a sentence and without the way back.
+
+### Details settled while building 2b (builder's calls, 2026-11-26)
+
+1. **The stand-ins are message blocks and need no migration.** An attachment that did not travel is a block of its own with its name, an answer's tool counts are a block of their own, and a citation is the usual block without a resource and without a time. Their data is in the blocks' own `data`. A build before 2b that meets one of these blocks cannot show that conversation; the same was true when citations were added (web-search.md §2).
+2. **What the model gets for such an attachment** is one line saying that there was one, without its name. A citation goes as "[n] title URL", or as its kind.
+3. **A new answer directly after another one is its retry**, whichever file brought which, so an answer that was replaced later arrives as replaced. In the file, the earlier attempts of a question must name the one that stands.
+4. **A conversation that does not fit** is one where a number is held by another message, or where a message or a summary version of the file belongs to another conversation here, or where something other than a replaced attempt would arrive below a number that is here (it would change what the user's continuations are asked about, which §2 forbids). Nothing of it is written, its summary included. A new one that does not fit takes its new branches with it, since they would have no parent. A conversation of the user's own with messages that are not here is also skipped whole.
+5. **A new branch whose source message is not here** (its parent was skipped) arrives with its parent only. A later file can bring the source.
+6. **The record of an import names the file a conversation first came through.** A file that only fills conversations leaves no record of its own.
+7. **A continuation in the exchange document** has a source without a sentence: `quote` is optional. The shared page then names the conversation it left from and leads back to that message. A received branch's stored place (`source_offset`) travels on when it is shared again.
+8. **Summary links** come with either kind of share, as §2 says; a structure-only one has no notes. They are counted in the dialog.
+9. **No answer is ever generated in a conversation that gains messages**: only received conversations gain messages. The row of §7 that asked the user to stop one first was struck (owner, 2026-11-26). A summary the user is having written there when a file brings one becomes a candidate, as for any conversation with a summary.
+10. **The statistics count the user's own questions.** Received ones are left out of the questions, the active days and the milestones.
+11. **A continuation is listed by its title**, under the answer it left from; when the last message is a question without an answer, under the answer before it.
+12. **The limits**: 200,000 messages in a file, 2,000,000 characters for an answer or a summary, the app's own limits for questions, quotes, anchors and attachments per question, and 1,000,000 for a message's number.
+13. **Hostile text.** A NUL character becomes U+FFFD, as Markdown reads it. A citation's address must still be one when it is written out and read back. Text nested too deeply for the Markdown parser is shown as it was written, whichever way it came. An anchor that does not hold what an anchor holds only fails to mark.
+14. **What a continuation uses is what was read when it was asked.** Its stored context is made from that and not read again, so a file that arrives in the same moment does not change it.
+15. **The way back from a continuation** shows the end of the message it left from. The button keeps its words; its tip says where it leads.
 
 ## 11. Text that changed with this note
 

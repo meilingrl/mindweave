@@ -4,7 +4,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); increment 2a, importing a structure-only share, is built (0.6.18, migration v19). Next are 2b (import with content), then device copies after a short note.
+- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); step 2 is built: importing a structure-only share (0.6.18, migration v19) and a share with content (0.6.19). Next are device copies (step 3), after a short note.
 - Four design discussions are open with you on task branches: reply quality; return and review; safety, diagnostics and upkeep; ask from anywhere and local AI. Nothing in them is agreed as a whole.
 
 ## Next steps
@@ -39,8 +39,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - the answer output limit;
   - the English prompts.
 - The application icon (0.6.11): on Windows; the small sizes in daily use.
-- Sharing (0.6.13, 0.6.15): on Windows; the page in Safari and Firefox; on 1,000 conversations the dialog took about 1.2 s to open in a debug build, and its speed with content was not measured; the dialog's new list in a real window. The foot of the page says the file can be opened in Mindweave, which is true so far only for structure-only shares.
-- Import (0.6.18): in a real window (a file dropped from Finder, the open panel); on Windows; with a real model.
+- Sharing (0.6.13, 0.6.15): on Windows; the page in Safari and Firefox; on 1,000 conversations the dialog took about 1.2 s to open in a debug build, and its speed with content was not measured; the dialog's new list in a real window. The foot of the page says the file can be opened in Mindweave, which is true since 0.6.19.
+- Import (0.6.18, 0.6.19): in a real window (a file dropped from Finder, the open panel); on Windows; with a real model; the shared page with a continuation in a browser; a very large file. A summary's coverage taken from a file is not bounded, so a crafted file can hide that a summary has later content.
 - macOS file panels (0.6.13): picking real attachments; quitting from the Dock while a panel is open; an Intel Mac.
 - 0.6.10: a real model reading the rest of a long result; a real MCP server stopped during a call. On Windows: all of it.
 - The UI points of 0.5.11 to 0.5.14, 0.6.2, 0.6.4, 0.6.6 and 0.6.7 (D-037): on Windows; a real model's tool steps while the page stays.
@@ -68,7 +68,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | import 2a, 0.6.18 | 2026-11-26 | passed: Core 137, Architecture 39, Infrastructure 1193 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | import 2b, 0.6.19 | 2026-11-26 | passed: Core 138, Architecture 39, Infrastructure 1294 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

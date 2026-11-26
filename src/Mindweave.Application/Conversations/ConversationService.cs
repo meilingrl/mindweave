@@ -286,8 +286,9 @@ public sealed partial class ConversationService : IConversations
         StartAsync(workspace, null, question, attachments, from, options, cancellationToken);
 
     /// <summary>
-    /// A conversation stored with its first question: a root, or (<paramref name="parent"/>) the user's own branch of an
-    /// empty received conversation, which has no source and no context (decision I4).
+    /// A conversation stored with its first question: a root, or (<paramref name="parent"/>) the user's own conversation that
+    /// continues a received one (decision I4): a branch that left from its last message, with all of it as its context. Of an
+    /// empty one it is a branch with no source and no context.
     /// </summary>
     private async Task<SendOutcome> StartAsync(
         WorkspaceId workspace, ConversationId? parent, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, SendOptions? options, CancellationToken cancellationToken)
@@ -306,12 +307,15 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(attachmentRejection, id);
         }
 
+        // What the received conversation holds now is what the question was asked about, whatever a file adds meanwhile.
+        var chain = parent is { } left ? await ContinuedAsync(left, cancellationToken).ConfigureAwait(false) : [];
+
         var now = _clock.UtcNow;
         var conversation = new Conversation(id, workspace, null, TitleSource.None, now, now);
         var user = QuestionMessage(id, question, blocks, now);
         var answer = NewMessage(id, 1, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var (planned, inputs, known) = await PlanAsync(id, [user], budget, model, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs, known) = await PlanAsync(id, [user], budget, model, cancellationToken, chain).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -320,11 +324,11 @@ public sealed partial class ConversationService : IConversations
         var run = await RunPlanAsync(workspace, id, inputs, model, options, question, cancellationToken).ConfigureAwait(false);
         var whole = budget;
         (plan, budget) = WithRoomForRun(plan, budget, inputs, known, run);
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now, run);
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now, run);
         try
         {
             await (parent is { } received
-                ? _store.CreateBranchAsync(received, conversation, user, answer, task, cancellationToken)
+                ? _store.CreateBranchAsync(received, chain, conversation, user, answer, task, cancellationToken)
                 : _store.CreateAsync(conversation, user, answer, task, from, cancellationToken)).ConfigureAwait(false);
         }
         catch (StorageWriteException ex)
@@ -341,8 +345,27 @@ public sealed partial class ConversationService : IConversations
         }
 
         await EnqueueAsync(task, model, plan, budget, answer, inputs, run, whole);
+        if (parent is { } continued)
+        {
+            ConversationChanged?.Invoke(this, continued);
+        }
+
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
+    }
+
+    /// <summary>The context of a conversation that continues a received one: what that one may use, and then all of it. Empty for an empty one.</summary>
+    private async Task<IReadOnlyList<ContextSegment>> ContinuedAsync(ConversationId received, CancellationToken cancellationToken)
+    {
+        var messages = await _store.GetMessagesAsync(received, cancellationToken).ConfigureAwait(false);
+        if (messages.Count == 0)
+        {
+            return [];
+        }
+
+        var above = await _branches.GetAncestorContextAsync(received, cancellationToken).ConfigureAwait(false);
+        var source = await _branches.GetSourceAsync(received, cancellationToken).ConfigureAwait(false);
+        return [.. above, new ContextSegment(received, source?.Quote, messages) { IsReceived = true }];
     }
 
     public Task<SendOutcome> AskAsync(ConversationId id, string question, CancellationToken cancellationToken) =>
@@ -356,7 +379,7 @@ public sealed partial class ConversationService : IConversations
     {
         ArgumentNullException.ThrowIfNull(attachments);
 
-        // A received conversation takes no message: the question starts the user's own branch of it (decision I4).
+        // A received conversation takes no message: the question continues it in a conversation of the user's own (decision I4).
         if (await _store.GetAsync(id, cancellationToken).ConfigureAwait(false) is { IsImported: true } received)
         {
             return await StartAsync(received.WorkspaceId, id, question, attachments, null, options, cancellationToken).ConfigureAwait(false);
@@ -434,8 +457,9 @@ public sealed partial class ConversationService : IConversations
             return rejection;
         }
 
+        // A received answer is never retried (decision I4).
         var history = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
-        if (!ConversationRules.CanRetry(history, answerToReplace))
+        if (!ConversationRules.CanRetry(history, answerToReplace) || await _store.GetAsync(id, cancellationToken).ConfigureAwait(false) is { IsImported: true })
         {
             return SendOutcome.Reject(SendRejection.NotRetryable, id);
         }
@@ -606,17 +630,17 @@ public sealed partial class ConversationService : IConversations
 
     /// <summary>
     /// Conversations arrived by import. The first stands for all that are new (a list is read whole, and no page shows any of
-    /// them yet); each that was here and gained a branch is named. <see cref="VisibilityChanged"/> covers all: an identity
-    /// that was deleted before may be back, in another workspace than it was in.
+    /// them yet); each that was here and gained a branch, messages or a source is named. <see cref="VisibilityChanged"/> covers
+    /// all: an identity that was deleted before may be back, in another workspace than it was in.
     /// </summary>
     internal void NotifyImported(Import.ImportResult result)
     {
-        foreach (var id in result.Created.Take(1).Concat(result.Parents))
+        foreach (var id in result.Created.Take(1).Concat(result.Parents).Concat(result.Gained).Distinct())
         {
             ConversationChanged?.Invoke(this, id);
         }
 
-        VisibilityChanged?.Invoke(this, result.Created);
+        VisibilityChanged?.Invoke(this, [.. result.Created, .. result.Gained]);
     }
 
     /// <summary>Those of <paramref name="conversations"/> the user archived (markers on branch entries).</summary>
@@ -747,12 +771,12 @@ public sealed partial class ConversationService : IConversations
     /// <summary>
     /// What is sent for <paramref name="own"/>: the frozen ancestor chain, then the conversation itself, fitted to
     /// the model's budget (S3). Stored summaries count with their real size; missing ones are written later, in the
-    /// answer task's own slot.
+    /// answer task's own slot. <paramref name="chain"/> is the ancestor chain of a conversation that is not stored yet.
     /// </summary>
     private async Task<(PlanOutcome Outcome, ContextInputs Inputs, IReadOnlyDictionary<SummaryKey, int> Known)> PlanAsync(
-        ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, ModelSnapshot model, CancellationToken cancellationToken)
+        ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, ModelSnapshot model, CancellationToken cancellationToken, IReadOnlyList<ContextSegment>? chain = null)
     {
-        var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
+        var ancestors = chain ?? await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
         var stored = _summaries is null
             ? []
@@ -895,7 +919,8 @@ public sealed partial class ConversationService : IConversations
     /// <summary>
     /// The run's web state when web search applies to this question (requirements §10.4.5): the switch is not 关 (the page's
     /// choice, or the default when a caller gives none) and a search key is set. The addresses in the user's questions and
-    /// attachments along the frozen chain may be read without asking (Q10, decision W9). Null: no web tools.
+    /// attachments along the frozen chain may be read without asking (Q10, decision W9), except in what arrived by import,
+    /// which someone else wrote (decision I3). Null: no web tools.
     /// </summary>
     private async Task<Tools.WebRun?> WebRunAsync(ContextInputs inputs, SendOptions? options, string question, CancellationToken cancellationToken)
     {
@@ -911,6 +936,7 @@ public sealed partial class ConversationService : IConversations
         }
 
         var texts = inputs.Ancestors.Append(inputs.Own)
+            .Where(segment => !segment.IsReceived)
             .SelectMany(segment => segment.Messages)
             .Where(m => m.Role == MessageRole.User)
             .SelectMany(m => m.Blocks.Select(b => b switch

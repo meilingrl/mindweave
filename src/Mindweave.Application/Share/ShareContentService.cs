@@ -54,7 +54,7 @@ public sealed class ShareContentService(
         return new ShareableContent(messages)
         {
             Source = branch,
-            SourceOffset = branch is null ? null : markdown.OffsetOf(branch),
+            SourceOffset = branch is null ? null : branch.SourceOffset ?? markdown.OffsetOf(branch),
             SummaryNode = summary?.Node.Id,
             Summary = summary?.Current,
         };

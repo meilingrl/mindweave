@@ -28,6 +28,8 @@ public sealed class ModelPhrases : IModelPhrases
 
     public string AttachmentMarker(string name) => Pick($"[Attachment: {name}]", $"[附件：{name}]");
 
+    public string AttachmentNotIncluded => Pick("[An attachment was here; it is not included]", "[这里有一个附件，未包含在内]");
+
     public string MaterialWhole(string name) =>
         Pick($"Below is the full text of the material \"{name}\" that the user attached:", $"以下是用户附上的材料《{name}》的全文：");
 
@@ -63,6 +65,10 @@ public sealed class ModelPhrases : IModelPhrases
 
     public string CitationLabel(CitationKind kind, string title) => kind switch
     {
+        CitationKind.Attachment when title.Length == 0 => Pick("An attachment", "一个附件"),
+        CitationKind.Material when title.Length == 0 => Pick("Material found earlier", "较早取得的材料"),
+        CitationKind.Summary when title.Length == 0 => Pick("A summary", "一个总结"),
+        _ when title.Length == 0 => Pick("A web page", "一个网页"),
         CitationKind.Attachment => Pick($"Attachment \"{title}\"", $"附件《{title}》"),
         CitationKind.Material => Pick($"Material \"{title}\"", $"材料《{title}》"),
         CitationKind.Summary => Pick($"Summary \"{title}\"", $"总结《{title}》"),

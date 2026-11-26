@@ -114,6 +114,15 @@ public sealed class SummaryService : ISummaries
     /// <summary>A conversation's summary node, versions, names or summary task changed. Raised on worker threads.</summary>
     public event EventHandler<ConversationId>? Changed;
 
+    /// <summary>An import brought summaries for these conversations, already stored.</summary>
+    internal void NotifyImported(IReadOnlyList<ConversationId> conversations)
+    {
+        foreach (var id in conversations)
+        {
+            Changed?.Invoke(this, id);
+        }
+    }
+
     public Task<IReadOnlyList<SummaryEntry>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         _summaries.ListAsync(workspace, cancellationToken);
 

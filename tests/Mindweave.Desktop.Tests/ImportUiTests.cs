@@ -255,7 +255,6 @@ public sealed class ImportUiTests : IDisposable
             [html.Replace("\"conversations\":[", "\"conversations\":[7,", StringComparison.Ordinal)] = ImportRefusal.Damaged,
             [html.Replace("\"version\":1", "\"version\":2", StringComparison.Ordinal)] = ImportRefusal.NewerFormat,
             [html.Replace("\"kind\":\"structure\"", "\"kind\":\"device\"", StringComparison.Ordinal)] = ImportRefusal.DeviceCopy,
-            [html.Replace("\"kind\":\"structure\"", "\"kind\":\"content\"", StringComparison.Ordinal)] = ImportRefusal.WithContent,
         };
 
         foreach (var (text, refusal) in cases)

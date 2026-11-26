@@ -381,6 +381,17 @@ public sealed partial class ConversationView : UserControl
         }
 
         var (container, answer) = Find(page, message);
+        if (source.IsContinuation)
+        {
+            // It left from the end of the message, not from a sentence in it.
+            if (container is not null && TopOf(container) is { } start)
+            {
+                ScrollBy(start + container.Bounds.Height - Scroller.Viewport.Height + SourceContext);
+            }
+
+            return;
+        }
+
         var top = answer?.RevealSource(source, Scroller);
         if (top is null)
         {

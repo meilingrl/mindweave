@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Workspaces;
@@ -84,7 +85,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             cancellationToken);
     }
 
-    public Task CreateBranchAsync(ConversationId parent, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken)
+    public Task CreateBranchAsync(ConversationId parent, IReadOnlyList<ContextSegment> context, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(conversation);
         return database.WriteAsync(
@@ -92,7 +93,16 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             {
                 SqliteArchive.RequireOpenForWork(connection, transaction, parent);
                 InsertConversation(connection, transaction, conversation);
-                SqliteBranchStore.InsertWithoutSource(connection, transaction, conversation.Id, parent, conversation.CreatedAt);
+                if (context.Count == 0)
+                {
+                    SqliteBranchStore.InsertWithoutSource(connection, transaction, conversation.Id, parent, conversation.CreatedAt);
+                }
+                else if (!SqliteBranchStore.InsertContinuation(connection, transaction, conversation.Id, parent, context, conversation.CreatedAt))
+                {
+                    // Messages go only with their conversation: it was deleted, and its identity came back empty.
+                    throw new ConversationMissingException();
+                }
+
                 foreach (var attachment in question.Blocks.OfType<AttachmentBlock>())
                 {
                     SqliteResourceStore.MoveDraft(connection, transaction, parent, conversation.Id, attachment.Resource);
@@ -126,7 +136,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     /// <summary>A received conversation is read-only (decision I4): whatever asks, no message is added to it.</summary>
     private static void RequireOwn(SqliteConnection connection, SqliteTransaction transaction, ConversationId conversation)
     {
-        if (connection.Scalar<long>(transaction, "SELECT EXISTS (SELECT 1 FROM import_conversation WHERE conversation_id = $id);", ("$id", conversation.ToString())) != 0)
+        if (SqliteImportStore.IsReceived(connection, transaction, conversation))
         {
             throw new InvalidOperationException($"Conversation {conversation} came from a shared file and takes no message.");
         }
@@ -360,6 +370,26 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     private static void Touch(SqliteConnection connection, SqliteTransaction transaction, ConversationId id, DateTimeOffset at) =>
         connection.Execute(transaction, "UPDATE conversation SET updated_at = max(updated_at, $at) WHERE id = $id;", ("$id", id.ToString()), ("$at", at.Ms()));
 
+    /// <summary>
+    /// A received conversation's messages from a shared file, each at its own number (docs/design/sharing-import.md §2). An
+    /// answer directly after another one is the retry of it, so the last answer to a question is the only one that stands,
+    /// whichever file brought which.
+    /// </summary>
+    internal static void AddReceived(SqliteConnection connection, SqliteTransaction transaction, ConversationId conversation, IReadOnlyList<Message> messages)
+    {
+        foreach (var message in messages)
+        {
+            InsertMessage(connection, transaction, message);
+            Touch(connection, transaction, conversation, message.CreatedAt);
+        }
+
+        connection.Execute(transaction, """
+            UPDATE message SET supersedes_id =
+                (SELECT CASE p.role WHEN 'assistant' THEN p.id END FROM message p WHERE p.conversation_id = message.conversation_id AND p.seq < message.seq ORDER BY p.seq DESC LIMIT 1)
+            WHERE conversation_id = $id AND role = 'assistant';
+            """, ("$id", conversation.ToString()));
+    }
+
     private static void InsertMessage(SqliteConnection connection, SqliteTransaction transaction, Message m)
     {
         connection.Execute(transaction, $"""
@@ -402,6 +432,19 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                         "INSERT INTO message_block (message_id, ordinal, kind, text, resource_id) VALUES ($id, $ord, $kind, $text, $resource);",
                         ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.AttachmentBlockKind), ("$text", name), ("$resource", a.Resource.ToString()));
                     break;
+                case AbsentAttachmentBlock absent:
+                    // The text is a name in the interface language of the moment, as an attachment's; whether it had one of its own is data.
+                    connection.Execute(transaction,
+                        "INSERT INTO message_block (message_id, ordinal, kind, text, data) VALUES ($id, $ord, $kind, $text, $data);",
+                        ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.AbsentAttachmentBlockKind), ("$text", absent.Name ?? Application.Languages.ModelPhrases.Current.PastedText),
+                        ("$data", JsonSerializer.Serialize(new AbsentAttachmentData(absent.Name), BlockJson)));
+                    break;
+                case ActivityCountBlock counts:
+                    connection.Execute(transaction,
+                        "INSERT INTO message_block (message_id, ordinal, kind, text, data) VALUES ($id, $ord, $kind, '', $data);",
+                        ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.ActivityCountBlockKind),
+                        ("$data", JsonSerializer.Serialize(new ActivityCountData(counts.AttachmentSearches, counts.SummarySearches, counts.WebSearches, counts.PagesRead, counts.OtherCalls), BlockJson)));
+                    break;
                 case ToolCallBlock call:
                     connection.Execute(transaction,
                         "INSERT INTO message_block (message_id, ordinal, kind, text, data) VALUES ($id, $ord, $kind, $text, $data);",
@@ -419,12 +462,12 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                     connection.Execute(transaction,
                         "INSERT INTO message_block (message_id, ordinal, kind, text, data, resource_id) VALUES ($id, $ord, $kind, $text, $data, $resource);",
                         ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.CitationBlockKind), ("$text", citation.Title),
-                        ("$data", JsonSerializer.Serialize(new CitationData(citation.Number, citation.Url?.AbsoluteUri, citation.FetchedAt.ToUnixTimeMilliseconds(), citation.Start, citation.End)
+                        ("$data", JsonSerializer.Serialize(new CitationData(citation.Number, citation.Url?.AbsoluteUri, citation.FetchedAt?.ToUnixTimeMilliseconds(), citation.Start, citation.End)
                         {
                             Kind = citation.Kind == CitationKind.Web ? null : citation.Kind.ToString().ToLowerInvariant(),
                             Target = citation.Target,
                         }, BlockJson)),
-                        ("$resource", citation.Resource.ToString()));
+                        ("$resource", citation.Resource?.ToString()));
                     break;
                 case var other:
                     throw new NotSupportedException($"No storage mapping for {other.GetType().Name}.");
@@ -449,6 +492,8 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                 reader.GetInt64(6),
                 reader.NullableString(7)),
             SqlNames.AttachmentBlockKind => throw new InvalidDataException("An attachment block names no resource."),
+            SqlNames.AbsentAttachmentBlockKind => new AbsentAttachmentBlock(Data<AbsentAttachmentData>(reader.NullableString(8)).Name),
+            SqlNames.ActivityCountBlockKind => Data<ActivityCountData>(reader.NullableString(8)).ToBlock(),
             SqlNames.ToolCallBlockKind => ReadToolCall(reader.GetString(2), reader.NullableString(8)),
             SqlNames.ToolResultBlockKind => ReadToolResult(reader.GetString(2), reader.NullableString(8), reader.NullableString(3)),
             SqlNames.CitationBlockKind => ReadCitation(reader.GetString(2), reader.NullableString(8), reader.NullableString(3)),
@@ -457,6 +502,16 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     }
 
     private static readonly JsonSerializerOptions BlockJson = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
+    private sealed record AbsentAttachmentData(string? Name);
+
+    private sealed record ActivityCountData(int AttachmentSearches, int SummarySearches, int WebSearches, int PagesRead, int OtherCalls)
+    {
+        public ActivityCountBlock ToBlock() => new(AttachmentSearches, SummarySearches, WebSearches, PagesRead, OtherCalls);
+    }
+
+    private static T Data<T>(string? data) =>
+        (data is null ? default : JsonSerializer.Deserialize<T>(data, BlockJson)) ?? throw new InvalidDataException($"A block has no {typeof(T).Name}.");
 
     private sealed record ToolCallData(string CallId, string Tool, string Arguments, string Risk);
 
@@ -483,8 +538,11 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         return new ToolResultBlock(d.CallId, SqlNames.ParseResultStatus(d.Status), text, resource is null ? null : ResourceId.Parse(resource), d.Detail, d.Findings?.Select(f => f.ToFinding()).ToList());
     }
 
-    /// <summary>A citation's data; <see cref="Kind"/> and <see cref="Target"/> only for local sources (L11), absent for the web.</summary>
-    private sealed record CitationData(int Number, string? Url, long FetchedAt, int Start, int End)
+    /// <summary>
+    /// A citation's data; <see cref="Kind"/> and <see cref="Target"/> only for local sources (L11), absent for the web. One that
+    /// arrived in a share has no time, and its block no resource.
+    /// </summary>
+    private sealed record CitationData(int Number, string? Url, long? FetchedAt, int Start, int End)
     {
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? Kind { get; init; }
@@ -498,8 +556,8 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         var d = (data is null ? null : JsonSerializer.Deserialize<CitationData>(data, BlockJson)) ?? throw new InvalidDataException("A citation block has no data.");
         var kind = d.Kind is null ? CitationKind.Web : Enum.Parse<CitationKind>(d.Kind, ignoreCase: true);
         return new CitationBlock(
-            d.Number, text, d.Url is null ? null : new Uri(d.Url, UriKind.Absolute), DateTimeOffset.FromUnixTimeMilliseconds(d.FetchedAt),
-            ResourceId.Parse(resource ?? throw new InvalidDataException("A citation block names no resource.")), d.Start, d.End)
+            d.Number, text, d.Url is null ? null : new Uri(d.Url, UriKind.Absolute), d.FetchedAt is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null,
+            resource is null ? null : ResourceId.Parse(resource), d.Start, d.End)
         {
             Kind = kind,
             Target = d.Target,

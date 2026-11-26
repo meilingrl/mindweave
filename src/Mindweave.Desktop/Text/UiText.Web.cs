@@ -42,14 +42,14 @@ public static partial class UiText
     public static string CitationsCollapse => T("Hide citations", "收起出处");
 
     /// <summary>A 出处 row's meta line: the host and when it was fetched.</summary>
-    public static string CitationMeta(Uri url, DateTimeOffset fetchedAt) =>
-        T(
-            url.Host + " · fetched " + fetchedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm", EnglishCulture),
-            url.Host + " · 获取于 " + fetchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
+    public static string CitationMeta(Uri url, DateTimeOffset? fetchedAt) =>
+        fetchedAt is not { } at ? url.Host : T(
+            url.Host + " · fetched " + at.ToLocalTime().ToString("MMM d, yyyy HH:mm", EnglishCulture),
+            url.Host + " · 获取于 " + at.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
 
     /// <summary>The viewer's info line for a 出处.</summary>
-    public static string CitationInfo(int number, DateTimeOffset fetchedAt) =>
-        T(
+    public static string CitationInfo(int number, DateTimeOffset? at) =>
+        at is not { } fetchedAt ? CitationNotSaved(number) : T(
             string.Format(CultureInfo.InvariantCulture, "Citation [{0}] · fetched {1}", number, fetchedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm", EnglishCulture)),
             string.Format(CultureInfo.InvariantCulture, "出处 [{0}] · 获取于 {1}", number, fetchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
 
@@ -93,6 +93,10 @@ public static partial class UiText
     /// <summary>The name of a 出处 as a person reads it: a page's title, or Attachment “…” / 附件《…》 and so on.</summary>
     public static string CitationLabel(Core.Conversations.CitationKind kind, string title) => kind switch
     {
+        Core.Conversations.CitationKind.Attachment when title.Length == 0 => T("An attachment", "一个附件"),
+        Core.Conversations.CitationKind.Material when title.Length == 0 => T("Material found earlier", "较早取得的材料"),
+        Core.Conversations.CitationKind.Summary when title.Length == 0 => T("A summary", "一个总结"),
+        _ when title.Length == 0 => T("A web page", "一个网页"),
         Core.Conversations.CitationKind.Attachment => T($"Attachment “{title}”", $"附件《{title}》"),
         Core.Conversations.CitationKind.Material => T($"Material “{title}”", $"材料《{title}》"),
         Core.Conversations.CitationKind.Summary => T($"Summary “{title}”", $"总结《{title}》"),

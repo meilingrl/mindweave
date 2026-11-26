@@ -17,6 +17,16 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.19 · 2026-11-26
+
+- Added importing a share with content ([sharing-import.md](design/sharing-import.md), increment 2b): received conversations are read-only and show stand-ins for what did not come; your question at the end of one starts a continuation of your own
+- Added a confirmation before the model reads an address that came in received text
+- Changed the usage statistics to leave received questions out
+- Fixed Markdown nested too deeply, which made drawing an answer fail: it is shown as written
+- Documents: Changed the architecture (§16.2, the glossary: continuation, stand-in) and the import note, as you approved
+- Try: `scripts/daily.sh trial`, then "Import…" with a share with content, and ask at the end of a received conversation
+- Not verified: a real window (a file dropped from Finder); Windows; a real model; the shared page with a continuation in a browser; a very large file. A build before 0.6.19 cannot show a conversation that holds a stand-in. A summary's coverage taken from a file is not bounded, so a crafted file can hide that a summary has later content
+
 ## 0.6.18 · 2026-11-26
 
 - Added importing a structure-only share ([sharing-import.md](design/sharing-import.md), increment 2a): it arrives as empty conversations, muted in the sidebar and hollow in the Mindweave page; asking in one starts a branch of your own

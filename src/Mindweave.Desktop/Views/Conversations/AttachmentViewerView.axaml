@@ -7,7 +7,7 @@
              x:DataType="vm:AttachmentViewer">
   <!-- The read-only viewer (requirements §10.4.3): the extracted text to read, select and copy, or the picture. -->
   <Border Name="ViewerScrim" Classes="dialog-scrim" IsVisible="{Binding IsOpen}">
-    <Border Name="ViewerDialog" Classes="dialog attachment-viewer">
+    <Border Name="ViewerDialog" Classes="dialog attachment-viewer" Classes.address-only="{Binding IsAddressOnly}">
       <DockPanel>
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
           <Button DockPanel.Dock="Right" Name="ViewerCloseButton" Classes="quiet" Command="{Binding CloseCommand}"
@@ -26,7 +26,7 @@
           </StackPanel>
         </DockPanel>
         <StackPanel DockPanel.Dock="Top" Name="ViewerSource" Spacing="6" Margin="0,0,0,10" IsVisible="{Binding HasSourceUrl}">
-          <DockPanel>
+          <DockPanel IsVisible="{Binding !IsAddressOnly}">
             <Button DockPanel.Dock="Right" Name="ViewerOpenInBrowser" Classes="quiet small" Command="{Binding AskToOpenCommand}"
                     Content="{x:Static t:UiText.OpenInBrowser}" AutomationProperties.Name="{x:Static t:UiText.OpenInBrowser}" />
             <SelectableTextBlock Name="ViewerAddress" Classes="caption" Text="{Binding SourceAddress}" TextWrapping="Wrap" VerticalAlignment="Center" />

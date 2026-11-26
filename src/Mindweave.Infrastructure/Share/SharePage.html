@@ -731,7 +731,7 @@ function conversation(c) {
   return [
     $("h3", {}, name(c)),
     $("div", { class: "meta" }, [say(t.started, { time: time(c.at) }), count(t.questions, c.questions)].join(" · ")),
-    parent && c.source ? $("div", { class: "from" }, `${t.left_from} `, $("b", {}, name(parent)), ": ", $("span", { class: "quote" }, `“${c.source.quote}”`), " · ",
+    parent && c.source ? $("div", { class: "from" }, `${t.left_from} `, $("b", {}, name(parent)), ...(c.source.quote ? [": ", $("span", { class: "quote" }, `“${c.source.quote}”`)] : []), " · ",
       $("button", { type: "button", class: "linkish", onclick: () => back(c) }, t.back)) : null,
     c.summary ? $("details", { class: "summary" }, $("summary", { title: time(new Date(c.summary.at)) }, t.summary), $("div", { class: "body md" }, $("h4", {}, c.summary.title), drawn(c.summary.id, null))) : null,
     ...turns,
