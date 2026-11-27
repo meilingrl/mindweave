@@ -176,6 +176,30 @@ Neither has a migration. Each merge states how to try it, what was run and what 
 - How travelled answers and run steps are stored without a local generation task (2b already shows received answers without one).
 - Limits on package size and counts, from the app's existing limits.
 
+### Details settled while building 3a (builder's calls, 2026-11-27)
+
+1. **The package** is a zip with the extension `.mwbackup`, holding exactly these entries: `manifest.json` (format, version, kind `device`, when, the app's version, each workspace with its name, number of conversations and entries, and the number of originals carried and missing); `index.html`, the entry page; per workspace `workspaces/{id}/document.json`, its exchange document, and `workspaces/{id}/index.html`, its readable page; and `originals/{sha256}`, each original once, whichever workspaces refer to it. This replaces E5's earlier sketch (`workspace.json`, one file per conversation, a `.md` per message): the readable form is the page.
+2. **The document of kind `device`** is the share's format with optional fields of version 1 (E5), written only when present, so a share's file is byte for byte as before:
+   - the document: `workspace` (id, name, created_at) and `resources`;
+   - a conversation: `title_by_user`, `archived`, `received` (the share's title and when it came). Its `name` is the stored title, absent when it has none; a share's `name` is the name the app shows;
+   - a branch source: always its stored anchor, `block` also without an offset, and `at`;
+   - a conversation's content: `summary_history` (node, name, name_source, base_title, current, created_at, and every saved version with seq, title, short_title, body, to_seq, origin, baseline, model, at and `read`). `summary` still holds the current version;
+   - a message: `created_at`, `completed_at`, `supersedes`, `error`, `model`, `blocks` and `run` (limit_reached, and each step's ordinal, kind, state, times, call id, tool, risk, input, result, error and approval);
+   - each block by its `type`: `text`, `attachment` (the resource), `absent_attachment`, `tool_call`, `tool_result` (with its findings), `activity`, `citation` (with fetched_at, resource, start, end, target). A new kind of block has no form until one is added on purpose (a test lists the kinds);
+   - a resource: id, conversation, hash, media_type, size, origin, name, source_url, provenance, created_at, `text`, `text_truncated`, `text_producer`, and `original`: `present`, `missing` or `damaged`;
+   - a summary link: `id`, `origin`, `at`.
+
+   Stored values are named by their code names in lower case with words joined by `_` (`local_read`); a test pins them, since a renamed member would change the format.
+3. **Messages.** Every finished question and answer and every attempt, a failed one included. While an answer is being written, the copy goes up to the last finished answer, as a share does (sharing.md §9).
+4. **Held back beyond §1's table**, because each can hold what §1 keeps home: the detail of an answer's error and of a step's error (it can name a connection's address; the kind travels); the request record a model step names (a usage record); the host a step went to; how far a summary version was read and where (a reading position; only whether and how it was read travels).
+5. **Material.** What the copied messages' blocks and runs refer to; a draft's attachments are not. Its extracted text travels with the extractor's name. Model-written digests, scaled images and chunks are made again from the original and the text. An original missing or damaged here is recorded as `missing`; one that does not match its hash while it is copied, as `damaged`. Neither fails the save.
+6. **Context summaries** (the compression of earlier messages) do not travel; they are made again (§9).
+7. **The readable pages.** One page per workspace, drawn by the share's own builder and writer as a share with content of every conversation, so it shows exactly what such a share shows: attachment names but not their contents, no saved page text, tool steps as a count, a replaced attempt only where a branch left from it. A large workspace is not divided further. A page with a formula carries KaTeX (about 640 KB). The entry page is plain HTML in both languages that loads and runs nothing.
+8. **Writing.** The atomic file writer gained a streaming form: the package goes into a temporary file beside the target, one workspace in memory at a time, and is moved into place at the end. A cancel or a failure removes the temporary file; a file already there of that name stays as it was. Quitting the app stops a backup being written rather than waiting for it.
+9. **The dialog** lists each workspace with its number of conversations and its size. The size is counted before compression (originals once by content, and the text), so it reads "Up to about"; the file is usually much smaller. Save opens the app-modal panel with "Mindweave" and the date. Progress is counted in workspaces.
+10. **Import** still offers only shared files; a package is not offered until 3b. The refusal of a document of kind `device` now names the manual backup.
+11. **Measured** on a synthetic folder shaped like the owner's trial copy of 2026-11-26 (6 workspaces, 59 conversations, 408 messages, 10 text attachments of about 110 KB): a database of 5.2 MB gave a package of 196 KB. Attachments that are already compressed (images, PDF files) add about their own size.
+
 ## 10. Known limits
 
 - A workspace exists once per device it was created on. Two devices that were each used before have their own first workspaces; a copy brings the other one beside this one, and the two are not joined.
