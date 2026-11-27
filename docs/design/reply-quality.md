@@ -1,8 +1,8 @@
 # Reply quality
 
-**Status:** agreed by the owner on 2026-11-26, as recorded under "Discussion" (Q1–Q11, the approach, out of scope, failure cases, acceptance scenarios, increments). Not built. The requirement text (v0.31, §10.8; commit 938d54b) and the architecture text (commit 5fd075d) were confirmed by the owner on 2026-11-27. The sections from "Goal" on are the first draft of 2026-11-22, kept as background.
+**Status:** approved by the owner on 2026-11-26 (D-043), as recorded under "Discussion": Q1–Q11, the approach, out of scope, failure cases, acceptance scenarios and increments. Not built. The requirement and architecture text (requirements v0.32 §10.9, architecture §2.3, §15.4, §15.5) was confirmed by the owner on 2026-11-27. The sections from "Goal" on are the first draft of 2026-11-22, kept as background; where they differ from "Discussion", the decisions there stand.
 
-**Related:** [agent-loop.md](../design/agent-loop.md) (run loop, L1–L12, section 8), [web-search.md](../design/web-search.md), [requirements §10.4](../requirements.md).
+**Related:** [agent-loop.md](agent-loop.md) (run loop, L1–L12, section 8), [web-search.md](web-search.md), [requirements §10.4](../requirements.md).
 
 ## Discussion
 
