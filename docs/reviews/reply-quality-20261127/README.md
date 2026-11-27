@@ -52,11 +52,12 @@ On the owner's word, `scripts/real-api.sh eval default long-page` three times at
 each: **found "9 years" in 2 of 3** (runs 2 and 3), missed it in run 1 the same way as in the comparison. With the
 comparison, the current prompts found it in 2 of 4 runs; the previous prompts in 1 of 1. About USD 0.016 in all.
 
-How the model gets there: the page opens with its first 2,000 tokens, which hold nothing about 青鸾-7. The model's searches
-of the stored page with the right words ("青鸾-7 设计寿命") did not bring up the passage in any run; the runs that found it
-read parts 8 to 10 one by one until they hit it. So the outcome turns on guessing which part to read, not on the prompt's
-stop lines. Increment 3 (Q8: a long page's best-matching passages, Chinese matched by two-character pieces) aims at exactly
-this. Why the stored-page search misses the passage was not looked into.
+How the model gets there: the fetched page gives it the first 2,000 tokens, which hold nothing about 青鸾-7. Every run then
+searched the stored page ("青鸾-7 设计寿命" and the like) and went on to read whole parts of it; the runs that found the
+figure read part 9, the one that missed did not. The report does not show what the searches returned, so whether they
+pointed at part 9 is not known. The outcome turns on finding the right part of a long page, which is what increment 3 (Q8:
+a long page's best-matching passages, Chinese matched by two-character pieces) is for; it does not look like the new stop
+lines.
 
 Run 2 opens with "按'该报告里写明的官方参数'这一理解回答" ("taking it to mean the figure stated in the report"): the
 two-readings line firing on a question with one reading.
