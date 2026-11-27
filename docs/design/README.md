@@ -39,6 +39,7 @@ This directory records the choices that the handoff document lets implementers r
 | --- | --- |
 | [Sharing a thinking path](sharing.md) | Approved 2026-11-25 (evolution D8), step 1 built (0.6.13, 0.6.15): a share as one HTML file with the exchange data inside, structure only by default, what never leaves, the page a reader sees, import and continuing, copies between the user's devices, acceptance scenarios and increments |
 | [Sharing, step 2: import and continue](sharing-import.md) | Approved 2026-11-25, built (0.6.18, 0.6.19): a structure-only share arrives as empty conversations; a shared file only adds; a received conversation is read-only and the user's questions attach as conversations of their own; the rules of comparison, the migration, acceptance scenarios and increments 2a and 2b |
+| [Sharing, step 3: the manual backup](sharing-backup.md) | Approved 2026-11-26, not built: everything in all workspaces as one package file the user keeps; the same operation as sharing with a wider scope; not the app's automatic backups and not sync: importing only adds, and what differs keeps this device's value; a conversation continued on both sides is joined by time; no migration; acceptance scenarios and increments 3a and 3b |
 
 ## Security and diagnostics
 

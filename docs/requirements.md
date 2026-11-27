@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.34  
+**Version:** v0.36  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -81,7 +81,7 @@ Existing products cover parts of this, such as branching, returning, summarizati
 | Tool (after the first release) | A capability the model can call during a run, such as searching attachments, searching summaries or web search; each tool has a risk level; see §10.4.4 |
 | Citation (after the first release) | The resource, and the place in it, that a numbered marker in an answer ([1], [2], …) points to; the original text can be viewed. Distinct from a branch's anchor; see §10.4.5 |
 | Share (v0.29) | A set of conversations from one workspace, saved as one file that anyone can open in a browser and that Mindweave can import. By default it carries only the structure of the conversations; see §10.7 |
-| Device copy (v0.29) | A file with everything in a workspace, which the user saves on one device and imports on another; see §10.7 |
+| Manual backup (v0.36; called device copy in v0.29 to v0.35) | Everything in the user's workspaces as one file that the user saves and keeps, and can import again on the same device or another. It is the same operation as a share with a wider scope. It is not one of the app's automatic backups, and it is not sync; see §10.7 |
 
 ### 4.1 Conversation branch structure
 
@@ -255,7 +255,7 @@ Deletion protects existing results by "stating the scope clearly before deleting
 
 In the first release, explicitly selected saved summary versions can be exported as `.md`, with the title and body and optionally a note on where they came from. The user chooses the location and confirms overwriting a file with the same name. The file is an independent copy: external changes are not tracked or synced back to the database, and versions of exported files are not managed. Summaries and versions are still managed internally in SQLite; export does not change the adoption pointer or create a new version.
 
-Import and export of whole conversations, with messages, branch sources, summaries and version relations, are in §10.7 (v0.29): a share, importing it, and a device copy. Importing arbitrary Markdown is not included. Database backup and restore is not the same feature as moving work between devices.
+Import and export of whole conversations, with messages, branch sources, summaries and version relations, are in §10.7 (v0.29): a share, importing it, and a manual backup. Importing arbitrary Markdown is not included. Database backup and restore is not the same feature as moving work between devices.
 
 ## 9. AI and reliability boundaries
 
@@ -309,7 +309,8 @@ The first release does not rely on providers' native compression, and does not i
 - Recommended exploration nodes that have not been generated, and the interaction of entering a new exploration from a candidate direction (the first batch is in §10.3).
 - Fine-grained reading progress, manual dragging of nodes, decorative animations, more complex layouts, and optimization for large summary networks.
 - A more complete data-organizing mechanism; distinct from the first release's lightweight export, version cleanup and archiving. Import and export of whole conversations are in §10.7 (v0.29).
-- Extensions such as automatic cross-device sync (moving work between devices by hand is in §10.7), management of multiple provider and model configurations, and more protocol implementations. The first release first keeps the necessary interfaces and data boundaries. Several connections and further protocols are in §10.11.2 (v0.34).
+- **Sync between devices.** The user's work being the same on all their devices without their doing anything. Practical sync is networked and needs a shared cloud, server or repository, with a server side and a client side: another architecture than today's local application. Mindweave has no server now. The manual backup (§10.7) is not sync and is not declared to stand in for it; offering a server and good sync later is not ruled out ([evolution](evolution.md) D10).
+- Extensions such as management of multiple provider and model configurations, and more protocol implementations. The first release first keeps the necessary interfaces and data boundaries. Several connections and further protocols are in §10.11.2 (v0.34).
 
 The long-term vision also includes a "built-in free AI experience with a quota", so that users who cannot configure an API can start exploring directly, while the bring-your-own-API way is kept. This vision needs a separate assessment of accounts, server-side calls, quotas and usage metering, cost control and possible billing arrangements. No specific free quota, refill cycle, charging model or launch date is promised. **For now, no account, relay, quota, payment or billing backend is built, and the free experience is not a first-release acceptance condition.**
 
@@ -621,9 +622,11 @@ Built after the first release, by the user's decisions of 2026-11-10 to 2026-11-
 - **Appearance** (v0.31). The app is light or dark, or follows the system (the default); the choice takes effect at once.
 - **Right-click menu** (v0.31). A right-click on a conversation in the sidebar opens a menu of the actions for it.
 
-### 10.7 Sharing, import and device copies (v0.29)
+### 10.7 Sharing, import and the manual backup (v0.29)
 
 The user's decisions of 2026-11-24 and 2026-11-25 (D-039; design in [Sharing a thinking path](design/sharing.md)). Answers are plentiful; what is worth showing someone else is the thinking: what was asked, how one question led to the next. Sharing hands that path to another person as one file. There is no server and no account: the app uploads nothing, and the user moves the file by whatever means they have.
+
+**One operation (v0.36, D-047).** Sharing and the manual backup are the same operation: export to a file and import from a file. They differ in scope and in what import may do. A share is a selection, with private material held back, and what it brings is read-only. A manual backup is everything, and what it brings is the user's own.
 
 **A share.**
 
@@ -687,12 +690,16 @@ Before the file is saved, the dialog lists what will leave: the numbers of conve
 10. A URL in a received question or answer is not one the user wrote: before the model reads it, the approval card of §10.4.5 appears, also in the user's own continuation or branch.
 11. Returning from a received branch goes to the answer it left from, and marks the sentence when the file's position can be used by this app.
 
-**Device copies.**
+**The manual backup.**
 
-1. The user can save a copy of a workspace for another of their devices. It carries everything a share holds back, including attachment originals, all saved summary versions and summary links, except keys, connections and addresses.
-2. It is imported by the same rules as a share, with two differences, because both sides are the same user. Titles, the current summary version and the archived state take the newer value. And when both devices continued the same conversation differently since their last exchange, this device's conversation is left untouched, and the other continuation arrives once as a separate conversation, marked as such.
-3. A device copy also lists the conversations deleted on the device it came from, without their content. After the import the app offers to delete them here too, through the usual deletion confirmation (§8.2). It never deletes them by itself.
-4. Database backup and restore (§10.6) is a different thing: it protects the data on one machine. It is unchanged.
+1. The user can save a complete copy of their work. It holds all workspaces unless the user unticks some. It carries everything a share holds back, including attachment originals, saved web pages and tool results, every saved summary version and summary links. It does not carry keys, connections and addresses, settings, drafts, reading positions, recommendations, or usage statistics. Every copy is complete; there is no copy of only what changed.
+2. **Importing a manual backup only adds.** It adds what the device lacks: workspaces, conversations, messages, branches, attachments, summary versions and summary links. Nothing already there is changed or deleted. A title, a name, the current summary version or the archived state that differs keeps this device's value. What it brings is the user's own, not read-only, except conversations that were received from a shared file, which stay received. Importing the same manual backup again changes nothing.
+3. **Questions asked on both sides.** When the copy and the device each hold questions the other lacks in the same conversation, they join into one line in the order they were asked, each answer with its question, and it stays one conversation. A summary whose end now lies after a question it did not know shows “后续内容未纳入” (later content not included).
+4. Deletions do not travel. A conversation that was deleted on this device and is in the copy comes back with the import.
+5. A workspace is created where it is missing. Two devices that were each used before keep their own workspaces side by side; they are not joined.
+6. The copy is one package file. Unpacked, it can also be read in a browser, as a share with content can.
+7. **It is not one of the app's automatic backups.** Those (§9.3, §10.6) are versions of the app's own data, made by the app before a deletion, a data upgrade or a restore, and kept inside its data folder. If that data is lost, they are lost with it. Restoring one replaces everything. They are unchanged. A manual backup is a file the user keeps wherever they choose, largely independent of the app.
+8. **It is not sync.** A user who saves and imports manual backups carefully between two devices, and accepts the trouble, gets close to what sync gives. The product does not ask that of the user and does not call it sync. Sync between devices is a later vision that needs a server (§10.1).
 
 **Failure.**
 
@@ -701,7 +708,7 @@ Before the file is saved, the dialog lists what will leave: the numbers of conve
 - A damaged file, a file that is not from Mindweave, and a file in a newer format than the app knows are each refused, and nothing changes; for the last, the app says that Mindweave must be updated. An import that fails partway imports nothing.
 - The app reads only the data in a shared file and never runs its page.
 
-**Not included.** Hosted links, accounts and a community; automatic sync such as watching a cloud folder; attachment contents in a share; editing or hiding single sentences while sharing; password protection of the file; an exporter to PDF of its own; importing the exports of other assistants; a list of past shares.
+**Not included.** Hosted links, accounts and a community; sync between devices (§10.1), including watching a cloud folder; attachment contents in a share; editing or hiding single sentences while sharing; password protection of the file; an exporter to PDF of its own; importing the exports of other assistants; a list of past shares.
 
 ### 10.8 Failures, diagnostics, keys and erasing (v0.31)
 
@@ -1072,7 +1079,7 @@ Interface language acceptance (v0.24, §10.5; not part of the first-release bar)
 | Look through every page in English | No Chinese text except user content, model output and the name “简体中文” |
 | Ask in Chinese with the English interface | Titles, summaries and answers are in Chinese |
 
-Sharing, import and device copies acceptance (v0.29, §10.7; not part of the first-release bar):
+Sharing, import and manual backup acceptance (v0.29, §10.7; not part of the first-release bar):
 
 | Scenario | Observable expected result |
 | --- | --- |
@@ -1091,10 +1098,11 @@ Sharing, import and device copies acceptance (v0.29, §10.7; not part of the fir
 | A received answer contains a URL, and in a continuation the user asks the model to read it | The approval card appears |
 | Import a structure-only share, ask in one of its conversations, then import the same share with content | The dots arrive as empty conversations with their branch lines; the question starts a branch of the user's own; the later import fills the empty conversations and leaves the user's branch as it is |
 | Import a damaged file, a file of another kind, and a file in a newer format | Each is refused with its reason; nothing changes |
-| Save a device copy of a workspace with attachments and import it into an empty data folder | Conversations, branches, summaries with their versions, summary links and attachments open there |
-| Import a later device copy, then import it again | The first import adds only the changes; the second changes nothing |
-| Continue the same conversation on two devices, then import one device's copy on the other | This device's conversation is unchanged; the other continuation arrives once as a separate marked conversation; importing again adds nothing |
-| Delete a conversation on one device, save a device copy and import it on the other | The app offers to delete that conversation there; when the user declines, it stays |
+| Save a manual backup and import it into an empty data folder | Every workspace, conversation, branch, summary with its versions, summary link and attachment opens there; a received conversation is still read-only. A copy saved with one workspace unticked holds nothing of it; no copy holds a key or a connection address |
+| Import a later manual backup, then import it again | The first import adds only the changes; the second changes nothing |
+| Ask further in the same conversation on two devices, then import one device's copy on the other | The conversation is one line in the order the questions were asked, each answer with its question; its branches still return to their sentences; a summary made on one side shows later content not included; importing the other way gives the same line there; importing again changes nothing |
+| Rename, archive or re-summarize a conversation on one device, then import the other device's copy | This device's title, archived state and current summary stay |
+| Delete a conversation on this device, then import a copy that still holds it | The conversation comes back |
 | Ask a plain question with tools off, on a model that follows instructions | The request starts with the answer instructions; the answer gives the core idea first and defines a term at its first use |
 | Ask for "just the number", or for a sentence to be rewritten | The answer does only that |
 | Create a branch from a term and ask about it; then ask a second question in the branch | Both requests carry the branch part of the instructions; the first answer explains the term in the context of the passage and does not answer the parent question again |
@@ -1195,3 +1203,5 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.32 · 2026-11-27:** Following the user's decisions of 2026-11-25 and 2026-11-26 ([reply-quality.md](design/reply-quality.md), Q1–Q11; D-043), added §10.9, how answers and summaries are written: answer instructions for every answer, with a part for branch answers and for a question with two readings; a personal note in Settings; the titles of matching summaries sent with a question; the passages of a long page that match the question (§10.4.4, §10.4.5); summaries with a gist, a body by concept and key terms. No suggested questions under an answer, no quiz or guided mode. §11 adds its acceptance. One new stored preference.
 - **v0.33 · 2026-11-27:** Following the user's decisions of 2026-11-25 and 2026-11-26 (return and review), added §10.10: a recap for a conversation that has rested and carries weight, written automatically under a rest rule, a weight rule and daily limits; the recap at a branch entry; questions left open in new exploration; the dashed ring and the recap in the summary network's details; “延伸” (Extend) on a dot with a summary or a recap; a summary of a conversation with its branches; answers that build on recaps. §4 adds the recap; §4.2, §6.3, §7.1, §10.2 and §10.3.2 point to it. Relations across workspaces and automatic categorization stay vision with nothing planned. Does not change the first-release scope and acceptance; needs migrations (recaps, a recommendation's basis, a summary version's covered branches).
 - **v0.34 · 2026-11-27:** Following the user's decisions of 2026-11-25 to 2026-11-27 ([ask-anywhere.md](design/ask-anywhere.md); D-045), added §10.11: quoting (a numbered quote list with notes, fed by passages of the conversation, by text selected in another application and by a rectangle of the screen; the app keeps running after its main window is closed); several model connections with one current model, a model for background work, a local server entry and the Messages and Responses protocols; search by meaning with an embedding model on a saved connection, for the user and for the tools; recording cached tokens, a stable order of each request, and cache points with a one-hour default on Messages connections. §4 adds the quote; §9.2, §9.4, §9.6 and §10.1 point to §10.11; §11 adds its acceptance. Does not change the first-release scope and acceptance; two migrations and new stored preferences come with the increments.
+- **v0.35 · 2026-11-26:** Following the user's decisions of 2026-11-26 on device copies (D-046; [device copies note](design/sharing-backup.md)), §10.7: a device copy is a backup, not a sync. It holds all workspaces by default; importing it only adds, and what differs keeps this device's value; questions asked on both sides in one conversation join into one line by time; deletions do not travel, and what was deleted comes back from a copy. This replaces v0.29 and v0.30's "the newer value wins", the offer of deletions, and the separate conversation for another continuation. §4 and §11 follow. Does not change the first-release scope and acceptance.
+- **v0.36 · 2026-11-27:** Following the user's clarification of 2026-11-27 (D-047): sharing and backup are one operation, export to and import from a file, differing in scope and in what import may do; "device copy" is now called the manual backup (§4, §10.7, §11); it is told apart from the app's automatic backups, which live inside the app's data, and from sync, which is networked and needs a server; §10.1 states sync between devices as a later vision that the manual backup does not stand in for and that is not ruled out. No behavior of v0.35 changes.
