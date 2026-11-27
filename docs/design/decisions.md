@@ -274,6 +274,29 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **The 15 upkeep rows are decided.** Among them: the schema version is the only gate for stored formats; "Quit without saving" after a failed retry; a broken relationship from before a migration does not stop it; no lock files before 1.0.0; performance budgets run in CI without blocking; no coverage figure.
 - The note is [diagnostics-and-upkeep.md](diagnostics-and-upkeep.md); the text is requirements v0.31 (§10.8) and architecture §17. Nothing is built.
 
+## D-043 Reply quality is adopted: how answers and summaries are written (you, 2026-11-25 to 11-27)
+
+- **Every answer gets answer instructions**, with or without tools: core idea first, terms defined at first use, length scaled to the question. They are defaults; the user's question wins. A branch answer gets its own part and does not answer the parent question again.
+- **What the model is told about the user**: a personal note the user writes in Settings, and the titles of at most three matching summaries of the workspace. The app extracts no facts about the user.
+- **Nothing new under an answer.** No suggested next questions, no clarification card, no quiz cards and no guided mode. Recommended questions for a workspace (§10.3.1) are unchanged. On a question with two readings the model names the reading it takes and the other one.
+- **Runs**: stop and refine rules and the line on naming an attachment join the run instructions (version 4). Follow-up questions keep the L9 rule, with no model request to rewrite them; the summary search uses the same rule. A long page reaches the model as its opening and best-matching passages.
+- **Summaries** start with a gist, are organized by concept and list key terms. No styles.
+- **Evaluation**: new scenarios for explanations, a side-by-side report of two prompt versions, cost and time per scenario, size limits checked without a paid run, and an optional judge whose verdict is only a hint. The owner's reading and daily use decide what is good.
+- **Three increments**: prompts and the evaluation; the note and the summary titles; long-page passages.
+- The note is [reply-quality.md](reply-quality.md); the text is requirements v0.32 (§10.9) and architecture §2.3, §15.4 and §15.5. Nothing is built.
+
+## D-044 Return and review is adopted (you, 2026-11-25 and 11-26)
+
+- **One new thing is kept: the recap.** A conversation that has rested and carries weight gets a short text written by the model: one or two key points, and at most two questions left open. Every place of return shows the same recap.
+- **When it is written is your rule.** Not each time a conversation is left: only after 36 hours of rest, for a conversation above the average weight of its workspace, and never a second time without new messages. The check is local; at most 3 recaps per check and 10 per day.
+- **Where it shows.** At the branch entry in the parent, once the branch has a recap; as up to 3 questions left open above the recommended questions in new exploration; in the network's details. Nothing opens at start.
+- **The mark is a dashed ring on the dot itself** (your choice; a line leaving the dot would look ugly).
+- **The search for what you already know also covers recaps** (with D-043).
+- **Extend** works on any dot with a summary or a recap and returns ordinary recommended nodes.
+- **A summary may cover a conversation with all its branches.** It stays that conversation's own summary node.
+- **Nothing across workspaces and no automatic categorization** (you: it is useless).
+- The note is [return-and-review.md](return-and-review.md); the text is requirements v0.33 (§10.10) and the architecture's glossary, entity rows and §11. Nothing is built; three migrations come with the increments.
+
 ## D-045 Device copies are a backup, not a sync (you, 2026-11-26)
 
 - **Your question** settled it: why solve consistency at all, when this is a backup and not a sync? The note had been written for two devices that both change and must end up alike.

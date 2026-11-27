@@ -215,12 +215,24 @@ public sealed partial class ConversationService : IConversations
     public async Task<ContextUsage?> GetContextUsageAsync(ConversationId id, CancellationToken cancellationToken)
     {
         var model = await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        if (model is null)
-        {
-            return null;
-        }
+        return model is null
+            ? null
+            : await ContextUsageAsync(id, await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false), model, cancellationToken).ConfigureAwait(false);
+    }
 
-        var history = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// The same for content a page has just read (<see cref="LoadAsync"/>): its messages are not read again (health check
+    /// 2026-11-12, performance-5).
+    /// </summary>
+    public async Task<ContextUsage?> GetContextUsageAsync(ConversationContent content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        var model = await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        return model is null ? null : await ContextUsageAsync(content.Conversation.Id, content.Messages, model, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ContextUsage?> ContextUsageAsync(ConversationId id, IReadOnlyList<Message> history, ModelSnapshot model, CancellationToken cancellationToken)
+    {
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
@@ -232,7 +244,7 @@ public sealed partial class ConversationService : IConversations
 
         // Shown in billed tokens: the estimate through what this model was seen to bill. With tools, what the next question
         // sends is planned with room for the run, and the run's instructions and tool definitions go with it.
-        var (planned, inputs, known) = await PlanAsync(id, own.Messages, budget, model, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs, known) = await PlanAsync(id, own.Messages, budget, model, cancellationToken, ancestors).ConfigureAwait(false);
         var run = await RunPlanAsync(null, id, inputs, model, null, string.Empty, cancellationToken).ConfigureAwait(false);
         var instructions = TokenEstimator.PerRequest + (run is null ? 0 : TokenEstimator.Message(RunPrompt.For(run.Tools)));
         var tools = run?.Tools.Select(Tools.ToolRegistry.Definition).Sum(ChatTurns.Estimate) ?? 0;
@@ -771,7 +783,8 @@ public sealed partial class ConversationService : IConversations
     /// <summary>
     /// What is sent for <paramref name="own"/>: the frozen ancestor chain, then the conversation itself, fitted to
     /// the model's budget (S3). Stored summaries count with their real size; missing ones are written later, in the
-    /// answer task's own slot. <paramref name="chain"/> is the ancestor chain of a conversation that is not stored yet.
+    /// answer task's own slot. <paramref name="chain"/> is the ancestor chain when the caller has it already: that of a
+    /// conversation that is not stored yet, or one just read.
     /// </summary>
     private async Task<(PlanOutcome Outcome, ContextInputs Inputs, IReadOnlyDictionary<SummaryKey, int> Known)> PlanAsync(
         ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, ModelSnapshot model, CancellationToken cancellationToken, IReadOnlyList<ContextSegment>? chain = null)

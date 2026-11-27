@@ -37,6 +37,9 @@ public interface IConversations
 
     Task<ContextUsage?> GetContextUsageAsync(ConversationId id, CancellationToken cancellationToken);
 
+    /// <inheritdoc cref="ConversationService.GetContextUsageAsync(ConversationContent, CancellationToken)"/>
+    Task<ContextUsage?> GetContextUsageAsync(ConversationContent content, CancellationToken cancellationToken);
+
     Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, CancellationToken cancellationToken);
 
     /// <summary>

@@ -1,6 +1,6 @@
 # More directions
 
-**Status:** first draft, 2026-11-22. Not agreed. Proposed by Claude at the owner's request, beside the owner's three directions ([free trial](../design/free-trial.md), [platforms](platforms.md), [reply quality](reply-quality.md)). Each is one paragraph and a first step; none has been designed.
+**Status:** first draft, 2026-11-22. Not agreed. Proposed by Claude at the owner's request, beside the owner's three directions ([free trial](../design/free-trial.md), [platforms](platforms.md), [reply quality](../design/reply-quality.md)). Each is one paragraph and a first step; none has been designed.
 
 ## Directions
 
