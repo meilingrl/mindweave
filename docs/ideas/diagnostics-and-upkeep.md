@@ -1,6 +1,6 @@
 # Security, diagnostics and upkeep
 
-**Status:** first draft, in discussion with the owner. §2 and §3 are the writer's proposal and wait for the owner's answer. Last discussed: 2026-11-25. Nothing here is agreed unless a line says "decided" with a date.
+**Status:** agreed with the owner on 2026-11-27, as written: the D2 design (§2) and the upkeep decisions (§3). Not built. The requirement and architecture text is a separate commit the owner confirms. Last discussed: 2026-11-27.
 
 This draft covers evolution D2 (security and diagnostics) and the upkeep decisions left open by the health check of 2026-11-12. It does not cover sharing, import, the exchange format or device copies (the sharing draft, on its own branch), several connections and protocols, or look, colours and accessibility.
 
@@ -98,7 +98,7 @@ What is built today (read in the code, 2026-11-25):
 - **Deleted content.** Rows are deleted; free pages and the write-ahead log keep the text until overwritten. Attachment originals are removed at once. A cascading delete first makes a full backup, with the removed originals beside it; these backups stay until the user deletes them. Nothing tells the user which backups still hold a deleted conversation.
 - **Rendering.** Remote images are never loaded. Links in answers and summaries do not open. The one way to the browser shows the address, asks first, and allows only http and https. This part of D2 is built.
 
-The sections below are the writer's proposal of 2026-11-25. The owner's rule for this round: what the owner does not flag is approved.
+The sections below were proposed on 2026-11-25 and approved by the owner, unchanged, on 2026-11-27.
 
 ### 2.1 What the user sees of a failed request
 
@@ -217,11 +217,11 @@ The quick fix security-4 (one stream line without a line break is read without l
 
 No increment needs a migration.
 
-## 3. Upkeep decisions (writer's recommendations, 2026-11-25)
+## 3. Upkeep decisions (decided 2026-11-27)
 
 ### 3.1 Data format, upgrades, backups, exit
 
-| Row | Recommendation | Cost |
+| Row | Decided | Cost |
 | --- | --- | --- |
 | gap-schema-3 | **One number stays the gate.** A build that starts writing a value an older build cannot read (a new block kind, a new stored name, a required JSON field) raises the schema version, with a migration that may be empty. A test pins the set of stored names per schema version, so the set cannot change without the number | One small test. Such a change takes a migration number and makes an upgrade backup |
 | gap-schema-4 | The start-up page says "Upgrading data; a backup is made first". After it, one notice: upgraded to which version, and where the backup is | Small. Screenshots |
@@ -233,14 +233,14 @@ No increment needs a migration.
 
 ### 3.2 Dependencies and build
 
-| Row | Recommendation | Cost |
+| Row | Decided | Cost |
 | --- | --- | --- |
 | dependencies-2 | A `nuget.config` with nuget.org as the only source. **No lock files now:** NuGet takes the lowest version that fits, so the same commit resolves the same packages already; versions stay in `Directory.Packages.props`. Lock files are looked at again at 1.0.0, with the release build (dependencies-3) | Minutes |
 | ci-build-7 | `global.json` names one SDK feature band and allows only newer patches; CI installs what `global.json` says; the analysis level is a fixed number. Raising any of them is one deliberate line | Minutes |
 
 ### 3.3 Tests
 
-| Row | Recommendation | Cost |
+| Row | Decided | Cost |
 | --- | --- | --- |
 | ci-build-9 | The performance budgets run in CI on `main`, as a job of its own that does not block a merge, with budgets three times the local ones. It catches a large regression early. The gallery stays manual: it exists for the eye | About 5 CI minutes per merge |
 | tests-7 | CI ends a hanging test after 5 minutes and names it. No coverage figure: nobody would act on the number | One flag |
@@ -249,7 +249,7 @@ No increment needs a migration.
 
 ### 3.4 Documents
 
-| Row | Recommendation | Cost |
+| Row | Decided | Cost |
 | --- | --- | --- |
 | architecture-8 | The text is behind the code. The Desktop reaches each Application service through one interface; that is the boundary where tests put a fake. The architecture says so in place of "no per-class interfaces", and a test keeps it: an interface with one implementation must be used from another project | One sentence of architecture §2, one test. Any interface the test finds unused across projects is removed |
 | docs-9 | The light and dark theme (D-022) and the right-click menus get one line each in requirements §10.6 | Two lines |
@@ -259,6 +259,8 @@ No increment needs a migration.
 | Date | Decision |
 | --- | --- |
 | 2026-11-25 | §1.1 to §1.3 stand as sorted. Of the six rows of §1.4, two are left and four are fixed now. Performance is fixed early when the fix is easy; a known architectural problem is not left |
+| 2026-11-27 | The D2 design of §2 is approved as written: the failure block and the request list, the diagnostic package, the keys (with the automatic removal of items nothing refers to), erasing all deleted content at once, the renderer guard, and the five increments |
+| 2026-11-27 | The 15 upkeep rows of §3 are decided as written. Among them: the schema version is the only gate for stored formats; "Quit without saving" after a failed retry; an old dangling row does not stop an upgrade; no lock files before 1.0.0; performance budgets run in CI without blocking; no coverage figure |
 
 ## 5. To check when building
 
