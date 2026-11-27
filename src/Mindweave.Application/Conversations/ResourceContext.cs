@@ -105,7 +105,10 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         var phrases = ModelPhrases.Current;
         var name = attachment.NameIn(phrases);
         var instructions = PromptLibrary.Get("attachment-digest");
+        // Each request leaves the whole digest allowance for output: a reasoning model spends part of it before writing,
+        // and a segment as large as the input space allows left it too little (docs/design/agent-loop.md §8).
         var budget = ContextBudget.For(model);
+        budget = budget with { OutputReserve = Math.Max(budget.OutputReserve, SummaryOutputTokens) };
         var room = Math.Max(2_000, budget.Available - TokenEstimator.Estimate(instructions) - 200);
 
         string summary;
