@@ -24,6 +24,12 @@ public interface ISystemShell
     /// <summary>The same dialog for a share, which is one HTML file (docs/design/sharing.md S2). Null when cancelled.</summary>
     Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The same dialog for a manual backup, a package of its own kind (docs/design/sharing-backup.md §4), offering
+    /// <paramref name="suggestedFileName"/> with the package's extension. Null when cancelled.
+    /// </summary>
+    Task<ExportDestination?> PickBackupFileAsync(string suggestedFileName, CancellationToken cancellationToken);
+
     /// <summary>The system open dialog for one shared file to import: its path, or null when cancelled.</summary>
     Task<string?> PickSharedFileAsync(CancellationToken cancellationToken);
 }
@@ -75,6 +81,13 @@ internal sealed class SystemShell : ISystemShell
 
     public Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
         PickFileAsync(UiText.ShareTitle, suggestedFileName, Html());
+
+    /// <summary>The package's extension is the writer's (<c>ManualBackupPackage.FileExtension</c>); Desktop names it once, here.</summary>
+    public Task<ExportDestination?> PickBackupFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
+        PickFileAsync(UiText.ManualBackupTitle, suggestedFileName + "." + BackupExtension, new FileKind(UiText.ManualBackupFileType, [BackupExtension], "application/zip"));
+
+    /// <summary>The manual backup's own extension (docs/design/sharing-backup.md §4).</summary>
+    internal const string BackupExtension = "mwbackup";
 
     public async Task<string?> PickSharedFileAsync(CancellationToken cancellationToken) =>
         Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }

@@ -23,12 +23,16 @@ public sealed partial class AtomicFileWriter(ILogger<AtomicFileWriter> logger) :
     /// <summary>The replacing move; tests substitute it to simulate a locked target on any platform.</summary>
     internal Action<string, string> Move { get; init; } = static (temp, target) => File.Move(temp, target, overwrite: true);
 
-    public async Task<ExportWriteMode> WriteAsync(ExportDestination destination, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+    public Task<ExportWriteMode> WriteAsync(ExportDestination destination, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) =>
+        WriteAsync(destination, (stream, ct) => stream.WriteAsync(content, ct).AsTask(), cancellationToken);
+
+    public async Task<ExportWriteMode> WriteAsync(ExportDestination destination, Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(write);
         if (destination.LocalPath is { } path)
         {
-            await WriteAtomicAsync(Path.GetFullPath(path), content, cancellationToken).ConfigureAwait(false);
+            await WriteAtomicAsync(Path.GetFullPath(path), write, cancellationToken).ConfigureAwait(false);
             return ExportWriteMode.Atomic;
         }
 
@@ -39,11 +43,11 @@ public sealed partial class AtomicFileWriter(ILogger<AtomicFileWriter> logger) :
 
         // No path to put a temporary file beside: write in place, which is not atomic.
         LogNotAtomic(logger, destination.DisplayName);
-        await WriteDirectAsync(open, content, cancellationToken).ConfigureAwait(false);
+        await WriteDirectAsync(open, write, cancellationToken).ConfigureAwait(false);
         return ExportWriteMode.Direct;
     }
 
-    private async Task WriteAtomicAsync(string target, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+    private async Task WriteAtomicAsync(string target, Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken)
     {
         // A fixed short name, so a long target name cannot push the temporary one past the file system's limit.
         var temp = Path.Combine(Path.GetDirectoryName(target)!, $".mindweave-export-{Guid.NewGuid():N}.tmp");
@@ -51,9 +55,13 @@ public sealed partial class AtomicFileWriter(ILogger<AtomicFileWriter> logger) :
         {
             try
             {
-                using var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                stream.Write(content.Span);
-                stream.Flush(flushToDisk: true);
+                var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+                await using (stream.ConfigureAwait(false))
+                {
+                    await write(stream, cancellationToken).ConfigureAwait(false);
+                    await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                    stream.Flush(flushToDisk: true);
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -97,7 +105,7 @@ public sealed partial class AtomicFileWriter(ILogger<AtomicFileWriter> logger) :
         }
     }
 
-    private static async Task WriteDirectAsync(Func<CancellationToken, Task<Stream>> open, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+    private static async Task WriteDirectAsync(Func<CancellationToken, Task<Stream>> open, Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken)
     {
         try
         {
@@ -109,7 +117,7 @@ public sealed partial class AtomicFileWriter(ILogger<AtomicFileWriter> logger) :
                     stream.SetLength(0);
                 }
 
-                await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
+                await write(stream, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
         }

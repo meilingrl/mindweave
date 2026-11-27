@@ -85,6 +85,7 @@ public static class CompositionRoot
         services.AddSingleton<IConversationDeletionPrompt>(sp => sp.GetRequiredService<ConversationDeletionRequests>());
         services.AddSingleton<Application.Share.IShareMarkdown, Markdown.ShareMarkdown>();
         services.AddSingleton<Application.Share.IShareContents, Application.Share.ShareContentService>();
+        services.AddSingleton<Application.ManualBackup.IManualBackups, Application.ManualBackup.ManualBackupService>();
         services.AddSingleton<ShareRequests>();
         services.AddSingleton<ISharePrompt>(sp => sp.GetRequiredService<ShareRequests>());
         services.AddSingleton<BackupRequests>();
@@ -132,6 +133,7 @@ public static class CompositionRoot
         services.AddSingleton<BackupDeletionViewModel>();
         services.AddSingleton<ShareViewModel>();
         services.AddSingleton<ImportViewModel>();
+        services.AddSingleton<ManualBackupViewModel>();
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();
         services.AddSingleton<IRootNavigator>(sp => sp.GetRequiredService<RootViewModel>());
