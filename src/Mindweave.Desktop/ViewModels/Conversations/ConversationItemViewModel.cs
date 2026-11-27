@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Mindweave.Application.Summaries;
+using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
@@ -22,6 +23,7 @@ public sealed partial class ConversationItemViewModel(ConversationId id, Convers
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMarker), nameof(IsGenerating), nameof(NeedsAttention), nameof(IsUnread), nameof(MarkerHint), nameof(HelpText))]
     [NotifyPropertyChangedFor(nameof(SummarizeBlockedReason), nameof(CanSummarize), nameof(ArchiveBlockedReason), nameof(CanArchive), nameof(DeleteBlockedReason), nameof(CanDelete))]
+    [NotifyPropertyChangedFor(nameof(ContinueBlockedReason), nameof(CanContinue))]
     public partial ConversationMark Mark { get; set; }
 
     /// <summary>Tooltip and accessible name of the marker; null without one.</summary>
@@ -89,6 +91,7 @@ public sealed partial class ConversationItemViewModel(ConversationId id, Convers
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RenameBlockedReason), nameof(CanRename), nameof(SummarizeBlockedReason), nameof(CanSummarize))]
     [NotifyPropertyChangedFor(nameof(ArchiveBlockedReason), nameof(CanArchive), nameof(DeleteBlockedReason), nameof(CanDelete))]
+    [NotifyPropertyChangedFor(nameof(ContinueBlockedReason), nameof(CanContinue))]
     public partial bool IsStoragePaused { get; set; }
 
     /// <summary>An answer or summary runs in a listed branch below this row; archiving or deleting the row would take it along.</summary>
@@ -108,6 +111,14 @@ public sealed partial class ConversationItemViewModel(ConversationId id, Convers
         : null;
 
     public bool CanSummarize => SummarizeBlockedReason is null;
+
+    /// <summary>As a branch that continues the conversation refuses: it takes all of it, so no answer of it may still be growing.</summary>
+    public string? ContinueBlockedReason =>
+        IsStoragePaused ? UiText.RowStoragePaused
+        : Mark == ConversationMark.Answering ? UiText.BranchRejected(BranchRejection.AnswerNotFinished)
+        : null;
+
+    public bool CanContinue => ContinueBlockedReason is null;
 
     /// <summary>As archiving refuses: nothing running in the conversation or the branches it takes along.</summary>
     public string? ArchiveBlockedReason => IsStoragePaused ? UiText.RowStoragePaused : IsGenerating || IsBusyBelow ? UiText.RowArchiveBusy : null;

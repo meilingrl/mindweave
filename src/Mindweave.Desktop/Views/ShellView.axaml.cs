@@ -36,6 +36,10 @@ public sealed partial class ShellView : UserControl
         // so it selects instead of opening. Esc is listened for on the window (see OnAttachedToVisualTree).
         ConversationList.AddHandler(PointerPressedEvent, OnRowPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         ConversationList.AddHandler(KeyDownEvent, OnRowKeyDown, Avalonia.Interactivity.RoutingStrategies.Bubble);
+
+        // A double click on a row renames it (the first click has opened it). The row's button handles the presses, so the
+        // gesture is listened for with handled events too.
+        ConversationList.AddHandler(InputElement.DoubleTappedEvent, OnRowDoubleTapped, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         DataContextChanged += (_, _) =>
         {
             WatchNews(ViewModel?.WorkspaceNews);
@@ -116,6 +120,23 @@ public sealed partial class ShellView : UserControl
         }
 
         row.RaiseEvent(new ContextRequestedEventArgs());
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// A double click on a row's title starts its rename, as 改名 in its menu does. Not while rows are selected or in the
+    /// 选择 mode (a click there ticks rows), and not with a modifier (a modified click selects).
+    /// </summary>
+    private void OnRowDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_list?.OffersRowMenu != true || e.KeyModifiers != KeyModifiers.None
+            || (e.Source as Visual)?.FindAncestorOfType<Button>(includeSelf: true) is not { } row || !row.Classes.Contains("nav")
+            || row.DataContext is not ConversationItemViewModel { IsRenaming: false } item)
+        {
+            return;
+        }
+
+        _list.BeginRenameRowCommand.Execute(item);
         e.Handled = true;
     }
 

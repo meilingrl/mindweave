@@ -40,6 +40,20 @@
             </StackPanel>
           </Button>
         </Panel>
+        <!-- 新建分支: a branch that goes on from the end, with no passage to pick (a received empty one is continued by asking). -->
+        <Button Name="ContinueInBranchButton" Classes="quiet" Command="{Binding ContinueInBranchCommand}" Margin="0,0,2,0"
+                ToolTip.Tip="{x:Static t:UiText.ContinueInBranchTip}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsOpen" />
+              <Binding Path="!IsUnexplored" />
+            </MultiBinding>
+          </Button.IsVisible>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconBranch}" />
+            <TextBlock Text="{x:Static t:UiText.ContinueInBranch}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
         <!-- An archived conversation is never summarized directly (D-021). -->
         <Button Name="RestoreAndSummarizeButton" Classes="quiet" Command="{Binding Lifecycle.RestoreAndSummarizeCommand}" IsVisible="{Binding IsArchived}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">

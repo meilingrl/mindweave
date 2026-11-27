@@ -53,6 +53,41 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
             cancellationToken);
     }
 
+    public Task<Conversation> ContinueAsync(ConversationId parent, ConversationId child, DateTimeOffset at, CancellationToken cancellationToken) =>
+        database.WriteAsync(
+            (connection, transaction) =>
+            {
+                var parentConversation = SqliteConversationStore.GetConversation(connection, transaction, parent)
+                    ?? throw new BranchRejectedException(BranchRejection.SourceNotFound);
+                if (SqliteArchive.IsHidden(connection, transaction, parent))
+                {
+                    throw new BranchRejectedException(BranchRejection.ConversationArchived);
+                }
+
+                // It takes all of the parent, so nothing in it may still be growing (§6.2).
+                var messages = SqliteConversationStore.GetMessages(connection, transaction, parent);
+                if (ConversationRules.HasUnfinishedAnswer(messages))
+                {
+                    throw new BranchRejectedException(BranchRejection.AnswerNotFinished);
+                }
+
+                var conversation = new Conversation(child, parentConversation.WorkspaceId, null, TitleSource.None, at, at);
+                SqliteConversationStore.InsertConversation(connection, transaction, conversation);
+                if (messages.Count == 0)
+                {
+                    InsertWithoutSource(connection, transaction, child, parent, at);
+                    return conversation;
+                }
+
+                var last = messages.MaxBy(m => m.Seq)!;
+                connection.Execute(transaction,
+                    "INSERT INTO branch_source (child_id, parent_id, source_message_id, created_at) VALUES ($child, $parent, $message, $at);",
+                    ("$child", child.ToString()), ("$parent", parent.ToString()), ("$message", last.Id.ToString()), ("$at", at.Ms()));
+                InsertRanges(connection, transaction, child, BranchRules.RangesForChild(parent, ReadRanges(connection, transaction, parent), last.Seq));
+                return conversation;
+            },
+            cancellationToken);
+
     /// <summary>Makes a stored conversation a branch that left from no message: its parent only, and nothing of any ancestor.</summary>
     internal static void InsertWithoutSource(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, ConversationId parent, DateTimeOffset at)
     {

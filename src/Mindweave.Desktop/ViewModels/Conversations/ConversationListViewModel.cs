@@ -431,6 +431,32 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         }
     }
 
+    /// <summary>新建分支: a branch that continues the conversation from its end, as the page's button makes; it opens.</summary>
+    [RelayCommand]
+    private Task ContinueInBranchRowAsync(ConversationItemViewModel item)
+    {
+        RowNotice = null;
+        if (!item.CanContinue)
+        {
+            return Task.CompletedTask;
+        }
+
+        RowAction = ContinueInBranchAsync(item);
+        return RowAction;
+    }
+
+    private async Task ContinueInBranchAsync(ConversationItemViewModel item)
+    {
+        var outcome = await _conversations.ContinueInBranchAsync(item.Id, CancellationToken.None);
+        if (outcome.Rejection is { } rejection)
+        {
+            RowNotice = UiText.RowNotice(item.Title, UiText.BranchRejected(rejection));
+            return;
+        }
+
+        _workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Child)));
+    }
+
     /// <summary>归档: the conversation with its branches, as the page's button and the bar do; a refusal is named.</summary>
     [RelayCommand]
     private Task ArchiveRowAsync(ConversationItemViewModel item)
