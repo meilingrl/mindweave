@@ -55,14 +55,14 @@ Simple features with reference value for other people.
 | Anchors on streaming Markdown | Selecting text in an answer, branching from it and returning, with positions never guessed. Already built. | Extract it as a small library with a write-up |
 | Branch-aware prompt caching | A conversation tree is a prefix tree. Sibling branches can share a cached ancestor prefix. evolution.md D4 points here. | Log cached tokens per request; order the context with frozen material first; publish the numbers |
 | Evaluation set for small-budget agents | The run evaluation exists. A public scenario set with reports per model is rare. | Publish the scenarios and one report |
-| An open format for branched conversations | No common format exists. E5 could be one; sharing and sync both need it. | Implement E5 export and import |
-| Sync without a server | Conversations are trees that mostly grow by appending, which makes merging tractable. | A change log keyed by the stable IDs, written to a folder |
+| An open format for branched conversations | No common format exists. E5 could be one; sharing and the manual backup use it, and sync would build on it. | Implement E5 export and import |
+| Joining what two devices asked | When a manual backup meets a device that also went on, questions in one conversation join by time ([sharing-backup.md](../design/sharing-backup.md) V2). This is not sync: the owner's position (2026-11-27, D-043) is that real sync is networked and needs a server (evolution D10). | Write it up once the manual backup is built |
 | Molecule layout | A layout by structure in which adding a conversation redraws only its own exploration. Built (0.6.0). | Write it up |
 | The development method | A tested desktop application built mostly by agents, with human gates, a mailbox to a Windows tester, and rules for parallel agents. | A public write-up from AGENTS.md, the decision log and the stage reports |
 
 ## How the directions connect
 
 - The **relay** of the free trial is also what the Web target needs.
-- The **exchange format** is under sharing (D8), import, sync and the phone.
+- The **exchange format** is under sharing (D8), import and the manual backup; sync (evolution D10) would build on it.
 - **Local models** serve both the zero-setup start and privacy.
 - **Follow-up suggestions** (reply quality) and **gentle return** both make branching the natural next action, with nothing to manage.

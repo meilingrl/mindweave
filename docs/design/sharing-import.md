@@ -2,6 +2,8 @@
 
 **Status:** approved by the owner on 2026-11-25 (D-041). Built: 2a in 0.6.18, 2b in 0.6.19. It is the short note that [sharing.md](sharing.md) §8 asks for before step 2's code, and it settles what that design left open for import. Where the two differ, this note holds for import; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
 
+**Terms (2026-11-27, D-043).** Where this document says "device copy", it means the manual backup: the owner settled that sharing and the manual backup are one operation, export to and import from a file, and that neither is sync ([sharing-backup.md](sharing-backup.md) V5). The dated decisions below keep their wording.
+
 ## Findings in the code (2026-11-25)
 
 - A branch must point at a source answer and a quoted sentence (`branch_source`: `source_message_id`, `quote` and the anchor are required). A structure-only share has neither.

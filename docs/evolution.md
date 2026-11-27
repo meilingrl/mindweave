@@ -1,6 +1,6 @@
 # Mindweave evolution directions and engineering guidance
 
-Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, D8, sharing thinking paths, on 2026-11-20, and D9, the free trial, on 2026-11-22.
+Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, D8, sharing thinking paths, on 2026-11-20, D9, the free trial, on 2026-11-22, and D10, sync between devices, on 2026-11-27.
 
 ## Standing and force
 
@@ -171,7 +171,7 @@ Proposed by the user from 2026-11-19 to 11-20 and added after discussion with Cl
 
 **Relation to other directions from the same discussion.** The same discussion raised three related directions: the summary network and branches themselves (for example, bringing back one or two key points when returning from a branch, answers citing the user's own existing summaries, showing unresolved questions as the edge of the exploration, a short recap when coming back after a few days); presentation forms (the timeline, and the map, see D6); and the look of the summary network (letting the summary network show how thinking flows, the differences between nodes and their order in time). Sharing connects the three: the summary network and branches decide what is in a path, and the presentation form and look decide whether a reader who was not there can understand it.
 
-**Decided on 2026-11-24 and 11-25** (see the design): what a share includes and what never leaves it, with only the structure by default; the form of the shared page; import and device copies. **Still open:** when the map is brought in (scenario 2, see D6).
+**Decided on 2026-11-24 and 11-25** (see the design): what a share includes and what never leaves it, with only the structure by default; the form of the shared page; import and the manual backup. **Still open:** when the map is brought in (scenario 2, see D6).
 
 ### D9 Free trial
 
@@ -186,6 +186,18 @@ Adopted by the user on 2026-11-22 (D-034). The work comes later; no schedule is 
 **How to verify:** First the smallest step: the relay with enroll, forward and the two counters, and a trial connection in the app behind a switch, tried with a small prepaid balance. Then reachability from mainland China and the provider's terms.
 
 **Design:** [free-trial.md](design/free-trial.md). When the work starts, requirements §9.4 and architecture §7.4 are changed after the user decides.
+
+### D10 Sync between devices (vision)
+
+Stated by the user on 2026-11-27 (D-043). It is a vision; nothing of it is scheduled.
+
+**What it is.** The user's work is the same on all their devices without their doing anything: a change on one device reaches the others.
+
+**Why the manual backup is not it.** Sharing and the manual backup (D8, [sharing-backup.md](design/sharing-backup.md)) export to a file and import from a file. A careful user who accepts the conflicts and the trouble can make that behave like sync by hand. The product does not ask that of the user and does not call it sync.
+
+**What it needs.** Practical sync is networked: a shared cloud, server or repository that every device reaches. That brings a server side and a client side, with identity, conflicts between devices and the cost of running a service: another architecture than the local application of today.
+
+**Standing.** Mindweave has no server now (requirements §10.1). This direction is neither declared achieved by the manual backup nor ruled out: a server and good sync may be offered later. The stable identities and the exchange format (E5) that sharing uses are what it would build on.
 
 ## 4. How work moves forward
 

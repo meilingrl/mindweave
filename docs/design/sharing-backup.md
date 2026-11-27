@@ -1,8 +1,10 @@
-# Sharing, step 3: device copies (design note)
+# Sharing, step 3: the manual backup (design note)
 
-**Status:** approved by the owner on 2026-11-26 (D-042), not built. It is the short note that [sharing.md](sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](sharing-import.md). Where it differs from sharing.md, this note holds for device copies; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
+**Status:** approved by the owner on 2026-11-26 (D-042), not built. It is the short note that [sharing.md](sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](sharing-import.md). Where it differs from sharing.md, this note holds for manual backups; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
 
-## What a device copy is
+## What a manual backup is
+
+Until 2026-11-27 this note and the documents around it called it a device copy (V5).
 
 A complete copy of the user's work in one file. The user saves it on one device and can import it on that device again, or on another, by whatever means they have (sharing.md S3). Unlike a share it is for the same user: it holds everything, and what it brings is the user's own, not read-only (sharing.md S4, S7; sharing-import.md I4).
 
@@ -12,7 +14,7 @@ A complete copy of the user's work in one file. The user saves it on one device 
 
 ### V1 What one copy covers (2026-11-26)
 
-- A device copy holds all workspaces by default. The user may untick workspaces before saving; this is a list with ticks, not a view of its own.
+- A manual backup holds all workspaces by default. The user may untick workspaces before saving; this is a list with ticks, not a view of its own.
 - On import nothing is chosen: each workspace goes to the same workspace on the device, by identity, and is created there when it is missing.
 - An attachment original the device already has is not copied again.
 
@@ -42,13 +44,23 @@ The owner accepted these, of which V4 then withdrew two (marked):
 
 The owner's question: why solve consistency at all, when this is a backup and not a sync? The writer had read sharing.md S3 ("sync across multiple devices") as the goal and designed for two devices that both change and must end up alike. The owner's decision:
 
-- A device copy is a backup that can also be carried to another device. Importing one only adds: nothing already here is changed, and nothing is deleted (the owner's rule of sharing.md S4: only stay the same or grow).
+- A manual backup is a backup that can also be carried to another device. Importing one only adds: nothing already here is changed, and nothing is deleted (the owner's rule of sharing.md S4: only stay the same or grow).
 - "The newer one wins" is dropped. A title, a name, a current summary or an archived state that differs keeps the value this device has.
 - Deletions are not recorded and do not travel. What was deleted here and is in the copy comes back: that is what restoring a backup is for. This withdraws the deletion offer of sharing.md S11.
 - A conversation continued on both sides is joined by time (V2).
 - Step 3 therefore has no migration.
 
 Not goals: that two devices show the same thing after exchanging copies; that a deletion or a rename on one device reaches another.
+
+### V5 Sharing and the manual backup are one operation; sync is something else (2026-11-27)
+
+The owner's clarification, which the documents follow from here on:
+
+- **One operation.** Sharing and the manual backup are the same operation: export to a file, import from a file. Only the scope and what import may do differ: a share is a selection, filtered, and what it brings is read-only; a manual backup is everything, and what it brings is the user's own.
+- **Not the app's automatic backups.** The backups the app makes by itself (before a deletion, a data upgrade or a restore) are versions of the app's own data, kept inside its data folder. If that data is lost, they are lost with it, however many there are. A manual backup is a file the user keeps, largely independent of the app.
+- **Not sync.** Practical sync goes through a network: a shared cloud, server or repository. A file-based backup can be made to behave like sync by a careful user who accepts the conflicts and the trouble, but the product does not ask that of the user and does not call it sync. It is called the manual backup.
+- **Sync stays a vision.** Real sync needs a server side and a client side, which is another architecture. The manual backup is not declared to have achieved it, and Mindweave does not rule out offering a server and good sync later ([evolution.md](../evolution.md) D10).
+- **Names.** In documents: manual backup (手动备份), automatic backup (自动备份) for what the app makes by itself, and sync only for networked sync. The stored word for the kind of file stays `device` (the exchange document's kind, and the `import` table's check since migration v19): a stored name does not follow a rename.
 
 ## 1. What a copy holds
 
@@ -112,8 +124,8 @@ It extends sharing-import.md §2. Everything is matched by identity; what is her
 
 ## 5. In the app
 
-- **Save:** "Save a copy…" in the workspace menu. The dialog lists the workspaces with ticks, all ticked (V1), states the size, and saves through the app-modal file panel (D-040). The suggested name is "Mindweave" and the date. Progress is shown, and saving can be cancelled; a cancelled or failed save leaves no file.
-- **Import:** the same "Import…" and drop as for a share. For a device copy the dialog shows, per workspace, what is new, what gains messages, what is joined by time, and what is already here. After importing it names what was done.
+- **Save:** "Back up to a file…" in the workspace menu. The dialog lists the workspaces with ticks, all ticked (V1), states the size, and saves through the app-modal file panel (D-040). The suggested name is "Mindweave" and the date. Progress is shown, and saving can be cancelled; a cancelled or failed save leaves no file.
+- **Import:** the same "Import…" and drop as for a share. For a manual backup the dialog shows, per workspace, what is new, what gains messages, what is joined by time, and what is already here. After importing it names what was done.
 - The dialogs wait for the owner's confirmation of their look.
 
 ## 6. Failure cases
@@ -124,14 +136,14 @@ It extends sharing-import.md §2. Everything is matched by identity; what is her
 | An original in the package does not match its hash | It is treated as missing; the rest is imported, and the dialog says so |
 | The disk fills while saving or importing | Saving leaves no file. Importing imports nothing |
 | The copy is from a newer Mindweave | Refused, saying the app must be updated |
-| The package is damaged or not a device copy | Refused; nothing changes |
+| The package is damaged or not a manual backup | Refused; nothing changes |
 | An answer is being generated in a conversation that would gain messages | The dialog asks the user to finish or stop it first |
 | The devices' clocks disagree | The order of V2's line follows the clocks; nothing is lost |
 
 ## 7. Increments
 
-- **3a: save a device copy.** The exchange document of kind `device`, the package, the readable pages, the dialog.
-- **3b: import a device copy.** Everything in §2.
+- **3a: save a manual backup.** The exchange document of kind `device`, the package, the readable pages, the dialog.
+- **3b: import a manual backup.** Everything in §2.
 
 Neither has a migration. Each merge states how to try it, what was run and what was not verified.
 
@@ -175,7 +187,7 @@ The requirements and architecture rows were written as their own commit and conf
 
 | Where | Change |
 | --- | --- |
-| [sharing.md](sharing.md) S3, S4, S11, §6.5 | A device copy is a backup that only adds; no "newer one wins", no deletion offer, no separate conversation for two continuations: they join by time |
-| Requirements §10.7, Device copies | All workspaces by default; only adds; joined by time; deleted things in a copy come back; what a copy holds; the acceptance rows |
-| Architecture §16 | The package; joining by time and numbering anew; no migration for device copies; the times of single values and the record of deletions are dropped |
+| [sharing.md](sharing.md) S3, S4, S11, §6.5 | A manual backup is a backup that only adds; no "newer one wins", no deletion offer, no separate conversation for two continuations: they join by time |
+| Requirements §10.7, Manual backups | All workspaces by default; only adds; joined by time; deleted things in a copy come back; what a copy holds; the acceptance rows |
+| Architecture §16 | The package; joining by time and numbering anew; no migration for manual backups; the times of single values and the record of deletions are dropped |
 | [evolution-seams.md](evolution-seams.md) E5 | The device kind of the exchange document |

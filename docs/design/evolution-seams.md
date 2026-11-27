@@ -8,7 +8,7 @@ Based on the [evolution directions and engineering guidance](../evolution.md). E
 | E2 Block-based message content | **Built** (migration v3) | Core `ContentBlock`; table `message_block` |
 | E3 Request tracing and redaction at the source | **Built** (migration v3) | Application `Diagnostics/`; table `ai_request`; redaction in the client and the file log |
 | E4 Model capability description | **Built** (migration v3) | Core `ModelCapabilities`; the `capabilities` column of `model_config` and `generation_task` |
-| E5 Versioned exchange format | **Built for shares** (one HTML file), and read back; the package of a device copy is specification only | §E5 of this document, `src/Mindweave.Application/Exchange` |
+| E5 Versioned exchange format | **Built for shares** (one HTML file), and read back; the package of a manual backup is specification only | §E5 of this document, `src/Mindweave.Application/Exchange` |
 | E6 Performance baseline and architecture tests | **Built** | `tests/…/Performance/`, `scripts/perf.sh`, `SeamTests` |
 
 ## E2 Block-based message content
@@ -41,7 +41,7 @@ Based on the [evolution directions and engineering guidance](../evolution.md). E
 
 The exchange document of a share is built as sharing.md §6.1 has it: one JSON document inside the shared HTML file, with a kind (`structure`, `content`, later `device`). It holds identities, titles, start times, branch sources with their quote, position and anchor, messages in order with their state and which answer replaced which, attachment names, tool counts, citations, the current summary version and summary links. What it leaves out is in sharing.md S7. The rules below on the name, the version and optional fields hold for it.
 
-The package below is the specification for a device copy. It predates attachments, citations, tool steps and summary links, and is brought up to the document above when device copies are built.
+The package below is the specification for a manual backup. It predates attachments, citations, tool steps and summary links, and is brought up to the document above when manual backups are built.
 
 An export package is a directory (or a zip of it), decoupled from the SQLite table structure:
 

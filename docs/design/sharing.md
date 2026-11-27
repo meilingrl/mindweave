@@ -2,6 +2,8 @@
 
 **Status:** approved by the owner on 2026-11-25 (D-039). Step 1 (§12) is built: 1a in 0.6.13, 1b in 0.6.15. Step 2 is built: 2a in 0.6.18, 2b in 0.6.19. Step 3 is not. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. The requirements and architecture text that follows from it is listed in §13; the owner confirmed it on 2026-11-25.
 
+**Terms (2026-11-27, D-043).** Where this document says "device copy", it means the manual backup: the owner settled that sharing and the manual backup are one operation, export to and import from a file, and that neither is sync ([sharing-backup.md](sharing-backup.md) V5). The dated decisions below keep their wording.
+
 Related: [session-network.md](session-network.md) (every conversation is a dot; the timeline), [evolution-seams.md](evolution-seams.md) E5 (the exchange format), [attachments.md](attachments.md), [web-search.md](web-search.md), [reasoning-and-status.md](reasoning-and-status.md), requirements §8.3 (export) and §10.1 (full import and export, sync). The page's look: [prototypes/share-page](../../prototypes/share-page/README.md).
 
 ## 1. Intent
@@ -65,7 +67,7 @@ The owner widened D8, which had left import between Mindweave users for later:
 
 - A recipient who uses Mindweave can bring a shared file in and keep asking from it.
 - The same mechanism carries a copy of the user's own work between their devices, through cloud storage the user already has. It may be more cumbersome than automatic sync; it must be possible.
-- *Settled on 2026-11-26 ([sharing-device.md](sharing-device.md) V4): this is a backup that can be carried to another device, not a sync. Importing a copy only adds.*
+- *Settled on 2026-11-26 ([sharing-backup.md](sharing-backup.md) V4): this is a backup that can be carried to another device, not a sync. Importing a copy only adds.*
 
 ### S4 One exchange format; import and export stay incremental (2026-11-24, 11-25)
 
@@ -78,9 +80,9 @@ The owner's principle: whether importing or exporting, things can only stay the 
   - a conversation or message the app already has is left as it is: it already exists, and nothing is copied;
   - a conversation the app has never seen arrives as new;
   - a conversation it already has gains only the messages it lacks;
-  - for single-valued things (a title, the current summary version, archived or not) the newer one wins. *Narrowed on 2026-11-25 ([sharing-import.md](sharing-import.md) I2) to device copies, and dropped on 2026-11-26 ([sharing-device.md](sharing-device.md) V4): no import changes them.*
+  - for single-valued things (a title, the current summary version, archived or not) the newer one wins. *Narrowed on 2026-11-25 ([sharing-import.md](sharing-import.md) I2) to device copies, and dropped on 2026-11-26 ([sharing-backup.md](sharing-backup.md) V4): no import changes them.*
 - Importing the same file again changes nothing, however often it is done.
-- *Narrowed on 2026-11-25 ([sharing-import.md](sharing-import.md) I4): a received conversation is read-only, so the following case arises only between the user's own devices. Replaced on 2026-11-26 ([sharing-device.md](sharing-device.md) V2): the two sides' questions join into one line by time, in the one conversation.* When both sides continued the same conversation differently after their last exchange, this side keeps its conversation untouched, and the other continuation arrives once as a separate conversation, marked as coming from elsewhere. Importing the file again recognises it and adds nothing.
+- *Narrowed on 2026-11-25 ([sharing-import.md](sharing-import.md) I4): a received conversation is read-only, so the following case arises only between the user's own devices. Replaced on 2026-11-26 ([sharing-backup.md](sharing-backup.md) V2): the two sides' questions join into one line by time, in the one conversation.* When both sides continued the same conversation differently after their last exchange, this side keeps its conversation untouched, and the other continuation arrives once as a separate conversation, marked as coming from elsewhere. Importing the file again recognises it and adds nothing.
 - Import never deletes. A file's silence about a conversation has three possible causes (deleted there, not selected, created here later), so silence is never read as deletion.
 - The database backup is a different thing: it protects the local machine across version changes and deletions. It is unchanged and outside this design.
 
@@ -178,7 +180,7 @@ The owner judged the prototype in [prototypes/share-page](../../prototypes/share
 
 The owner accepted these together:
 
-- *Dropped on 2026-11-26 ([sharing-device.md](sharing-device.md) V4): deletions are not recorded and do not travel.* **Deletions in a device copy.** The copy lists the identities of conversations deleted on the other device, with no content. On import the app offers to delete them here too, through the existing delete confirmation; it never does so by itself. A shared file never carries this list.
+- *Dropped on 2026-11-26 ([sharing-backup.md](sharing-backup.md) V4): deletions are not recorded and do not travel.* **Deletions in a device copy.** The copy lists the identities of conversations deleted on the other device, with no content. On import the app offers to delete them here too, through the existing delete confirmation; it never does so by itself. A shared file never carries this list.
 - **Importing a structure-only share** gives an outline: its dots and titles appear as directions the recipient can explore in their own conversations. There are no messages to continue from. *Settled on 2026-11-25 ([sharing-import.md](sharing-import.md) I1): the outline is real, empty conversations.*
 - **Entry points, failure cases, out of scope, acceptance and the first increment** as in §6, §9, §11, §10 and §12.
 
@@ -254,7 +256,7 @@ The note for this step is [sharing-import.md](sharing-import.md) (approved 2026-
 
 ### 6.5 Device copies (step 3)
 
-The note for this step is [sharing-device.md](sharing-device.md) (approved 2026-11-26). It holds where it differs from the outline below: a copy covers all workspaces by default, importing it only adds, and no deletions are recorded.
+The note for this step is [sharing-backup.md](sharing-backup.md) (approved 2026-11-26). It holds where it differs from the outline below: a copy covers all workspaces by default, importing it only adds, and no deletions are recorded.
 
 - "Save a copy for another device" for a workspace writes the package of §6.2.
 - Import is the same import, with the "already here" cases doing real work: conversations gain missing messages, summaries gain missing versions, attachment originals are added by hash.
