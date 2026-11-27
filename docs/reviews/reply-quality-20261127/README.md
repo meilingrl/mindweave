@@ -11,6 +11,7 @@ budget was USD 1 (2026-11-27), capped in the run at USD 0.90.
 | [deepseek-flash.json](deepseek-flash.json) | The same run's numbers |
 | [tight-context-digest-fix.md](tight-context-digest-fix.md) | The check of the digest fix: tight-context alone, current prompts |
 | [tight-context-digest-fix.json](tight-context-digest-fix.json) | Its numbers |
+| [long-page-rerun-1.md](long-page-rerun-1.md), [-2](long-page-rerun-2.md), [-3](long-page-rerun-3.md) (and .json) | long-page three more times, current prompts |
 
 ## Cost
 
@@ -44,4 +45,19 @@ after a cut-off) was checked with `scripts/real-api.sh eval default tight-contex
 of USD 0.05 counted per request. **tight-context completed with 4 / 4 checks**: the answer names 邓远山 from the attachment and
 玉衡-7 from the web, with 2 valid citations. 8 requests in all (3 for the answer), 32,796 input and 13,382 output tokens,
 **about USD 0.026** at the peak price, 90 seconds. The report does not show whether a digest request needed the second try.
+
+## long-page, three more runs (2026-11-27)
+
+On the owner's word, `scripts/real-api.sh eval default long-page` three times at 812edce, current prompts, a cap of USD 0.01
+each: **found "9 years" in 2 of 3** (runs 2 and 3), missed it in run 1 the same way as in the comparison. With the
+comparison, the current prompts found it in 2 of 4 runs; the previous prompts in 1 of 1. About USD 0.016 in all.
+
+How the model gets there: the page opens with its first 2,000 tokens, which hold nothing about 青鸾-7. The model's searches
+of the stored page with the right words ("青鸾-7 设计寿命") did not bring up the passage in any run; the runs that found it
+read parts 8 to 10 one by one until they hit it. So the outcome turns on guessing which part to read, not on the prompt's
+stop lines. Increment 3 (Q8: a long page's best-matching passages, Chinese matched by two-character pieces) aims at exactly
+this. Why the stored-page search misses the passage was not looked into.
+
+Run 2 opens with "按'该报告里写明的官方参数'这一理解回答" ("taking it to mean the figure stated in the report"): the
+two-readings line firing on a question with one reading.
 
