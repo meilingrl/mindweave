@@ -126,7 +126,7 @@ It extends sharing-import.md §2. Everything is matched by identity; what is her
 
 - **Save:** "Back up to a file…" in the workspace menu. The dialog lists the workspaces with ticks, all ticked (V1), states the size, and saves through the app-modal file panel (D-040). The suggested name is "Mindweave" and the date. Progress is shown, and saving can be cancelled; a cancelled or failed save leaves no file.
 - **Import:** the same "Import…" and drop as for a share. For a manual backup the dialog shows, per workspace, what is new, what gains messages, what is joined by time, and what is already here. After importing it names what was done.
-- The dialogs wait for the owner's confirmation of their look.
+- The owner accepted both dialogs as built on 2026-11-27.
 
 ## 6. Failure cases
 
