@@ -56,7 +56,7 @@ Simple features with reference value for other people.
 | Branch-aware prompt caching | A conversation tree is a prefix tree. Sibling branches can share a cached ancestor prefix. evolution.md D4 points here. | Log cached tokens per request; order the context with frozen material first; publish the numbers |
 | Evaluation set for small-budget agents | The run evaluation exists. A public scenario set with reports per model is rare. | Publish the scenarios and one report |
 | An open format for branched conversations | No common format exists. E5 could be one; sharing and the manual backup use it, and sync would build on it. | Implement E5 export and import |
-| Joining what two devices asked | When a manual backup meets a device that also went on, questions in one conversation join by time ([sharing-backup.md](../design/sharing-backup.md) V2). This is not sync: the owner's position (2026-11-27, D-043) is that real sync is networked and needs a server (evolution D10). | Write it up once the manual backup is built |
+| Joining what two devices asked | When a manual backup meets a device that also went on, questions in one conversation join by time ([sharing-backup.md](../design/sharing-backup.md) V2). This is not sync: the owner's position (2026-11-27, D-044) is that real sync is networked and needs a server (evolution D10). | Write it up once the manual backup is built |
 | Molecule layout | A layout by structure in which adding a conversation redraws only its own exploration. Built (0.6.0). | Write it up |
 | The development method | A tested desktop application built mostly by agents, with human gates, a mailbox to a Windows tester, and rules for parallel agents. | A public write-up from AGENTS.md, the decision log and the stage reports |
 

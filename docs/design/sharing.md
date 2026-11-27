@@ -2,7 +2,7 @@
 
 **Status:** approved by the owner on 2026-11-25 (D-039). Step 1 (§12) is built: 1a in 0.6.13, 1b in 0.6.15. Step 2 is built: 2a in 0.6.18, 2b in 0.6.19. Step 3 is not. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. The requirements and architecture text that follows from it is listed in §13; the owner confirmed it on 2026-11-25.
 
-**Terms (2026-11-27, D-043).** Where this document says "device copy", it means the manual backup: the owner settled that sharing and the manual backup are one operation, export to and import from a file, and that neither is sync ([sharing-backup.md](sharing-backup.md) V5). The dated decisions below keep their wording.
+**Terms (2026-11-27, D-044).** Where this document says "device copy", it means the manual backup: the owner settled that sharing and the manual backup are one operation, export to and import from a file, and that neither is sync ([sharing-backup.md](sharing-backup.md) V5). The dated decisions below keep their wording.
 
 Related: [session-network.md](session-network.md) (every conversation is a dot; the timeline), [evolution-seams.md](evolution-seams.md) E5 (the exchange format), [attachments.md](attachments.md), [web-search.md](web-search.md), [reasoning-and-status.md](reasoning-and-status.md), requirements §8.3 (export) and §10.1 (full import and export, sync). The page's look: [prototypes/share-page](../../prototypes/share-page/README.md).
 

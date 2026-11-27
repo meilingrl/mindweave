@@ -17,6 +17,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.20 · 2026-11-27
+
+- Documents: Added the design for security, diagnostics and upkeep ([diagnostics-and-upkeep.md](design/diagnostics-and-upkeep.md), D-042, evolution D2), and its text in the requirements (v0.31, §10.8) and architecture (§17)
+- Try: nothing on screen changed
+- Not verified: nothing new
+
 ## 0.6.19 · 2026-11-26
 
 - Added importing a share with content ([sharing-import.md](design/sharing-import.md), increment 2b): received conversations are read-only and show stand-ins for what did not come; your question at the end of one starts a continuation of your own

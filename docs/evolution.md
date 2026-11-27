@@ -50,6 +50,8 @@ E1 and E2 are designed in the same period as the reading position, selection anc
 
 ### D2 Security and diagnostics
 
+Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep.md](design/diagnostics-and-upkeep.md). This section keeps the first discussion; where the design differs, the design holds.
+
 **Goal:** Prevent leaks of API keys and of the content the user sends and receives, and defend against injection attacks; provide detailed logs and error information the user can view.
 
 **Where it lands in the architecture:** Logging, credentials and protocol adaptation in Infrastructure; the diagnostics view in Desktop; the content rendering layer.
@@ -191,7 +193,7 @@ Adopted by the user on 2026-11-22 (D-034). The work comes later; no schedule is 
 
 ### D10 Sync between devices (vision)
 
-Stated by the user on 2026-11-27 (D-043). It is a vision; nothing of it is scheduled.
+Stated by the user on 2026-11-27 (D-044). It is a vision; nothing of it is scheduled.
 
 **What it is.** The user's work is the same on all their devices without their doing anything: a change on one device reaches the others.
 
