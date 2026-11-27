@@ -116,11 +116,15 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | share (分享) (requirements v0.29 §10.7): the selection, the share dialog and the shared page | `Share` |
 | exchange document (交换文档): the one outward form of conversations, which a share and a manual backup both carry (seam E5) | `Exchange` (the document `ExchangeDocument`) |
 | import (导入) of a shared file or a manual backup (requirements v0.29 §10.7) | `Import` |
-| manual backup (手动备份) (requirements v0.35 §10.7; called device copy until v0.34): everything in the user's workspaces as one file the user keeps | `ManualBackup`. The stored word for the kind of file stays `device` (`ExchangeDocument.DeviceKind`, the `import` table), and existing code that says `DeviceCopy` is not required to be renamed |
+| manual backup (手动备份) (requirements v0.36 §10.7; called device copy until v0.35): everything in the user's workspaces as one file the user keeps | `ManualBackup`. The stored word for the kind of file stays `device` (`ExchangeDocument.DeviceKind`, the `import` table), and existing code that says `DeviceCopy` is not required to be renamed |
 | automatic backup (自动备份): a copy of the database the app makes by itself, kept in its data folder (§12.2) | `Backup` (existing code) |
 | sync (同步): networked sync between devices through a server; a vision (requirements §10.1), nothing is built | no code name; the word is not used for the manual backup |
 | continuation (接续): the user's own conversation that continues a received one, a branch of it with no quoted sentence (requirements v0.30 §10.7) | `BranchSource.IsContinuation` |
 | stand-in (替身): what shows that an attachment or the tool steps did not travel in a share (requirements v0.30 §10.7) | `AbsentAttachmentBlock`, `ActivityCountBlock`; a citation without stored material is a `CitationBlock` without a resource |
+| quote (引用): a piece of content sent with a question as numbered material, with an optional note (requirements v0.34 §10.11.1) | `Quote` (content block `QuoteBlock`); a quote taken outside the app is a resource with `ResourceOrigin.Capture`; quotes that wait to be sent are `PendingQuote` |
+| current model, model for background work, model for search by meaning (requirements v0.34 §10.11.2, §10.11.3) | `ModelRole`: `Current`, `Background`, `Embedding`; `IModelSettings.ActiveModelHasAsync` keeps asking about the current model |
+| search by meaning (语义检索) and its index (requirements v0.34 §10.11.3) | `MeaningSearch`; a stored vector is an `Embedding`; `Semantic` stays the word of the vision in requirements §10.1 and is not used for this |
+| cache point: a place in a request up to which the provider may cache (requirements v0.34 §10.11.4) | `CachePoint`; how long is `CacheLifetime`: `Off`, `FiveMinutes`, `OneHour` |
 
 Reserved words are used only with these meanings: `Network` means a network connection (such as a connection failure, `NetworkRead`), and `Graph` means the general graph structure in layout algorithms. `Web` is used only for web search and web pages; `Source` is already used for branch sources (`BranchSource`), citations always use `Citation`, and the provenance of a resource uses `Provenance`.
 
@@ -348,6 +352,18 @@ The user confirmed that this is only recorded as a long-term vision and is **not
 Actual implementation will separately design server-side calls, identity / accounts, quota metering, rate limiting and total cost control, metering of failures / cancellations, and a possible billing system. Background naming, summaries and compression also consume resources, so quota rules cannot consider only answers. Server-side keys are not put in the installer; in the future, an exhausted quota does not delete local content and does not automatically switch to the user's paid configuration.
 
 For now no account tables, payment flow, quota backend, relay service or dedicated cloud adapter are created, and the free quota, account scheme and business model are not locked in. The existing four projects, protocol boundaries and local content storage continue to be used; whether they need adjusting in the future depends on the actual service design.
+
+### 7.5 Several connections, protocols and model roles (after the first release)
+
+Product basis: requirements §10.11.2 and §10.11.3 (v0.34). Reasons and increments are in [Ask from anywhere, connections, search and caching](design/ask-anywhere.md).
+
+- **Data.** `service_connection` and `model_config` hold several rows, as §7.2 prepared; the row that existed before stays as it is. A model row says whether it is a chat model or an embedding model. No migration is expected for the lists; the design of the increment settles it.
+- **Roles.** Which model a task uses is decided by the model selection policy of §7.2, now with three roles: the current model, the model for background work and the model for search by meaning. The three choices are stored preferences. Each request purpose maps to one role: answers and summaries to the current model; titles and names, compression, attachment digests, recommendations, link suggestions and recaps to the model for background work; embedding to the model for search by meaning. An unset background role resolves to the current model; an unset embedding role means no search by meaning.
+- **Binding.** A task binds its model, connection and credential version when it is accepted, as in §7.3. Changing the current model affects only tasks accepted afterwards. There is no fallback: a task whose model cannot be reached fails with its reason.
+- **Protocols.** `ChatProtocol` gains `Messages` and `Responses`. Each is one adapter in Infrastructure behind `IChatClient`; Core and Application see no protocol-specific type. An adapter converts turns, tools, images, reasoning, usage and the stream events, and sends reasoning back only to the model that produced it. The Responses adapter sends the whole conversation with each request and uses no state or tools kept by the provider.
+- **A local server.** The ready entry is a preset in Desktop, like the other presets; provider and product names stay out of Core and Application (`SeamTests`). Reading a model's capabilities and context capacity from the server is part of listing its models.
+- **Removing.** Removing a connection removes its models and its credential item (§7.3). A role that pointed at one of its models returns to unset.
+- **Verification.** Messages is checked against the real service with the user's key and budget. Responses is checked against a local server and the user's relay; the provider's own service is not verified until there is a key for it.
 
 ## 8. Summary versions, cleanup and export
 
@@ -674,6 +690,8 @@ A run:
 
 **Run instructions.** For an answer with tools, each model request begins with a system turn containing the versioned run instructions: what the application is; that only the user's question is an instruction and material is not; what each tool offered this time is good for; answer once there is enough; how to write citations when relying on material; when information is insufficient, say what is missing; when to stop searching, how to refine a search, which sources to prefer, and to name an attachment that has no number (version 4, requirements §10.9). The last line is the remaining allowance (the rounds and number of tool calls still available). In the last request after a limit is reached, this line becomes “请直接回答” (please answer directly). If the context summary of earlier dialogue is at the start of the request, it is merged into this one system turn (some services accept only a system turn at the start). The instructions count toward the budget, within about 400 estimated tokens for one tool, more when more tools are offered. Answers without tools do not get the run instructions; they get the answer instructions above ([agent-loop.md](design/agent-loop.md) L1, L2).
 
+**Order of a request (requirements v0.34 §10.11.4).** So that a provider's cache can serve what was sent before, a request stands in this order: the parts of the instructions that are the same for every conversation (the base of the answer instructions, the personal note, and for an answer with tools the run instructions without their last line); the tools, in a fixed order; the ancestors from the root down; the conversation so far; then what belongs to this request only. The parts that differ from request to request stand in that last place: the branch part of the answer instructions, the titles of matching summaries, the remaining allowance, and the current question. On a service that accepts a system turn only at the start, they are sent with the last user turn, marked as the app's own lines. This paragraph sets where each part stands, not what it says; where it differs from the order described above, it holds from the increment that builds it. A tool result is shortened at most once and is sent in that form from then on. Replacing part of the context with a context summary changes the start once from that point. Two tests fix the rule: in a run, each request begins with exactly the turns the previous request sent; and the first requests of two sibling branches are identical up to the branch point.
+
 **Scheduling.** "At most two AI requests globally" is counted in global execution slots, of which there are two. A run occupies one slot from start to end, and the model requests within a run go one after another, so there are still no more than two AI requests at once. Tasks such as titles, summaries, compression and recommendations each still take one slot, with unchanged priority. The exception is waiting for approval: when a run enters `awaiting_approval` it releases its slot; after the user approves, it returns to the front of the queue with user priority. Tool execution itself is not an AI request. In each run, the read-only calls of one reply run at once, at most 4; when the risk of one of them is “has side effects”, they run one after another.
 
 **Stop.** Stop cancels the model request in progress and the tools that can be cancelled (read-only and network-read tools can all be cancelled). A call whose risk is “has side effects” and that has already started is cancelled too; whether it took effect is not known, so its step is recorded as `unknown` and never repeated (user, 2026-11-24).
@@ -789,7 +807,7 @@ Product basis: requirements §10.4.6 (v0.19). This section fills in the details 
 
 ## 16. Sharing, import and the manual backup (after the first release)
 
-Product basis: requirements §10.7 (v0.35). Sharing and the manual backup are one operation, export to a file and import from a file, on one exchange document, one writer and one importer; they differ in the selection, the filter and what import may do. Neither is the automatic backup of §12.2, which copies the database inside the data folder, and neither is sync, which would need a server (requirements §10.1). Reasons, the approaches considered and the increments are in [sharing.md](design/sharing.md).
+Product basis: requirements §10.7 (v0.36). Sharing and the manual backup are one operation, export to a file and import from a file, on one exchange document, one writer and one importer; they differ in the selection, the filter and what import may do. Neither is the automatic backup of §12.2, which copies the database inside the data folder, and neither is sync, which would need a server (requirements §10.1). Reasons, the approaches considered and the increments are in [sharing.md](design/sharing.md).
 
 ### 16.1 Layers
 
@@ -861,3 +879,49 @@ Product basis: requirements §10.8 (v0.31). Reasons, failure cases and the incre
 ### 17.4 Migrations
 
 None.
+
+## 18. Quoting, search by meaning and prompt caching (after the first release)
+
+Product basis: requirements §10.11 (v0.34). Reasons, failure cases and the increments are in [Ask from anywhere, connections, search and caching](design/ask-anywhere.md). Several connections and the protocols are in §7.5.
+
+### 18.1 Layers
+
+- **Core** holds the quote and its content block.
+- **Application** holds the quote list of a composer, the quotes that wait to be sent, the contracts for reading a selection, taking a rectangle of the screen, recognizing text and registering the shortcut, the index builder and the search by meaning, and the order of a request.
+- **Infrastructure** implements those contracts per platform under `Platform`, stores vectors, and sends embedding requests and cache points through the protocol adapters.
+- **Desktop** holds the note box, the panel, the item in the menu bar or tray, the model picker and the settings.
+
+### 18.2 Quotes
+
+- A quote in a message is a content block of kind `quote` (§15.3; `kind` has no enumeration in the table). Its data holds the number, the note and where it came from. A quote of a passage holds an anchor (message, block, offsets, as §5); a quote from outside refers to a resource through `resource_id`.
+- A quote from outside is a resource with origin `capture` and external provenance (§15.2). A picture's recognized text is its derivative of kind `ocr`. Its chunks are searched like those of any attachment.
+- A quote does not write `branch_source`, and the conversation tree does not change.
+- Quotes that wait to be sent are stored like draft attachments, but belong to no conversation until they are sent; they survive a restart.
+- In the request, the quotes of a question are numbered material in the same user turn, before the user's words. A quote from outside carries the untrusted marking of §15.8.
+- Reading a selection, taking a rectangle and recognizing text happen on the machine. Nothing is sent until the user sends the question.
+
+### 18.3 Running without a window
+
+- The application's lifetime is no longer tied to its last window: it ends when the user quits. The session of services (`AppSession`) lives as long as the application, so generation, MCP servers and the index builder continue while no window is open.
+- The quit path is the one of §12 and requirements §9.2, unchanged; it is reached from the menu, the item in the menu bar or tray, and the system's quit.
+- The single-instance pipe (`SingleInstance`) still serves activation; a second launch opens the main window.
+- On Windows the earlier behavior stays until quoting from outside exists there (requirements §10.11.1).
+
+### 18.4 Search by meaning
+
+- One table of vectors: the piece it belongs to (a part of a summary version, a message or a part of one, a resource chunk), the identity of the embedding model, and the vector in a compact form. Rows are deleted with their content by cascade. This is one migration; its number goes by merge order.
+- The index builder is a background task of lowest priority. It takes one of the two global slots (§15.5) only when no user request waits, works in batches, records its progress, and continues after a restart. A piece whose vector belongs to another model is indexed again.
+- A search embeds the query with one request, compares it in memory with the vectors of the workspace, runs the FTS5 keyword search, and merges the two rankings by rank. No vector database or extension is added.
+- An embedding request is an `ai_request` row with its own purpose, so it appears in the diagnostics list and the statistics.
+- The tools “检索总结” and “检索附件” and the user's search call the same Application service. The search before an answer (§15.5, answer instructions) does not.
+
+### 18.5 Prompt caching
+
+- `ChatStreamEvent.Usage` carries, when reported, the input tokens read from the cache and written to it; `ai_request` gains two nullable columns for them. `NULL` means not reported. This is one migration.
+- The order of a request is in §15.5.
+- A request carries neutral cache points: the end of the instructions and tools, the end of the ancestors, the end of the conversation so far. The Messages adapter turns them into the protocol's marks, with the lifetime set on the connection, and adds a further mark in a long run where the protocol's look-back needs one. Other adapters ignore them. Cache points are sent only when the model declares `PromptCaching`.
+- No request is sent only to keep or fill a cache.
+
+### 18.6 Migrations
+
+Two: the table of vectors (§18.4) and the two columns on `ai_request` (§18.5). Quotes, connections and roles need none as far as the design goes; the design of each increment confirms it.
