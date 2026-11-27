@@ -284,3 +284,15 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Evaluation**: new scenarios for explanations, a side-by-side report of two prompt versions, cost and time per scenario, size limits checked without a paid run, and an optional judge whose verdict is only a hint. The owner's reading and daily use decide what is good.
 - **Three increments**: prompts and the evaluation; the note and the summary titles; long-page passages.
 - The note is [reply-quality.md](reply-quality.md); the text is requirements v0.32 (§10.9) and architecture §2.3, §15.4 and §15.5. Nothing is built.
+
+## D-044 Return and review is adopted (you, 2026-11-25 and 11-26)
+
+- **One new thing is kept: the recap.** A conversation that has rested and carries weight gets a short text written by the model: one or two key points, and at most two questions left open. Every place of return shows the same recap.
+- **When it is written is your rule.** Not each time a conversation is left: only after 36 hours of rest, for a conversation above the average weight of its workspace, and never a second time without new messages. The check is local; at most 3 recaps per check and 10 per day.
+- **Where it shows.** At the branch entry in the parent, once the branch has a recap; as up to 3 questions left open above the recommended questions in new exploration; in the network's details. Nothing opens at start.
+- **The mark is a dashed ring on the dot itself** (your choice; a line leaving the dot would look ugly).
+- **The search for what you already know also covers recaps** (with D-043).
+- **Extend** works on any dot with a summary or a recap and returns ordinary recommended nodes.
+- **A summary may cover a conversation with all its branches.** It stays that conversation's own summary node.
+- **Nothing across workspaces and no automatic categorization** (you: it is useless).
+- The note is [return-and-review.md](return-and-review.md); the text is requirements v0.33 (§10.10) and the architecture's glossary, entity rows and §11. Nothing is built; three migrations come with the increments.

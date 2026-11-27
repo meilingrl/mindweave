@@ -31,6 +31,7 @@ This directory records the choices that the handoff document lets implementers r
 | Document | Content |
 | --- | --- |
 | [Summary network: every conversation a dot, and the timeline](session-network.md) | Conversations as dots, the spatial view and the timeline, quiet links, exploration places; what the owner decided |
+| [Return and review](return-and-review.md) | Approved 2026-11-26 (D-044), not built: a recap for a rested, heavier conversation (key points and questions left open), where it shows on coming back (the branch entry, new exploration, the network's details and a dashed ring), Extend on a chosen dot, a summary of a conversation with its branches, failure cases, acceptance scenarios and five increments |
 
 ## Sharing
 
