@@ -738,5 +738,73 @@ internal static class SchemaMigrations
             ) STRICT, WITHOUT ROWID;
             CREATE INDEX exploration_place_by_workspace ON exploration_place (workspace_id);
             """),
+
+        Migration.Sql(19, "branches without a source sentence, imports and the conversations received through them", """
+            -- Import of a shared file (requirements §10.7, docs/design/sharing-import.md §6). A branch that came from a
+            -- structure-only share has a parent and nothing else; a continuation of a received conversation left from its last
+            -- message without a sentence; a source from a file can have a sentence without a place (source_block, and
+            -- source_offset in that block's Markdown) or without a stored anchor. Both tables are rebuilt, because only a
+            -- rebuild can relax a NOT NULL or a CHECK; nothing references them. The rowids are kept: they order the branches
+            -- made at the same moment.
+            CREATE TABLE branch_source_v19 (
+                child_id          TEXT    NOT NULL PRIMARY KEY REFERENCES conversation (id) ON DELETE RESTRICT,
+                parent_id         TEXT    NOT NULL REFERENCES conversation (id) ON DELETE RESTRICT,
+                source_message_id TEXT    REFERENCES message (id) ON DELETE RESTRICT,
+                source_block      INTEGER CHECK (source_block >= 0),
+                source_offset     INTEGER CHECK (source_offset >= 0),
+                quote             TEXT    CHECK (length(quote) > 0),
+                anchor            TEXT,
+                anchor_version    INTEGER,
+                render_profile    TEXT,
+                created_at        INTEGER NOT NULL,
+                CHECK (child_id <> parent_id),
+                CHECK (quote IS NULL OR source_message_id IS NOT NULL),
+                CHECK (source_block IS NULL OR quote IS NOT NULL),
+                CHECK (source_offset IS NULL OR source_block IS NOT NULL),
+                CHECK (anchor IS NULL OR quote IS NOT NULL),
+                CHECK ((anchor IS NULL) = (anchor_version IS NULL) AND (anchor IS NULL) = (render_profile IS NULL))
+            ) STRICT;
+            INSERT INTO branch_source_v19 (rowid, child_id, parent_id, source_message_id, source_block, quote, anchor, anchor_version, render_profile, created_at)
+            SELECT rowid, child_id, parent_id, source_message_id, source_block, quote, anchor, anchor_version, render_profile, created_at FROM branch_source;
+            DROP TABLE branch_source;
+            ALTER TABLE branch_source_v19 RENAME TO branch_source;
+            CREATE INDEX branch_source_by_parent ON branch_source (parent_id, created_at);
+            CREATE INDEX branch_source_by_message ON branch_source (source_message_id);
+
+            -- max_seq -1: the branch may use nothing of the ancestor. The row itself stays, so that the branch counts as one
+            -- in the tree, in archiving and in the deletion checks.
+            CREATE TABLE branch_context_range_v19 (
+                child_id    TEXT    NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
+                ancestor_id TEXT    NOT NULL REFERENCES conversation (id) ON DELETE RESTRICT,
+                depth       INTEGER NOT NULL CHECK (depth >= 0),
+                max_seq     INTEGER NOT NULL CHECK (max_seq >= -1),
+                PRIMARY KEY (child_id, ancestor_id),
+                UNIQUE (child_id, depth),
+                CHECK (child_id <> ancestor_id)
+            ) STRICT, WITHOUT ROWID;
+            INSERT INTO branch_context_range_v19 (child_id, ancestor_id, depth, max_seq)
+            SELECT child_id, ancestor_id, depth, max_seq FROM branch_context_range;
+            DROP TABLE branch_context_range;
+            ALTER TABLE branch_context_range_v19 RENAME TO branch_context_range;
+            CREATE INDEX branch_context_range_by_ancestor ON branch_context_range (ancestor_id);
+
+            -- One row per import that brought something: the share's title and kind, and when. A conversation received through
+            -- it names it and is read-only. The record goes with its last conversation, so no title outlives what it named.
+            CREATE TABLE import (
+                id          TEXT    NOT NULL PRIMARY KEY,
+                title       TEXT    NOT NULL,
+                kind        TEXT    NOT NULL CHECK (kind IN ('structure', 'content', 'device')),
+                imported_at INTEGER NOT NULL
+            ) STRICT;
+
+            CREATE TABLE import_conversation (
+                conversation_id TEXT NOT NULL PRIMARY KEY REFERENCES conversation (id) ON DELETE CASCADE,
+                import_id       TEXT NOT NULL REFERENCES import (id) ON DELETE RESTRICT
+            ) STRICT, WITHOUT ROWID;
+            CREATE INDEX import_conversation_by_import ON import_conversation (import_id);
+            CREATE TRIGGER import_conversation_deleted AFTER DELETE ON import_conversation BEGIN
+                DELETE FROM import WHERE id = old.import_id AND NOT EXISTS (SELECT 1 FROM import_conversation WHERE import_id = old.import_id);
+            END;
+            """),
     ];
 }

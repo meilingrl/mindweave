@@ -330,6 +330,12 @@ internal sealed class SqliteResourceStore(SqliteDatabase database) : IResourceSt
             reader.Time(first + 10));
     }
 
+    /// <summary>An unsent attachment of one conversation's draft becomes another's, where it is about to be sent.</summary>
+    internal static void MoveDraft(SqliteConnection connection, SqliteTransaction transaction, ConversationId from, ConversationId to, ResourceId resource) =>
+        connection.Execute(transaction,
+            "UPDATE resource SET conversation_id = $to WHERE id = $r AND conversation_id = $from AND EXISTS (SELECT 1 FROM draft_attachment WHERE resource_id = $r);",
+            ("$r", resource.ToString()), ("$from", from.ToString()), ("$to", to.ToString()));
+
     /// <summary>
     /// Makes a message of <paramref name="conversation"/> able to refer to <paramref name="resource"/>: the resource must be in
     /// the conversation's workspace, and one not yet in any conversation joins this one. A resource of another conversation

@@ -17,6 +17,64 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.19 · 2026-11-26
+
+- Added importing a share with content ([sharing-import.md](design/sharing-import.md), increment 2b): received conversations are read-only and show stand-ins for what did not come; your question at the end of one starts a continuation of your own
+- Added a confirmation before the model reads an address that came in received text
+- Changed the usage statistics to leave received questions out
+- Fixed Markdown nested too deeply, which made drawing an answer fail: it is shown as written
+- Documents: Changed the architecture (§16.2, the glossary: continuation, stand-in) and the import note, as you approved
+- Try: `scripts/daily.sh trial`, then "Import…" with a share with content, and ask at the end of a received conversation
+- Not verified: a real window (a file dropped from Finder); Windows; a real model; the shared page with a continuation in a browser; a very large file. A build before 0.6.19 cannot show a conversation that holds a stand-in. A summary's coverage taken from a file is not bounded, so a crafted file can hide that a summary has later content
+
+## 0.6.18 · 2026-11-26
+
+- Added importing a structure-only share ([sharing-import.md](design/sharing-import.md), increment 2a): it arrives as empty conversations, muted in the sidebar and hollow in the Mindweave page; asking in one starts a branch of your own
+- Added migration v19 (`import`, `import_conversation`; `branch_source` and `branch_context_range` rebuilt for branches without a source)
+- Try: `scripts/daily.sh trial`, then "Import…" and choose a structure-only share you saved
+- Not verified: importing in a real window (a file dropped from Finder, the open panel); Windows; a real model. You ran the migration on a copy of your data: its session reports every branch source and range unchanged, and no conversation, message or workspace lost. No import was found in that copy
+
+## 0.6.17 · 2026-11-26
+
+- Windows: Fixed a shared page that left a branch's sentence unmarked when its quote ran over a line break, and a stored place after one, which was off by one per break
+- Fixed the share test that failed on Windows: it compared the platform's line endings
+- Try: nothing on screen changed on macOS; CI on Windows is the check
+- Not verified: the marks in a shared page on a real Windows machine
+
+## 0.6.16 · 2026-11-25
+
+- Documents: Added the design of importing a shared file ([sharing-import.md](design/sharing-import.md), D-041), and its text in the requirements (v0.30) and architecture (§16.4 and §16.5)
+- Try: nothing on screen changed
+- Not verified: nothing new
+
+## 0.6.15 · 2026-11-25
+
+- Added sharing with content ([sharing.md](design/sharing.md), increment 1b): by choice, a share carries questions, folded answers with Markdown and formulas, branch marks and summaries; structure only stays the default
+- Added KaTeX 0.19.1 with its fonts and licences, put into a share only when it holds a formula
+- Changed the share dialog's list of what leaves: a card apart from the notes, where what a reader can read stands out
+- Documents: Changed seam E5 (the exchange format) to what is built for shares
+- Try: `scripts/daily.sh trial`, then "Share…" in a conversation's menu, choose to include content, save the file and open it in a browser
+- Not verified: Safari, Firefox and Windows; the dialog's speed with content on a large workspace; the new list in a real window; the page's look, which drew no request from you but was not confirmed by name. Your trials ran da3c14a; the dialog's list changed after them. The foot of the page says the file can be opened in Mindweave, which is true only once import exists
+
+## 0.6.14 · 2026-11-25
+
+- Documents: Added D-040: why the macOS file panels block the app, and the trial as an `.app` that was tried and dropped (kept at the tag `archive/trial-as-app`)
+- Try: nothing on screen changed
+- Not verified: nothing new
+
+## 0.6.13 · 2026-11-25
+
+- Added sharing with structure only ([sharing.md](design/sharing.md), increment 1a): "Share…" in a conversation's menu and on a dot of the Mindweave page opens a dialog with ticks and saves one HTML file. It carries no message text and loads nothing from the network
+- macOS: Fixed the file panels of export, share and attachments, which could stop taking clicks: they now block the app while open
+- Try: `scripts/daily.sh trial`, then "Share…" in a conversation's menu; save the file and open it in a browser
+- Not verified: Windows; Safari and Firefox; picking real attachments through the new panel; quitting from the Dock while a panel is open; an Intel Mac. The dialog took about 1.2 s to open on 1,000 conversations in a debug build. Your trials ran b95b1a8 and e47db8c; the last commit, b5d87cd, changes names and layers and leaves the saved file byte-identical. The foot of the page says the file can be opened in Mindweave, which is true only once import exists
+
+## 0.6.12 · 2026-11-25
+
+- Documents: Added the sharing design (D-039), its text in the requirements (v0.29) and architecture (§16), and the shared page's prototype; corrected the status of the daily build and the app icon
+- Try: open `prototypes/share-page/index.html` in a browser
+- Not verified: nothing on screen changed
+
 ## 0.6.11 · 2026-11-24
 
 - Added the application icon: a brain drawn as one line, like a strand of yarn (your choice of 2026-11-24). It is the icon of the Windows program and window, and of the macOS launcher of the daily build

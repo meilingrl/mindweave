@@ -194,6 +194,70 @@ public class BranchUiTests
         window.Close();
     }
 
+    /// <summary>docs/design/sharing-import.md §9 scenario 5: migration v19 rebuilds both branch tables.</summary>
+    [AvaloniaFact]
+    public async Task A_branch_made_before_the_import_migration_still_returns_to_its_source()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await OpenAsync(app);
+        var root = await StartConversationAsync(app, window, "火车是怎么发明的？", LongAnswer);
+        var child = await BranchAsync(app, window, root, "铁路随后");
+        window.Close();
+
+        // The data as version 18 holds it.
+        using (var connection = new SqliteConnection($"Data Source={app.Paths.DatabasePath}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                PRAGMA foreign_keys = OFF;
+                BEGIN;
+                DROP TABLE import_conversation;
+                DROP TABLE import;
+                CREATE TABLE old_source (
+                    child_id          TEXT    NOT NULL PRIMARY KEY REFERENCES conversation (id) ON DELETE RESTRICT,
+                    parent_id         TEXT    NOT NULL REFERENCES conversation (id) ON DELETE RESTRICT,
+                    source_message_id TEXT    NOT NULL REFERENCES message (id) ON DELETE RESTRICT,
+                    source_block      INTEGER NOT NULL CHECK (source_block >= 0),
+                    quote             TEXT    NOT NULL CHECK (length(quote) > 0),
+                    anchor            TEXT    NOT NULL,
+                    anchor_version    INTEGER NOT NULL,
+                    render_profile    TEXT    NOT NULL,
+                    created_at        INTEGER NOT NULL,
+                    CHECK (child_id <> parent_id)
+                ) STRICT;
+                INSERT INTO old_source SELECT child_id, parent_id, source_message_id, source_block, quote, anchor, anchor_version, render_profile, created_at FROM branch_source;
+                DROP TABLE branch_source;
+                ALTER TABLE old_source RENAME TO branch_source;
+                CREATE TABLE old_range (
+                    child_id    TEXT    NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
+                    ancestor_id TEXT    NOT NULL REFERENCES conversation (id) ON DELETE RESTRICT,
+                    depth       INTEGER NOT NULL CHECK (depth >= 0),
+                    max_seq     INTEGER NOT NULL CHECK (max_seq >= 0),
+                    PRIMARY KEY (child_id, ancestor_id),
+                    UNIQUE (child_id, depth),
+                    CHECK (child_id <> ancestor_id)
+                ) STRICT, WITHOUT ROWID;
+                INSERT INTO old_range SELECT * FROM branch_context_range;
+                DROP TABLE branch_context_range;
+                ALTER TABLE old_range RENAME TO branch_context_range;
+                PRAGMA user_version = 18;
+                COMMIT;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        await app.RestartAsync();
+        window = await OpenAsync(app, started: true);
+        var restored = await PageAsync(app, window, child.Id);
+        Assert.Equal("铁路随后", restored.SourceQuote);
+        restored.ReturnToSourceCommand.Execute(null);
+        await PageAsync(app, window, root.Id);
+
+        AssertSourceShown(window, "铁路随后");
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task A_source_that_no_longer_matches_falls_back_to_its_answer_with_a_notice()
     {

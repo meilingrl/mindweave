@@ -108,7 +108,7 @@ internal sealed partial class ConversationTitler
         // Attachments are named, never included (docs/design/resources.md).
         var phrases = ModelPhrases.Current;
         var brief = ContentBlocks.BriefOf(question.Blocks, phrases);
-        var asked = ConversationRules.FirstTextElements(source is null ? brief : BranchContext.QuotedQuestion(source.Quote, brief, phrases), TitleQuestionExcerpt);
+        var asked = ConversationRules.FirstTextElements(source?.Quote is { } quote ? BranchContext.QuotedQuestion(quote, brief, phrases) : brief, TitleQuestionExcerpt);
         var excerpt = ConversationRules.FirstTextElements(e.Text, TitleAnswerExcerpt);
         var now = _clock.UtcNow;
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);

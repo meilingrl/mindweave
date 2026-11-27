@@ -206,6 +206,29 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
     }
 
     /// <summary>
+    /// Conversations that are new here, under identities that may have been deleted before (import brings them back): nothing
+    /// kept in memory for the old ones may show in them.
+    /// </summary>
+    internal void Forget(IReadOnlyCollection<ConversationId> conversations)
+    {
+        var gone = conversations.ToHashSet();
+        lock (_gate)
+        {
+            _dirtyPositions.RemoveWhere(k => gone.Contains(k.Item1));
+            _dirtyDrafts.RemoveWhere(k => gone.Contains(k.Item1));
+            foreach (var key in _positions.Keys.Where(k => gone.Contains(k.Item1)).ToList())
+            {
+                _positions.Remove(key);
+            }
+
+            foreach (var key in _drafts.Keys.Where(k => gone.Contains(k.Item1)).ToList())
+            {
+                _drafts.Remove(key);
+            }
+        }
+    }
+
+    /// <summary>
     /// Writes every pending change now. Called on exit before the window closes; safe to call any time. A value whose
     /// write fails stays pending (dirty) for the next flush instead of being dropped. Returns false when a draft could
     /// not be written: drafts are the user's input, while a reading position is page state that may degrade.

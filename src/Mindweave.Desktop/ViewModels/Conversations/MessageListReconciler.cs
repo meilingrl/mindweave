@@ -20,13 +20,17 @@ internal static class MessageListReconciler
     /// <param name="archivedBranches">Which of <paramref name="branches"/> are archived.</param>
     /// <param name="isArchived">Whether the page itself is archived (read-only).</param>
     /// <param name="create">Makes the view for a message not shown yet.</param>
+    /// <param name="continuations">The titles of the branches that left from no sentence (decision I4).</param>
+    /// <param name="isReceived">Whether the page itself arrived by import, so nothing in it is tried again.</param>
     public static void Reconcile(
         ObservableCollection<MessageItemViewModel> items,
         ConversationContent content,
         IReadOnlyList<BranchSource> branches,
         IReadOnlySet<ConversationId> archivedBranches,
         bool isArchived,
-        Func<Message, MessageItemViewModel> create)
+        Func<Message, MessageItemViewModel> create,
+        IReadOnlyDictionary<ConversationId, string>? continuations = null,
+        bool isReceived = false)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(content);
@@ -35,6 +39,7 @@ internal static class MessageListReconciler
         ArgumentNullException.ThrowIfNull(create);
 
         var last = ConversationRules.LastAnswer(content.Messages);
+        var places = branches.ToLookup(b => PlaceOf(content.Messages, b));
         var superseded = content.Messages.Where(m => m.Supersedes is not null).Select(m => m.Supersedes!.Value).ToHashSet();
         var stored = content.Messages.Select(m => m.Id).ToHashSet();
         for (var i = items.Count - 1; i >= 0; i--)
@@ -68,8 +73,10 @@ internal static class MessageListReconciler
             item.AttachmentInputs = content.ReducedAttachments?.GetValueOrDefault(message.Id);
             item.Run = content.Runs?.GetValueOrDefault(message.Id);
             item.IsArchived = isArchived;
-            item.CanRetry = !isArchived && last?.Id == message.Id && message.IsFinished;
-            var entries = branches.Where(b => b.SourceMessage == message.Id).Select(b => new BranchEntry(b.Child, b.Quote, archivedBranches.Contains(b.Child))).ToList();
+            item.CanRetry = !isArchived && !isReceived && last?.Id == message.Id && message.IsFinished;
+            var entries = places[message.Id]
+                .Select(b => new BranchEntry(b.Child, b.Quote ?? continuations?.GetValueOrDefault(b.Child) ?? UiText.NewConversation, archivedBranches.Contains(b.Child), b.IsContinuation))
+                .ToList();
             if (!entries.SequenceEqual(item.Branches))
             {
                 item.Branches.Clear();
@@ -80,4 +87,10 @@ internal static class MessageListReconciler
             }
         }
     }
+
+    /// <summary>The answer a branch is listed under: the one it left from; for a continuation of a question without one, the answer before it.</summary>
+    private static MessageId? PlaceOf(IReadOnlyList<Message> messages, BranchSource branch) =>
+        branch.SourceMessage is not { } source ? null
+        : messages.FirstOrDefault(m => m.Id == source) is not { Role: MessageRole.User } question ? source
+        : messages.LastOrDefault(m => m.Role == MessageRole.Assistant && m.Seq < question.Seq)?.Id;
 }

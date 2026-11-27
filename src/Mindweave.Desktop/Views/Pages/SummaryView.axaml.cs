@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using LiveMarkdown.Avalonia;
+using Mindweave.Desktop.Markdown;
 using Mindweave.Desktop.ViewModels.Pages;
 
 namespace Mindweave.Desktop.Views.Pages;
@@ -84,7 +85,7 @@ public sealed partial class SummaryView : UserControl
             return;
         }
 
-        _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Markdig.Markdown.Parse(version.Body, MarkdownUpdateProducer.DefaultPipeline));
+        _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(AnswerMarkdown.Parse(version.Body));
         _restoreLocator = _page.ShownLocator;
         Scroller.Offset = default;
 

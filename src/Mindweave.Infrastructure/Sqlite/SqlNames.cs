@@ -212,6 +212,11 @@ internal static class SqlNames
 
     public const string CitationBlockKind = "citation";
 
+    /// <summary>What stands for an attachment and for tool steps that did not travel in a share.</summary>
+    public const string AbsentAttachmentBlockKind = "absent_attachment";
+
+    public const string ActivityCountBlockKind = "activity_count";
+
     public static string Of(Core.Runs.Approval approval) => approval switch
     {
         Core.Runs.Approval.NotNeeded => "not_needed",

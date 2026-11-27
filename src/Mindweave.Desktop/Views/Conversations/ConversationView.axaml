@@ -81,8 +81,8 @@
       <!-- Where this branch sits: its ancestors (each opens normally) and the passage it was created from, read as a quotation. -->
       <Border Name="BranchHeader" Classes="card" Padding="12,9,8,10" IsVisible="{Binding IsBranch}">
         <DockPanel>
-          <Button Name="ReturnButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top"
-                  Margin="12,0,0,0" ToolTip.Tip="{x:Static t:UiText.ReturnToSourceHint}">
+          <Button Name="ReturnButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top" IsVisible="{Binding CanReturnToSource}"
+                  Margin="12,0,0,0" ToolTip.Tip="{Binding ReturnHint}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Data="{StaticResource IconReturn}" />
               <TextBlock Text="{x:Static t:UiText.ReturnToSource}" VerticalAlignment="Center" />
@@ -111,7 +111,7 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </WrapPanel>
-            <Border Classes="quote">
+            <Border Classes="quote" IsVisible="{Binding SourceQuote, Converter={x:Static ObjectConverters.IsNotNull}}">
               <TextBlock Name="QuoteText" Text="{Binding SourceQuote}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis"
                          Foreground="{DynamicResource PrimaryText}" />
             </Border>
@@ -291,6 +291,11 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                 </StackPanel>
+                <!-- A received answer's tools: the same line, with nothing to open (docs/design/sharing-import.md §3). -->
+                <StackPanel Name="ActivityCount" Classes="run-activity" Orientation="Horizontal" Spacing="6" Margin="1,3,0,3" IsVisible="{Binding HasActivityCount}">
+                  <PathIcon Data="{StaticResource IconToolSearch}" Classes="run-activity" />
+                  <TextBlock Name="ActivityCountText" Classes="caption" Text="{Binding ActivityCountText}" VerticalAlignment="Center" />
+                </StackPanel>
                 <v:AnswerView IsVisible="{Binding IsAnswer}" />
                 <!-- An address the model wrote itself waits for the reader (requirements §10.4.5, Q10): a small card in the answer. -->
                 <Border Name="ApprovalCard" Classes="card approval" HorizontalAlignment="Left" IsVisible="{Binding HasApproval}">
@@ -355,17 +360,27 @@
                   <ItemsControl Name="CitationList" ClipToBounds="False" ItemsSource="{Binding Citations}" IsVisible="{Binding IsCitationsExpanded}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:CitationItem">
-                        <Button Classes="quiet citation" Command="{Binding Open}" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
-                                AutomationProperties.Name="{Binding Title}" ToolTip.Tip="{Binding Address}">
-                          <Grid ColumnDefinitions="Auto,*">
-                            <TextBlock Classes="citation-number" Text="{Binding Number}" />
+                        <Panel>
+                          <Button Classes="quiet citation" Command="{Binding Open}" HorizontalAlignment="Left" HorizontalContentAlignment="Left" IsVisible="{Binding CanOpen}"
+                                  AutomationProperties.Name="{Binding Title}" ToolTip.Tip="{Binding Address}">
+                            <Grid ColumnDefinitions="Auto,*">
+                              <TextBlock Classes="citation-number" Text="{Binding Number}" />
+                              <StackPanel Grid.Column="1" Spacing="1">
+                                <TextBlock Classes="citation-title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Classes="citation-address" Text="{Binding Address}" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasAddress}" />
+                                <TextBlock Classes="timestamp" Text="{Binding Meta}" TextTrimming="CharacterEllipsis" />
+                              </StackPanel>
+                            </Grid>
+                          </Button>
+                          <!-- Of the sharer's own material: plain text, nothing opens. -->
+                          <Grid Name="PlainCitation" Classes="plain-citation" ColumnDefinitions="Auto,*" IsVisible="{Binding !CanOpen}">
+                            <TextBlock Classes="citation-number plain" Text="{Binding Number}" />
                             <StackPanel Grid.Column="1" Spacing="1">
                               <TextBlock Classes="citation-title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                              <TextBlock Classes="citation-address" Text="{Binding Address}" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasAddress}" />
                               <TextBlock Classes="timestamp" Text="{Binding Meta}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                           </Grid>
-                        </Button>
+                        </Panel>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
@@ -406,6 +421,8 @@
                   <TextBlock Name="StateText" Classes="caption" Text="{Binding StateLabel}" VerticalAlignment="Center" Margin="4,0,0,0"
                              IsVisible="{Binding ShowsQuietState}" />
                   <TextBlock Name="AnswerTime" Classes="timestamp" Text="{Binding TimestampText}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                  <TextBlock Name="AnswerImported" Classes="timestamp" Text="{Binding Source={x:Static t:UiText.ImportedAnswer}, StringFormat='· {0}'}" VerticalAlignment="Center" Margin="1,0,0,0"
+                             IsVisible="{Binding IsReceivedAnswer}" />
                   <!-- Round 4: how long it took ("09:30 · 用时 14 秒"); none for failed, interrupted or older answers. -->
                   <TextBlock Name="AnswerDuration" Classes="timestamp" Text="{Binding DurationText, StringFormat='· {0}'}" VerticalAlignment="Center" Margin="1,0,0,0"
                              IsVisible="{Binding DurationText, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -427,7 +444,7 @@
                               <Border Classes="badge" DockPanel.Dock="Right" Margin="8,0,0,0" IsVisible="{Binding Archived}">
                                 <TextBlock Text="{x:Static t:UiText.ArchivedMarker}" />
                               </Border>
-                              <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Text="{Binding Text}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
                           </Button>
                         </DataTemplate>

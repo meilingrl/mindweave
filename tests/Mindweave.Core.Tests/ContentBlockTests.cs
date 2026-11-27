@@ -71,6 +71,30 @@ public class ContentBlockTests
         Assert.Equal("About this passage:\n> one\n\n[Attachment: Pasted text]\n\nwhy?", Assert.Single(plan.RawItems).Text);
     }
 
+    /// <summary>What a share left out (docs/design/sharing-import.md §3): the model learns only that an attachment was there, and no tool step.</summary>
+    [Fact]
+    public void A_stand_in_says_that_something_was_there_and_nothing_more()
+    {
+        var phrases = TestPhrases.English;
+        ContentBlock[] question = [new AbsentAttachmentBlock("plan.pdf"), new AbsentAttachmentBlock(null), new TextBlock("why?")];
+        Assert.Equal("[An attachment, not included]\n\n[An attachment, not included]\n\nwhy?", ContentBlocks.ContextTextOf(question, phrases));
+        Assert.Empty(ContentBlocks.AttachmentsOf(question));
+        Assert.Equal("why?", ContentBlocks.TypedTextOf(question));
+        Assert.Equal(["plan.pdf", null], ContentBlocks.AttachmentNamesOf(question));
+
+        ContentBlock[] answer =
+        [
+            new TextBlock("It is [1][2]."), new ActivityCountBlock(1, 0, 2, 3, 4),
+            CitationBlock.WithoutMaterial(2, CitationKind.Attachment, null, null),
+            CitationBlock.WithoutMaterial(1, CitationKind.Web, "Steam", new Uri("https://example.com/steam")),
+        ];
+        Assert.Equal("It is [1][2].\n\nCitations:\n[1] Steam https://example.com/steam\n[2] An attachment", ContentBlocks.ContextTextOf(answer, phrases));
+        Assert.Equal("It is [1][2].", ContentBlocks.TextOf(answer, phrases));
+        Assert.Empty(ContentBlocks.ToolBlocksOf(answer));
+        Assert.All(ContentBlocks.CitationsOf(answer), c => Assert.True(c is { Resource: null, FetchedAt: null }));
+        Assert.Equal([true, false], ContentBlocks.CitationsOf(answer).Select(c => c.CanBeOpened));
+    }
+
     [Fact]
     public void The_content_cannot_close_its_own_section_or_break_the_name()
     {

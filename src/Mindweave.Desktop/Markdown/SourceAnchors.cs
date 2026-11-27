@@ -92,8 +92,11 @@ public static class SourceAnchors
 
     public static string Serialize(SelectionAnchor anchor) => JsonSerializer.Serialize(anchor, Json);
 
+    /// <summary>An anchor from a shared file can say anything (docs/design/sharing-import.md §4), so what it must hold is looked at.</summary>
     public static SelectionAnchor Deserialize(string json) =>
-        JsonSerializer.Deserialize<SelectionAnchor>(json, Json) ?? throw new InvalidDataException("The anchor is empty.");
+        JsonSerializer.Deserialize<SelectionAnchor>(json, Json) is { SourceHash: not null, Segments: { } segments } anchor && segments.All(s => s is { LayoutHash: not null, Quote: not null })
+            ? anchor
+            : throw new InvalidDataException("The anchor is empty.");
 
     public static string Serialize(ReadingLocator locator) => JsonSerializer.Serialize(locator, Json);
 
@@ -212,7 +215,7 @@ public static class SourceAnchors
             return segments;
         }
 
-        var formulas = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline).Descendants<MathBlock>()
+        var formulas = AnswerMarkdown.Parse(markdown).Descendants<MathBlock>()
             .Where(f => f.Span.Start > first && f.Span.End < last && f.Span.End < markdown.Length)
             .OrderBy(f => f.Span.Start);
         foreach (var formula in formulas)
@@ -251,7 +254,7 @@ public static class SourceAnchors
 
     /// <summary>What each placeholder of a block stands for, in order: a formula's source, or nothing for a task-list box.</summary>
     private static List<string> EmbeddedObjects(string rawBlock) =>
-        Markdig.Markdown.Parse(rawBlock, MarkdownUpdateProducer.DefaultPipeline)
+        AnswerMarkdown.Parse(rawBlock)
             .Descendants<Markdig.Syntax.Inlines.Inline>()
             .Where(i => i is MathInline or Markdig.Extensions.TaskLists.TaskList)
             .OrderBy(i => i.Span.Start)

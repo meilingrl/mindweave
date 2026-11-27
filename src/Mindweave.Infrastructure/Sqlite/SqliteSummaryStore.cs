@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Mindweave.Application.Exchange;
 using Mindweave.Application.Storage;
 using Mindweave.Application.SummaryLinks;
 using Mindweave.Core.Conversations;
@@ -521,6 +522,26 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
 
     private static int NextSeq(SqliteConnection connection, SqliteTransaction transaction, SummaryNodeId node) =>
         (int)(connection.Scalar<long?>(transaction, "SELECT max(seq) FROM summary_version WHERE node_id = $id;", ("$id", node.ToString())) ?? 0) + 1;
+
+    /// <summary>
+    /// A summary version a shared file brought (docs/design/sharing-import.md §2): the current one of a conversation without a
+    /// summary, otherwise one more saved version, and the current one stays. Nothing marks it as read.
+    /// </summary>
+    internal static void AddReceived(SqliteConnection connection, SqliteTransaction transaction, WorkspaceId workspace, ConversationId conversation, ExchangeSummary summary)
+    {
+        var existing = connection.Scalar<string>(transaction, "SELECT id FROM summary_node WHERE conversation_id = $conv;", ("$conv", conversation.ToString()));
+        var node = existing is null ? SummaryNodeId.New() : SummaryNodeId.Parse(existing);
+        var seq = NextSeq(connection, transaction, node);
+        if (existing is null)
+        {
+            connection.Execute(transaction, $"""
+                INSERT INTO summary_node ({NodeColumns})
+                VALUES ($id, $ws, $conv, $v, NULL, $title, $title, 'base', $at, $at);
+                """, ("$id", node.ToString()), ("$ws", workspace.ToString()), ("$conv", conversation.ToString()), ("$v", summary.Id.ToString()), ("$title", summary.Title), ("$at", summary.At.Ms()));
+        }
+
+        InsertVersion(connection, transaction, new(summary.Id, node, seq, summary.Title, summary.Body, summary.ToSeq, SummaryOrigin.Generated, null, null, null, summary.At));
+    }
 
     private static void InsertVersion(SqliteConnection connection, SqliteTransaction transaction, SummaryVersion v) =>
         connection.Execute(transaction, $"""

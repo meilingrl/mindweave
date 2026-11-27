@@ -56,6 +56,15 @@
                 <TextBlock Text="{x:Static t:UiText.NewWorkspaceEntry}" VerticalAlignment="Center" />
               </DockPanel>
             </Button>
+            <Button Name="ImportEntry" Classes="switcher-row footer" Command="{Binding ImportCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.ImportEntry}">
+              <DockPanel>
+                <Panel DockPanel.Dock="Left" Classes="switcher-check">
+                  <PathIcon Data="{StaticResource IconImport}" />
+                </Panel>
+                <TextBlock Text="{x:Static t:UiText.ImportEntry}" VerticalAlignment="Center" />
+              </DockPanel>
+            </Button>
             <Button Name="ManageWorkspacesEntry" Classes="switcher-row footer" Command="{Binding ManageWorkspacesCommand}"
                     AutomationProperties.Name="{x:Static t:UiText.ManageWorkspaces}">
               <DockPanel>

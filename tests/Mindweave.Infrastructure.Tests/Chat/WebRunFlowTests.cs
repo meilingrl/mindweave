@@ -96,7 +96,7 @@ public class WebRunFlowTests
         Assert.IsType<CitationBlock>(answer.Blocks[^1]);
 
         // The results are one stored web resource, external; a citation's range is its own result.
-        var stored = (await h.ResourceService.GetAsync(citations[0].Resource, Ct))!;
+        var stored = (await h.ResourceService.GetAsync(citations[0].Resource!.Value, Ct))!;
         Assert.Equal((ResourceOrigin.Web, ResourceProvenance.External, sent.Conversation), (stored.Resource.Origin, stored.Resource.Provenance, stored.Resource.ConversationId));
         var passage = stored.Text![citations[0].Start..citations[0].End];
         Assert.StartsWith("[1] 蒸汽机 - 百科", passage, StringComparison.Ordinal);
@@ -181,7 +181,7 @@ public class WebRunFlowTests
         // The page keeps the number its search result had; the citation now points at the page, at the cited passage.
         var citation = Assert.Single(ContentBlocks.CitationsOf(answer.Blocks));
         Assert.Equal((1, "蒸汽机的历史"), (citation.Number, citation.Title));
-        var page = (await h.ResourceService.GetAsync(citation.Resource, Ct))!;
+        var page = (await h.ResourceService.GetAsync(citation.Resource!.Value, Ct))!;
         Assert.Equal((ResourceOrigin.Web, new Uri("https://example.org/steam")), (page.Resource.Origin, page.Resource.SourceUrl));
         Assert.Contains("分离冷凝器", page.Text![citation.Start..citation.End], StringComparison.Ordinal);
         Assert.All((await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id].Steps, s => Assert.Null(s.Approval));

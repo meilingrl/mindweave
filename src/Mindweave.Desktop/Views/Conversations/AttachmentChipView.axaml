@@ -6,7 +6,7 @@
              x:Class="Mindweave.Desktop.Views.Conversations.AttachmentChipView"
              x:DataType="vm:AttachmentChip">
   <!-- One attachment (requirements §10.4.3): icon or thumbnail, name, type and size (or why it failed); click to view; ✕ removes. -->
-  <Border Classes="attachment-chip" Classes.failed="{Binding IsFailed}">
+  <Border Classes="attachment-chip" Classes.failed="{Binding IsFailed}" Classes.absent="{Binding IsAbsent}">
     <DockPanel>
       <Button DockPanel.Dock="Right" Name="RemoveButton" Classes="chip-remove" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}"
               ToolTip.Tip="{x:Static t:UiText.RemoveAttachment}" AutomationProperties.Name="{x:Static t:UiText.RemoveAttachment}">
@@ -16,7 +16,7 @@
               Command="{Binding ConvertToTextCommand}" IsVisible="{Binding CanConvert}" />
       <Button DockPanel.Dock="Right" Name="RetryButton" Classes="chip-action" Content="{x:Static t:UiText.RetryAttachment}"
               Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" />
-      <Button Name="ChipBody" Classes="chip-body" Command="{Binding OpenCommand}" IsEnabled="{Binding IsReady}"
+      <Button Name="ChipBody" Classes="chip-body" Command="{Binding OpenCommand}" IsEnabled="{Binding CanOpen}"
               AutomationProperties.Name="{Binding AccessibleName}" ToolTip.Tip="{Binding Name}">
         <DockPanel>
           <Border Classes="chip-icon">

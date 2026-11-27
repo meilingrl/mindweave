@@ -50,7 +50,7 @@ public class WorkspaceSwitcherTests
     }
 
     [AvaloniaFact]
-    public async Task Clicking_opens_a_menu_of_every_workspace_with_a_check_on_the_open_one_and_the_two_entries_below()
+    public async Task Clicking_opens_a_menu_of_every_workspace_with_a_check_on_the_open_one_and_the_entries_below()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
@@ -60,12 +60,12 @@ public class WorkspaceSwitcherTests
         UiInput.Click(window, Part<Button>(window, "WorkspacePicker"));
         Assert.True(app.ShellPage.IsWorkspaceMenuOpen);
         Assert.Contains("open", Part<Button>(window, "WorkspacePicker").Classes);
-        await UiWait.UntilAsync(() => MenuRows(window).Count == 5);
+        await UiWait.UntilAsync(() => MenuRows(window).Count == 6);
         window.UpdateLayout();
 
         var rows = MenuRows(window);
-        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ManageWorkspaces], rows.Select(Label));
-        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ManageWorkspaces], rows.Select(r => AutomationProperties.GetName(r)));
+        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ImportEntry, UiText.ManageWorkspaces], rows.Select(Label));
+        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ImportEntry, UiText.ManageWorkspaces], rows.Select(r => AutomationProperties.GetName(r)));
         var current = rows[0];
         Assert.Equal(trains.Id, Assert.IsType<WorkspaceChoice>(current.DataContext).Workspace.Id);
         Assert.True(Check(current).IsEffectivelyVisible);
@@ -178,7 +178,7 @@ public class WorkspaceSwitcherTests
         // And through it the menu opens and closes.
         peer.Expand();
         Assert.True(app.ShellPage.IsWorkspaceMenuOpen);
-        await UiWait.UntilAsync(() => MenuRows(window).Count == 5);
+        await UiWait.UntilAsync(() => MenuRows(window).Count == 6);
         peer.Collapse();
         Assert.False(app.ShellPage.IsWorkspaceMenuOpen);
         window.Close();
@@ -195,7 +195,7 @@ public class WorkspaceSwitcherTests
         await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
 
         UiInput.Click(window, Part<Button>(window, "WorkspacePicker"));
-        await UiWait.UntilAsync(() => MenuRows(window).Count == 5);
+        await UiWait.UntilAsync(() => MenuRows(window).Count == 6);
         window.UpdateLayout();
         UiInput.Click(window, MenuRows(window).Single(r => Label(r) == "摄影"));
         Assert.False(app.ShellPage.IsWorkspaceMenuOpen);
@@ -338,6 +338,7 @@ public class WorkspaceSwitcherTests
 
         // From the last row (管理工作区…) up past 新建工作区… to the last workspace, scrolled into view.
         Press(window, Key.End, PhysicalKey.End);
+        Press(window, Key.Up, PhysicalKey.ArrowUp);
         Press(window, Key.Up, PhysicalKey.ArrowUp);
         Press(window, Key.Up, PhysicalKey.ArrowUp);
         var last = (Button)Focused(window)!;
