@@ -174,7 +174,7 @@ public class ConversationNewsHintTests
         await UiWait.UntilAsync(() => news.Toasts.All(t => t.Conversation != seen));
 
         // Archived, it leaves the sidebar, and its hint goes with it.
-        await UiWait.UntilAsync(() => !app.Services.GetRequiredService<ConversationService>().HasUnfinishedAnswer(archived));
+        await UiWait.AnswersStoredAsync(app.Services.GetRequiredService<ConversationService>(), archived);
         var outcome = await app.Services.GetRequiredService<ConversationService>().ArchiveAsync(archived, CancellationToken.None);
         Assert.True(outcome.Archived, outcome.ToString());
         await UiWait.UntilAsync(() => news.Toasts.Count == 0);

@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
+using Mindweave.Application.Conversations;
 using Mindweave.Core.Conversations;
 using Mindweave.Testing;
 using Mindweave.Desktop.ViewModels.Conversations;
@@ -33,6 +34,66 @@ internal static class UiWait
             await Task.Delay(10);
         }
     }
+
+    /// <summary>
+    /// Pumps the UI dispatcher until every assertion in <paramref name="assertions"/> passes in the same round; on timeout
+    /// the last failure is reported. Use it where what is checked lands in more than one step: waiting for one part
+    /// (a count) and then asserting another (the notice a later recount sets) passes alone and fails under load
+    /// (docs/design/testing.md, "Intermittent failures"). Only assertion failures are retried; any other exception ends
+    /// the wait at once.
+    /// </summary>
+    public static async Task SettledAsync(
+        Action assertions,
+        int timeoutMs = 5000,
+        [CallerArgumentExpression(nameof(assertions))] string? expression = null,
+        [CallerFilePath] string? file = null,
+        [CallerLineNumber] int line = 0)
+    {
+        ArgumentNullException.ThrowIfNull(assertions);
+        timeoutMs = TestWaits.Ms(timeoutMs);
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (true)
+        {
+            try
+            {
+                assertions();
+                return;
+            }
+            catch (Exception failure) when (failure is Xunit.Sdk.IAssertionException)
+            {
+                if (DateTime.UtcNow > deadline)
+                {
+                    // Which wait it was and what still failed: a full Windows run reports only the test name and this message.
+                    throw new TimeoutException(
+                        $"Not settled on the UI thread within {timeoutMs} ms ({Path.GetFileName(file)}:{line}): {failure.Message}{Environment.NewLine}{expression}",
+                        failure);
+                }
+            }
+
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(10);
+        }
+    }
+
+    /// <summary>
+    /// Waits until every answer of <paramref name="conversation"/> is finished as stored. An answer ends in three steps: its
+    /// live state turns terminal (the page row and <see cref="IConversations.HasUnfinishedAnswer"/> change here), then
+    /// it is written, then its slot is freed (AnswerRunner.FinishAsync). Archiving, deleting, branching and summarizing
+    /// check what is stored and refuse an answer still running there, so wait for this before any of them, not for the
+    /// page or the running flag.
+    /// </summary>
+    public static Task AnswersStoredAsync(
+        IConversations conversations,
+        ConversationId conversation,
+        int timeoutMs = 5000,
+        [CallerFilePath] string? file = null,
+        [CallerLineNumber] int line = 0) =>
+        UntilAsync(
+            () => conversations.LoadAsync(conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished),
+            timeoutMs,
+            "every answer finished as stored",
+            file,
+            line);
 
     /// <summary>
     /// Waits until the answer at <paramref name="index"/> is shown from storage in <paramref name="state"/>. An answer
