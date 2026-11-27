@@ -29,5 +29,7 @@
     <EmbeddedResource Include="Share\katex\LICENSE" LogicalName="Share.katex.LICENSE" />
     <EmbeddedResource Include="Share\katex\*.min.*" LogicalName="Share.katex.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Share\katex\fonts\*.woff2" LogicalName="Share.katex.fonts.%(Filename)%(Extension)" />
+    <!-- The entry page of a manual backup (docs/design/sharing-backup.md §4), filled in by ManualBackupPackage. -->
+    <EmbeddedResource Include="ManualBackup\ManualBackupIndex.html" LogicalName="ManualBackup.ManualBackupIndex.html" />
   </ItemGroup>
 </Project>

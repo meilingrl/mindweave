@@ -8,6 +8,9 @@ public sealed record ExchangeLink(ConversationId A, ConversationId B)
 {
     /// <summary>The note, only in a share with content (S7).</summary>
     public string? Note { get; init; }
+
+    /// <summary>The link as stored, in a manual backup only.</summary>
+    public ExchangeStoredLink? Stored { get; init; }
 }
 
 /// <summary>A conversation in a share: its stored identity and where it stands in the path.</summary>
@@ -17,6 +20,15 @@ public sealed record ExchangeConversation(ConversationId Id, ConversationId? Par
 {
     /// <summary>What was said, only in a share with content.</summary>
     public ExchangeContent? Content { get; init; }
+
+    /// <summary>In a manual backup: the user wrote the title (<see cref="Name"/> is then the stored title).</summary>
+    public bool TitleByUser { get; init; }
+
+    /// <summary>In a manual backup: the user archived it. A share never says so (§6.6, point 8).</summary>
+    public bool IsArchived { get; init; }
+
+    /// <summary>In a manual backup: it was received from a shared file.</summary>
+    public ExchangeReceived? Received { get; init; }
 }
 
 /// <summary>
@@ -42,8 +54,17 @@ public sealed record ExchangeDocument(
     /// <summary>With the questions, the answers, the sentences branches left from and the summaries (S6).</summary>
     public const string ContentKind = "content";
 
-    /// <summary>A copy of a workspace for another of the user's devices; nothing writes it yet.</summary>
+    /// <summary>
+    /// A manual backup's document of one workspace (docs/design/sharing-backup.md): everything except what stays home. The
+    /// stored word stays <c>device</c>; the glossary's name for it is the manual backup.
+    /// </summary>
     public const string DeviceKind = "device";
+
+    /// <summary>In a manual backup: the workspace this document holds.</summary>
+    public ExchangeWorkspace? Workspace { get; init; }
+
+    /// <summary>In a manual backup: the stored material its messages refer to.</summary>
+    public IReadOnlyList<ExchangeResource> Resources { get; init; } = [];
 
     public int Explorations => Conversations.Count(c => c.Parent is null);
 

@@ -42,4 +42,18 @@ public interface IExportFileWriter
 {
     /// <exception cref="ExportWriteException">The file could not be written.</exception>
     Task<ExportWriteMode> WriteAsync(ExportDestination destination, ReadOnlyMemory<byte> content, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes what <paramref name="write"/> puts into the stream it is given, for a file too large to hold in memory (a manual
+    /// backup). The same promise: the target is left alone or completely replaced, and a cancel or a failure of
+    /// <paramref name="write"/> leaves no temporary file. This default holds the content in memory first.
+    /// </summary>
+    /// <exception cref="ExportWriteException">The file could not be written.</exception>
+    async Task<ExportWriteMode> WriteAsync(ExportDestination destination, Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(write);
+        using var buffer = new MemoryStream();
+        await write(buffer, cancellationToken).ConfigureAwait(false);
+        return await WriteAsync(destination, buffer.ToArray(), cancellationToken).ConfigureAwait(false);
+    }
 }

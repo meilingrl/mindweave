@@ -87,7 +87,7 @@ public static partial class UiText
         ImportRefusal.NotAShare => T("This isn’t a file shared from Mindweave.", "这不是从 Mindweave 分享的文件。"),
         ImportRefusal.Damaged => T("This file is damaged and can’t be imported.", "这个文件已损坏，无法导入。"),
         ImportRefusal.NewerFormat => T("This file was made by a newer Mindweave. Update Mindweave to open this.", "这个文件由更新版本的 Mindweave 生成。请更新 Mindweave 后再打开。"),
-        ImportRefusal.DeviceCopy => T("This is a copy of a workspace for another device. A newer Mindweave is needed to import it.", "这是给另一台设备的工作区副本，需要更新版本的 Mindweave 才能导入。"),
+        ImportRefusal.DeviceCopy => T("This is a manual backup. A newer Mindweave is needed to import it.", "这是一份手动备份，需要更新版本的 Mindweave 才能导入。"),
         ImportRefusal.TooLarge => T("This file is too large to import.", "这个文件太大，无法导入。"),
         _ => T("Couldn’t read this file.", "无法读取这个文件。"),
     };
