@@ -1286,7 +1286,7 @@ public class GalleryTests
         await scene.App.ShellPage.NewWorkspace.SubmitCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => scene.App.Workbench.CurrentWorkspace?.Name.Value == "城市交通");
         held.Finish("以标准轨为主。");
-        var news = scene.App.ShellPage.WorkspaceNews!;
+        var news = scene.App.ShellPage.WorkspaceNews;
         await UiWait.UntilAsync(() => news.HasNews && news.Toasts.Count == 1);
         await NewsSettledAsync(window);
         Capture(window, "g41-workspace-news");
@@ -1333,7 +1333,7 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
-        var news = scene.App.ShellPage.WorkspaceNews!;
+        var news = scene.App.ShellPage.WorkspaceNews;
         var city = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("城市交通"), CancellationToken.None);
         scene.App.Workbench.Workspaces.Add(city);
 
@@ -1400,7 +1400,7 @@ public class GalleryTests
         var marks = scene.App.Services.GetRequiredService<ConversationMarksService>();
         await UiWait.UntilAsync(() => marks.IsUnread(subway.Conversation));
         marks.MarkSeen(subway.Conversation);
-        var news = scene.App.ShellPage.WorkspaceNews!;
+        var news = scene.App.ShellPage.WorkspaceNews;
         await UiWait.UntilAsync(() => !news.HasNews && news.Toasts.Count == 0);
         await OpenConversationAsync(scene.App, window, seed.Root);
         await SettleAsync(window);
@@ -2173,7 +2173,7 @@ public class GalleryTests
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.All(i => !i.IsUnread));
 
         // The hints those answers popped up in the open workspace go with their marks.
-        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews!.Toasts.Count == 0);
+        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews.Toasts.Count == 0);
 
         var nodes = new Dictionary<ConversationId, SummaryNodeId>();
         if (summaries)

@@ -489,7 +489,7 @@ public class SummaryNetworkPageTests
             marks.MarkSeen(id);
         }
 
-        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews!.Toasts.Count == 0);
+        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews.Toasts.Count == 0);
         return (root, branch, plain);
     }
 }

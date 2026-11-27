@@ -15,11 +15,11 @@ namespace Mindweave.Desktop.ViewModels;
 public sealed partial class ShellViewModel : ViewModelBase, IDisposable
 {
     private readonly IWorkspaces _workspaces;
-    private readonly SummaryNetwork.SummaryNetworkSessions? _summaryNetworks;
-    private readonly ISidebarLayout? _sidebarLayout;
-    private readonly WorkspaceSwitchRequests? _switches;
-    private readonly ImportViewModel? _import;
-    private readonly ManualBackupViewModel? _manualBackup;
+    private readonly SummaryNetwork.SummaryNetworkSessions _summaryNetworks;
+    private readonly ISidebarLayout _sidebarLayout;
+    private readonly WorkspaceSwitchRequests _switches;
+    private readonly ImportViewModel _import;
+    private readonly ManualBackupViewModel _manualBackup;
     private PageViewModel? _observedPage;
     private double _sidebarWidth = SidebarLayout.DefaultWidth;
 
@@ -27,13 +27,15 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         Workbench workbench,
         IWorkspaces workspaces,
         Conversations.ConversationListViewModel conversations,
-        SummaryNetwork.SummaryNetworkSessions? summaryNetworks = null,
-        ISidebarLayout? sidebarLayout = null,
-        WorkspaceNewsViewModel? workspaceNews = null,
-        WorkspaceSwitchRequests? switches = null,
-        ImportViewModel? import = null,
-        ManualBackupViewModel? manualBackup = null)
+        SummaryNetwork.SummaryNetworkSessions summaryNetworks,
+        ISidebarLayout sidebarLayout,
+        WorkspaceNewsViewModel workspaceNews,
+        WorkspaceSwitchRequests switches,
+        ImportViewModel import,
+        ManualBackupViewModel manualBackup)
     {
+        ArgumentNullException.ThrowIfNull(workspaceNews);
+        ArgumentNullException.ThrowIfNull(switches);
         _import = import;
         _manualBackup = manualBackup;
         WorkspaceNews = workspaceNews;
@@ -47,16 +49,9 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         Workbench.PropertyChanged += OnWorkbenchChanged;
         Workbench.Workspaces.CollectionChanged += OnWorkspacesChanged;
         Conversations.PropertyChanged += OnConversationsChanged;
-        if (workspaceNews is not null)
-        {
-            workspaceNews.PropertyChanged += OnNewsChanged;
-        }
-
+        workspaceNews.PropertyChanged += OnNewsChanged;
         _switches = switches;
-        if (switches is not null)
-        {
-            switches.Requested += OnSwitchRequested;
-        }
+        switches.Requested += OnSwitchRequested;
     }
 
     /// <summary>Stops listening to the workbench, the sidebar, the hints and the switch requests; the view is being replaced.</summary>
@@ -65,15 +60,8 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         Workbench.PropertyChanged -= OnWorkbenchChanged;
         Workbench.Workspaces.CollectionChanged -= OnWorkspacesChanged;
         Conversations.PropertyChanged -= OnConversationsChanged;
-        if (WorkspaceNews is not null)
-        {
-            WorkspaceNews.PropertyChanged -= OnNewsChanged;
-        }
-
-        if (_switches is not null)
-        {
-            _switches.Requested -= OnSwitchRequested;
-        }
+        WorkspaceNews.PropertyChanged -= OnNewsChanged;
+        _switches.Requested -= OnSwitchRequested;
 
         ObservePage(null);
     }
@@ -87,8 +75,8 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
 
     public WorkspaceNameForm NewWorkspace { get; }
 
-    /// <summary>New answers in the other workspaces, for the picker; null where the shell is built without it (tests).</summary>
-    public WorkspaceNewsViewModel? WorkspaceNews { get; }
+    /// <summary>New answers in the other workspaces, for the picker.</summary>
+    public WorkspaceNewsViewModel WorkspaceNews { get; }
 
     public Conversations.ConversationListViewModel Conversations { get; }
 
@@ -188,11 +176,6 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     /// <summary>Applies the stored layout; called at start once the database is open, before the workbench shows.</summary>
     public async Task RestoreSidebarAsync()
     {
-        if (_sidebarLayout is null)
-        {
-            return;
-        }
-
         SidebarLayout stored;
         try
         {
@@ -222,11 +205,6 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
 
     private void SaveSidebar()
     {
-        if (_sidebarLayout is null)
-        {
-            return;
-        }
-
         // One write after another, so the last change made is the one that stays.
         var layout = new SidebarLayout(SidebarWidth, IsSidebarCollapsed);
         var previous = SidebarSaving;
@@ -252,7 +230,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     private void ShowSection(MainSection section)
     {
         // Entering the network from its section entry fits everything into view; coming back from a summary does not.
-        if (section == MainSection.SummaryNetwork && Workbench.CurrentWorkspace is { } workspace && _summaryNetworks is not null)
+        if (section == MainSection.SummaryNetwork && Workbench.CurrentWorkspace is { } workspace)
         {
             _summaryNetworks.Get(workspace.Id).Viewport = null;
         }
@@ -287,7 +265,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     private void Import()
     {
         IsWorkspaceMenuOpen = false;
-        _import?.Pick();
+        _import.Pick();
     }
 
     /// <summary>The menu's "Back up to a file…" (docs/design/sharing-backup.md §5): the manual backup's dialog.</summary>
@@ -295,7 +273,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     private void BackUp()
     {
         IsWorkspaceMenuOpen = false;
-        _manualBackup?.Open();
+        _manualBackup.Open();
     }
 
     /// <summary>Esc or 取消 in the form: it closes and forgets what was typed.</summary>
@@ -324,21 +302,21 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         }
 
         var current = Workbench.CurrentWorkspace?.Id;
-        var news = WorkspaceNews?.Workspaces;
+        var news = WorkspaceNews.Workspaces;
         WorkspaceChoices.Clear();
         foreach (var workspace in Workbench.Workspaces)
         {
-            WorkspaceChoices.Add(new WorkspaceChoice(workspace, workspace.Id == current, news?.Contains(workspace.Id) == true, ChooseWorkspaceCommand));
+            WorkspaceChoices.Add(new WorkspaceChoice(workspace, workspace.Id == current, news.Contains(workspace.Id), ChooseWorkspaceCommand));
         }
     }
 
     private void OnNewsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(WorkspaceNewsViewModel.Workspaces) && WorkspaceNews is { } news)
+        if (e.PropertyName == nameof(WorkspaceNewsViewModel.Workspaces))
         {
             foreach (var choice in WorkspaceChoices)
             {
-                choice.HasNews = news.Workspaces.Contains(choice.Workspace.Id);
+                choice.HasNews = WorkspaceNews.Workspaces.Contains(choice.Workspace.Id);
             }
         }
     }
@@ -355,7 +333,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         ArgumentNullException.ThrowIfNull(toast);
         if (Workbench.Workspaces.FirstOrDefault(w => w.Id == toast.Workspace) is not { } workspace)
         {
-            WorkspaceNews?.Dismiss(toast);
+            WorkspaceNews.Dismiss(toast);
             return;
         }
 
@@ -372,7 +350,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         if (workspace.Id == Workbench.CurrentWorkspace?.Id)
         {
             Open();
-            WorkspaceNews?.Dismiss(toast);
+            WorkspaceNews.Dismiss(toast);
             return;
         }
 
@@ -392,7 +370,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     /// <summary>Leaves the current workspace. The network's viewport is not kept: coming back fits everything into view (§11.3).</summary>
     private void Leave(Action switchTo)
     {
-        if (Workbench.CurrentWorkspace is { } current && _summaryNetworks is not null)
+        if (Workbench.CurrentWorkspace is { } current)
         {
             _summaryNetworks.Get(current.Id).Viewport = null;
         }

@@ -202,7 +202,7 @@ public sealed class ShareFlowTests : IDisposable
     }
 
     private static ShareService Shares(ChatHarness h, IExportFileWriter? writer = null) =>
-        new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), new SharePageWriter(), writer ?? new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
+        new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), new SharePageWriter(new PlainMarkdown()), writer ?? new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
 
     private static WorkspaceName MarkedName() => WorkspaceName.TryCreate("PLANTEDWORKSPACE", out var name, out _) ? name! : throw new InvalidOperationException();
 

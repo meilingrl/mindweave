@@ -541,7 +541,7 @@ public sealed class ImportFlowTests : IDisposable
     }
 
     private static ShareService Shares(ChatHarness h) =>
-        new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), new SharePageWriter(), new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
+        new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), new SharePageWriter(new Share.PlainMarkdown()), new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
 
     private static ImportService Imports(ChatHarness h) =>
         new(new SqliteImportStore(h.Database), h.Conversations, h.Reading, h.Health, new SystemClock(), NullLogger<ImportService>.Instance, h.SummaryService, h.Links);

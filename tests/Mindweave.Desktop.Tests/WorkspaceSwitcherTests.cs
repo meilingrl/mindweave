@@ -301,7 +301,7 @@ public class WorkspaceSwitcherTests
         await app.StartWithWorkspaceAsync("火车历史");
         await app.ConfigureModelAsync();
         var (city, _) = await AddAsync(app, "城市交通", "摄影史");
-        var news = app.ShellPage.WorkspaceNews!;
+        var news = app.ShellPage.WorkspaceNews;
         await OpenMenuAsync(app, window);
         var row = MenuRows(window).Single(r => Label(r) == "城市交通");
         var dot = row.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Ellipse>().Single(e => e.Name == "WorkspaceNewsDot");

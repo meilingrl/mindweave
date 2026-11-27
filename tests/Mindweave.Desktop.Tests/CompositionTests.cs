@@ -22,7 +22,7 @@ public class CompositionTests
         {
             // Built, not resolved: the descriptors are the application's own, with nothing replaced by a test.
             await using var root = CompositionRoot.BuildRoot(new AppPaths("test", directory), new DesktopHarness.RecordingShell(), NullLoggerProvider.Instance);
-            var descriptors = root.GetRequiredService<CompositionRoot.RootRegistrations>().Descriptors.Concat(ViewRegistrations());
+            var descriptors = root.GetRequiredService<CompositionRoot.RootRegistrations>().Descriptors.Concat(CompositionRoot.ViewRegistrations());
 
             var problems = descriptors
                 .Select(d => d.IsKeyedService ? d.KeyedImplementationType : d.ImplementationType)
@@ -52,15 +52,7 @@ public class CompositionTests
         var view = app.Session.View;
 
         Resolve(root, root.GetRequiredService<CompositionRoot.RootRegistrations>().Descriptors);
-        Resolve(view, ViewRegistrations());
-    }
-
-    // TEMP until CompositionRoot exposes it.
-    private static ServiceCollection ViewRegistrations()
-    {
-        var s = new ServiceCollection();
-        typeof(CompositionRoot).GetMethod("AddView", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [s]);
-        return s;
+        Resolve(view, CompositionRoot.ViewRegistrations());
     }
 
     private static void Resolve(IServiceProvider provider, IEnumerable<ServiceDescriptor> descriptors)
