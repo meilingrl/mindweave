@@ -10,7 +10,7 @@
   <!-- Never taller than the window: what does not fit scrolls, and the buttons and a problem stay in sight. -->
   <Border Classes="dialog wide" Margin="24">
     <DockPanel>
-      <TextBlock DockPanel.Dock="Top" Classes="dialog-title" Text="{x:Static t:UiText.ImportTitle}" Margin="0,0,0,12" />
+      <TextBlock DockPanel.Dock="Top" Classes="dialog-title" Text="{Binding Title}" Margin="0,0,0,12" />
       <StackPanel DockPanel.Dock="Bottom" Classes="dialog-buttons" Margin="0,14,0,0">
         <TextBlock Classes="caption" Text="{x:Static t:UiText.ImportBusy}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding IsBusy}" />
         <Button Name="ImportCancel" Classes="secondary" Content="{Binding CloseText}" Command="{Binding CloseCommand}" IsCancel="True" />
@@ -30,7 +30,7 @@
             <TextBlock Name="ImportKind" Classes="caption" Text="{Binding KindText}" TextWrapping="Wrap"
                        IsVisible="{Binding KindText, Converter={x:Static ObjectConverters.IsNotNull}}" />
           </StackPanel>
-          <StackPanel Name="ImportTargets" Spacing="4" IsVisible="{Binding ShowsChoice}" IsEnabled="{Binding !IsBusy}">
+          <StackPanel Name="ImportTargets" Spacing="4" IsVisible="{Binding ShowsTargets}" IsEnabled="{Binding !IsBusy}">
             <TextBlock Classes="caption" Text="{x:Static t:UiText.ImportIntoHeading}" />
             <ItemsControl ItemsSource="{Binding Targets}" AutomationProperties.Name="{x:Static t:UiText.ImportIntoHeading}">
               <ItemsControl.ItemTemplate>
@@ -42,10 +42,44 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </StackPanel>
-          <Border Name="ImportCounts" Classes="share-contents" IsVisible="{Binding Counts.Count, Converter={x:Static d:Converters.IsPositive}}">
+          <Border Name="ImportCounts" Classes="share-contents" IsVisible="{Binding HasCounts}">
             <StackPanel Spacing="6">
-              <TextBlock Classes="share-heading" Text="{x:Static t:UiText.ImportCountsHeading}" IsVisible="{Binding ShowsChoice}" />
-              <TextBlock Name="ImportAllHere" Classes="dialog-body" Text="{x:Static t:UiText.ImportAllHere}" IsVisible="{Binding IsAllHere}" AutomationProperties.LiveSetting="Polite" />
+              <TextBlock Name="ImportCountsHeading" Classes="share-heading" Text="{Binding CountsHeading}" AutomationProperties.LiveSetting="Polite">
+                <TextBlock.IsVisible>
+                  <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="ShowsChoice" />
+                    <Binding Path="IsDone" />
+                  </MultiBinding>
+                </TextBlock.IsVisible>
+              </TextBlock>
+              <TextBlock Name="ImportAllHere" Classes="dialog-body" Text="{Binding AllHereText}" IsVisible="{Binding IsAllHere}" AutomationProperties.LiveSetting="Polite" />
+              <!-- A manual backup: each workspace, then what will happen to it, or what happened. -->
+              <ItemsControl Name="ImportBackupWorkspaces" ItemsSource="{Binding BackupWorkspaces}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="10" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ImportBackupGroup">
+                    <StackPanel Spacing="3">
+                      <TextBlock Classes="import-workspace" Text="{Binding Heading}" TextWrapping="Wrap" />
+                      <ItemsControl ItemsSource="{Binding Lines}" Margin="12,0,0,0">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Spacing="3" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="sys:String">
+                            <TextBlock Classes="import-count" Text="{Binding}" TextWrapping="Wrap" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <ItemsControl ItemsSource="{Binding Counts}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>

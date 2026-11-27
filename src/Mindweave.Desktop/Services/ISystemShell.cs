@@ -30,7 +30,7 @@ public interface ISystemShell
     /// </summary>
     Task<ExportDestination?> PickBackupFileAsync(string suggestedFileName, CancellationToken cancellationToken);
 
-    /// <summary>The system open dialog for one shared file to import: its path, or null when cancelled.</summary>
+    /// <summary>The system open dialog for one file to import, a shared file or a manual backup: its path, or null when cancelled.</summary>
     Task<string?> PickSharedFileAsync(CancellationToken cancellationToken);
 }
 
@@ -91,7 +91,7 @@ internal sealed class SystemShell : ISystemShell
 
     public async Task<string?> PickSharedFileAsync(CancellationToken cancellationToken) =>
         Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }
-            && await FilePanels.OpenAsync(window, UiText.ImportTitle, Html() with { Extensions = ["html", "htm"] }, multiple: false) is [var path, ..]
+            && await FilePanels.OpenAsync(window, UiText.ImportPanelTitle, new FileKind(UiText.ImportFileType, ["html", "htm", BackupExtension]), multiple: false) is [var path, ..]
             ? path
             : null;
 

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application;
 using Mindweave.Application.Exchange;
 using Mindweave.Application.Import;
+using Mindweave.Application.ManualBackup;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
@@ -30,19 +31,27 @@ public sealed partial class ImportTargetViewModel(ImportViewModel owner, string 
     }
 }
 
+/// <summary>One workspace of a manual backup in the dialog: its name, and what happens to it or happened.</summary>
+public sealed record ImportBackupGroup(string Heading, IReadOnlyList<string> Lines);
+
 /// <summary>
 /// The import dialog (docs/design/sharing-import.md §5): the share's title and kind, the workspace, what will happen, and
-/// Import; or why the file is refused. Nothing is written before Import, and then all of it or nothing.
+/// Import; or why the file is refused. Nothing is written before Import, and then all of it or nothing. A manual backup
+/// (docs/design/sharing-backup.md §5) comes through the same dialog: it has no workspace to choose, shows per workspace
+/// what will happen, and afterwards names what was done.
 /// </summary>
 public sealed partial class ImportViewModel(
     ISharedFileReader reader,
     IImports imports,
+    IManualBackupImports backups,
     ISystemShell shell,
     IClock clock,
     Workbench workbench,
     IWorkspaceSwitcher switcher) : ViewModelBase
 {
     private ExchangeDocument? _document;
+    private ManualBackupFile? _backup;
+    private bool _blocked;
     private bool _reading;
     private IReadOnlyDictionary<ConversationId, WorkspaceId> _holdings = new Dictionary<ConversationId, WorkspaceId>();
     private StoredContents _stored = StoredContents.Nothing;
@@ -67,6 +76,7 @@ public sealed partial class ImportViewModel(
 
     /// <summary>What an import into the chosen workspace would do, one line each.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCounts))]
     public partial IReadOnlyList<string> Counts { get; private set; } = [];
 
     /// <summary>Why it is refused, or why the import did not happen.</summary>
@@ -84,9 +94,36 @@ public sealed partial class ImportViewModel(
     [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
     public partial bool IsReady { get; private set; }
 
-    public bool ShowsChoice => IsReady && !IsAllHere;
+    public bool ShowsChoice => IsReady && !IsAllHere && !IsDone;
+
+    /// <summary>A share goes into a workspace the user chooses; a manual backup goes where each workspace already is.</summary>
+    public bool ShowsTargets => ShowsChoice && !IsBackup;
 
     public string CloseText => ShowsChoice ? UiText.Cancel : UiText.ShareClose;
+
+    /// <summary>The file is a manual backup's package.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Title), nameof(ShowsTargets), nameof(AllHereText))]
+    public partial bool IsBackup { get; private set; }
+
+    /// <summary>A manual backup was imported; the dialog names what was done.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsChoice), nameof(ShowsTargets), nameof(CloseText), nameof(CountsHeading))]
+    [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
+    public partial bool IsDone { get; private set; }
+
+    public string Title => IsBackup ? UiText.ImportBackupTitle : UiText.ImportTitle;
+
+    public string CountsHeading => IsDone ? UiText.ImportBackupDoneHeading : UiText.ImportCountsHeading;
+
+    public string AllHereText => IsBackup ? UiText.ImportBackupAllHere : UiText.ImportAllHere;
+
+    /// <summary>For a manual backup: each workspace with what will happen to it, or what happened.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCounts))]
+    public partial IReadOnlyList<ImportBackupGroup> BackupWorkspaces { get; private set; } = [];
+
+    public bool HasCounts => Counts.Count > 0 || BackupWorkspaces.Count > 0;
 
     /// <summary>The chosen workspace would gain something.</summary>
     [ObservableProperty]
@@ -108,8 +145,11 @@ public sealed partial class ImportViewModel(
         ArgumentNullException.ThrowIfNull(paths);
         return !IsOpen && workbench.CurrentWorkspace is not null && paths.Count == 1
             && Path.GetExtension(paths[0]) is var extension
-            && (extension.Equals(".html", StringComparison.OrdinalIgnoreCase) || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase));
+            && (extension.Equals(".html", StringComparison.OrdinalIgnoreCase) || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase) || IsPackage(paths[0]));
     }
+
+    /// <summary>A manual backup is told by its own extension.</summary>
+    private bool IsPackage(string path) => Path.GetExtension(path).Equals("." + backups.Extension, StringComparison.OrdinalIgnoreCase);
 
     private async Task PickAsync()
     {
@@ -131,9 +171,16 @@ public sealed partial class ImportViewModel(
         // Read before it is shown: it opens with its buttons as they stay, so it can take the keyboard at once.
         _reading = true;
         (_document, KindText, Targets, Counts, Problem, BringsAnything, IsReady, IsAllHere) = (null, null, [], [], null, false, false, false);
+        (_backup, _blocked, BackupWorkspaces, IsDone, IsBackup) = (null, false, [], false, IsPackage(path));
         ShareTitle = Path.GetFileName(path);
         try
         {
+            if (IsBackup)
+            {
+                await OpenBackupAsync(path);
+                return;
+            }
+
             var read = await reader.ReadAsync(path, CancellationToken.None);
             if (read.Document is not { } document)
             {
@@ -169,6 +216,150 @@ public sealed partial class ImportViewModel(
         }
     }
 
+    private async Task OpenBackupAsync(string path)
+    {
+        var read = await backups.ReadAsync(path, CancellationToken.None);
+        if (read.File is not { } file)
+        {
+            Problem = UiText.ImportBackupRefused(read.Refusal ?? ImportRefusal.Damaged);
+            return;
+        }
+
+        _backup = file;
+        KindText = UiText.ImportBackupKind(file.MadeAt);
+        Plan(await backups.PlanAsync(file, CancellationToken.None));
+    }
+
+    /// <summary>What importing the backup would do now, per workspace; nothing to choose.</summary>
+    private void Plan(ManualBackupPlan plan)
+    {
+        _blocked = plan.IsBlocked;
+        IsAllHere = plan.IsEmpty;
+        BringsAnything = !plan.IsEmpty;
+        Problem = _blocked ? UiText.ImportBackupRunning : null;
+        Counts = _backup is { Mismatched: > 0 and var damaged } ? [UiText.ImportBackupMismatched(damaged)] : [];
+        BackupWorkspaces = [.. plan.Workspaces.Select(w => new ImportBackupGroup(UiText.ImportBackupWorkspace(NameOf(w), w.Create), [.. Lines(w)]))];
+        IsReady = true;
+        ImportCommand.NotifyCanExecuteChanged();
+    }
+
+    private static IEnumerable<string> Lines(ManualBackupWorkspacePlan plan)
+    {
+        if (plan.New > 0)
+        {
+            yield return UiText.ImportNew(plan.New);
+        }
+
+        if (plan.GainsMessages > 0)
+        {
+            yield return UiText.ImportGainsMessages(plan.GainsMessages);
+        }
+
+        if (plan.Joined > 0)
+        {
+            yield return UiText.ImportBackupJoined(plan.Joined);
+        }
+
+        if (plan.GainsOther > 0)
+        {
+            yield return UiText.ImportGainsMore(plan.GainsOther);
+        }
+
+        if (plan.Links.Count > 0)
+        {
+            yield return UiText.ImportLinks(plan.Links.Count);
+        }
+
+        if (plan.AlreadyHere > 0)
+        {
+            yield return UiText.ImportHere(plan.AlreadyHere);
+        }
+
+        if (plan.Elsewhere > 0)
+        {
+            yield return UiText.ImportBackupElsewhere(plan.Elsewhere);
+        }
+
+        if (plan.Unfit > 0)
+        {
+            yield return UiText.ImportUnfit(plan.Unfit);
+        }
+    }
+
+    private static IEnumerable<string> Done(ManualBackupWorkspacePlan plan)
+    {
+        if (plan.New > 0)
+        {
+            yield return UiText.ImportBackupDoneNew(plan.New);
+        }
+
+        if (plan.GainsMessages > 0)
+        {
+            yield return UiText.ImportBackupDoneGained(plan.GainsMessages);
+        }
+
+        if (plan.Joined > 0)
+        {
+            yield return UiText.ImportBackupDoneJoined(plan.Joined);
+        }
+
+        if (plan.GainsOther > 0)
+        {
+            yield return UiText.ImportBackupDoneMore(plan.GainsOther);
+        }
+
+        if (plan.Links.Count > 0)
+        {
+            yield return UiText.ImportBackupDoneLinks(plan.Links.Count);
+        }
+    }
+
+    /// <summary>A workspace that is here keeps its own name; one that is new has the backup's.</summary>
+    private string NameOf(ManualBackupWorkspacePlan plan) =>
+        workbench.Workspaces.FirstOrDefault(w => w.Id == plan.Workspace.Id)?.Name.Value ?? plan.Workspace.Name;
+
+    private async Task ImportBackupAsync(ManualBackupFile file)
+    {
+        IsBusy = true;
+        Problem = null;
+        try
+        {
+            var result = await backups.ImportAsync(file, CancellationToken.None);
+            switch (result.Status)
+            {
+                case ManualBackupImportStatus.Imported:
+                    foreach (var created in result.Created.Where(c => workbench.Workspaces.All(w => w.Id != c.Id)))
+                    {
+                        workbench.Workspaces.Add(created);
+                    }
+
+                    BackupWorkspaces = [.. result.Workspaces.Select(w => new ImportBackupGroup(UiText.ImportBackupWorkspace(NameOf(w), w.Create), [.. Done(w)]))];
+                    Counts = result.MissingOriginals > 0 ? [UiText.ImportBackupDoneMissing(result.MissingOriginals)] : [];
+                    IsDone = true;
+                    break;
+                default:
+                    // Something here changed while the dialog was open: what it would do now.
+                    Plan(await backups.PlanAsync(file, CancellationToken.None));
+                    break;
+            }
+        }
+        catch (StorageWriteException)
+        {
+            Problem = UiText.ImportStoragePaused;
+        }
+#pragma warning disable CA1031 // Anything else is reported, never thrown at the UI thread; the transaction left nothing.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(ex);
+            Problem = UiText.ImportFailed;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private async Task CompareAsync(ExchangeDocument document)
     {
         _holdings = await imports.HoldingsAsync(document, CancellationToken.None);
@@ -190,11 +381,17 @@ public sealed partial class ImportViewModel(
         }
     }
 
-    private bool CanImport() => IsReady && !IsBusy && !IsAllHere && BringsAnything;
+    private bool CanImport() => IsReady && !IsBusy && !IsAllHere && BringsAnything && !IsDone && !(IsBackup && _blocked);
 
     [RelayCommand(CanExecute = nameof(CanImport))]
     private async Task ImportAsync()
     {
+        if (_backup is { } backup)
+        {
+            await ImportBackupAsync(backup);
+            return;
+        }
+
         if (_document is not { } document || Targets.FirstOrDefault(t => t.IsChosen) is not { } chosen)
         {
             return;
@@ -257,6 +454,7 @@ public sealed partial class ImportViewModel(
     {
         IsOpen = false;
         _document = null;
+        _backup = null;
     }
 
     /// <summary>The first imported root opens in its workspace (§5).</summary>

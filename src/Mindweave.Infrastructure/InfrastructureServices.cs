@@ -69,6 +69,8 @@ public static class InfrastructureServices
         services.AddSingleton<ISharedFileReader, SharedFileReader>();
         services.AddSingleton<Application.ManualBackup.IManualBackupStore, SqliteManualBackupStore>();
         services.AddSingleton<Application.ManualBackup.IManualBackupWriter, ManualBackup.ManualBackupPackage>();
+        services.AddSingleton<Application.ManualBackup.IManualBackupReader, ManualBackup.ManualBackupReader>();
+        services.AddSingleton<Application.ManualBackup.IManualBackupImportStore, SqliteManualBackupImportStore>();
         services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
         services.TryAddSingleton(new ChatClientOptions());
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(

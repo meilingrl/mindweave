@@ -1,6 +1,6 @@
 # Sharing, step 3: the manual backup (design note)
 
-**Status:** approved by the owner on 2026-11-26 (D-046). Increment 3a (saving) is built (0.6.26); 3b is not. It is the short note that [sharing.md](sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](sharing-import.md). Where it differs from sharing.md, this note holds for manual backups; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
+**Status:** approved by the owner on 2026-11-26 (D-046). Built: 3a (saving) in 0.6.26, 3b (importing) in 0.6.27. It is the short note that [sharing.md](sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](sharing-import.md). Where it differs from sharing.md, this note holds for manual backups; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
 
 ## What a manual backup is
 
@@ -92,7 +92,7 @@ It extends sharing-import.md §2. Everything is matched by identity; what is her
   - a question keeps its answers with it, attempts included, so the line is ordered by when each question was asked;
   - a further attempt at an answer both sides have goes with that answer's question;
   - each side's own order is kept; questions asked at the same instant are ordered by identity.
-- The messages of that conversation are then numbered anew. Whatever refers to a place in it by number follows the message it meant: the context of branches that left from it, and the coverage of its summaries.
+- The messages of that conversation are then numbered anew, and which attempt replaced which follows the new line. Whatever refers to a place in it by number follows the message it meant: the context of branches that left from it, and the coverage of its summaries.
 - A summary version covers only as far as the line goes without a message it did not know. Where a question from the other side now lies before its end, its coverage ends before that question, so the conversation shows "later content not included".
 - The same copy imported again adds nothing and numbers nothing anew.
 - A received conversation is read-only everywhere, so a copy can only bring more of it, never two lines.
@@ -126,7 +126,7 @@ It extends sharing-import.md §2. Everything is matched by identity; what is her
 
 - **Save:** "Back up to a file…" in the workspace menu. The dialog lists the workspaces with ticks, all ticked (V1), states the size, and saves through the app-modal file panel (D-040). The suggested name is "Mindweave" and the date. Progress is shown, and saving can be cancelled; a cancelled or failed save leaves no file.
 - **Import:** the same "Import…" and drop as for a share. For a manual backup the dialog shows, per workspace, what is new, what gains messages, what is joined by time, and what is already here. After importing it names what was done.
-- The dialogs wait for the owner's confirmation of their look.
+- The owner accepted both dialogs as built on 2026-11-27.
 
 ## 6. Failure cases
 
@@ -199,6 +199,29 @@ Neither has a migration. Each merge states how to try it, what was run and what 
 9. **The dialog** lists each workspace with its number of conversations and its size. The size is counted before compression (originals once by content, and the text), so it reads "Up to about"; the file is usually much smaller. Save opens the app-modal panel with "Mindweave" and the date. Progress is counted in workspaces.
 10. **Import** still offers only shared files; a package is not offered until 3b. The refusal of a document of kind `device` now names the manual backup.
 11. **Measured** on a synthetic folder shaped like the owner's trial copy of 2026-11-26 (6 workspaces, 59 conversations, 408 messages, 10 text attachments of about 110 KB): a database of 5.2 MB gave a package of 196 KB. Attachments that are already compressed (images, PDF files) add about their own size.
+
+### Details settled while building 3b (builder's calls, 2026-11-27)
+
+1. **Entry.** "Import…" and a drop take a `.mwbackup` file beside `.html` and `.htm`; the file panel offers all three. A package is told by its extension. The dialog for one has no workspace to choose: each workspace goes where it is, or is created.
+2. **Reading.** `manifest.json` first; each workspace's document by the name made from the identity the manifest gives, never by a name taken from the zip. Not a zip, no manifest, or another format: "not a manual backup". A higher version: refused, saying Mindweave must be updated. Anything malformed or impossible (an identity twice, a parent or a branch's source message that is not in the document, a message or a material in another conversation, a summary whose current version is not among its versions): damaged. Limits: 16 MB for the manifest, 512 MB for one document, the attachment limit for an original, 10,000 workspaces, and per document the limits of a share. Every original is read through its hash before anything is shown, and again when it is written; one that does not match is counted, said in the dialog, and treated as missing.
+3. **The line by time.** A question with the answers after it is one group. The groups of both sides are merged so that each side's own order is kept; of the groups that may come next, the one asked first goes first, then the lower identity. Within a group the attempts of both sides are merged the same way, by when each began. An attempt both sides have stays in both orders, so a retry stamped by a clock that is behind still comes after the answer it retried, on both devices. Two orders that contradict each other, which the app never makes, still give one line. A question's time is when it was asked, as stored.
+4. **Numbering.** When everything new comes after what is here, what is here keeps its numbers and the new messages keep theirs when those follow on, otherwise they are numbered on from the end. Otherwise the whole line is numbered from 0. Lines of the user's own are numbered from 0 without gaps, so both sides reach the same numbers too.
+5. **Which attempt replaced which follows the line.** Every answer of a conversation that gains messages is the retry of the answer directly before it, which is the rule a retry here follows. Two sides' retries of one answer thus form one chain, the latest standing. This changes a stored link only where the line was joined. §2 says so since the owner approved it on 2026-11-27.
+6. **Places by number.** The context of every branch below a joined conversation (rows copied down the tree included) follows the message it ended at, as §2 says; so a branch now also has the other side's questions asked before its source. A summary version's coverage, a candidate's, and a finished summary task's end before the first message the version did not know. Coverage never goes below the first message (the store requires it): a version that knew nothing of the line's first message keeps covering it and shows "later content not included"; the owner accepted this on 2026-11-27. Context summaries of a joined conversation are deleted and made again when needed.
+7. **Received conversations** gain messages at their own numbers, as from a share. One that either side marks as received is treated so. One that does not fit is skipped and counted.
+8. **What does not fit.** A conversation whose message, summary version, summary node or material is another conversation's here is skipped whole and counted, and a new one takes its new branches with it.
+9. **Another workspace.** A conversation here in another workspace than the backup says still gains what it lacks where it is, and a new branch of it is created beside it. Both are counted.
+10. **A new conversation** gets the stored title and whether the user wrote it. One archived in the backup is archived as of the import, since the package has no time for it. One received gets a record of kind `device` with the share's title and the time it came, as the package says.
+11. **Summaries.** A new summary keeps the backup's node and version numbers; versions added to a summary here are numbered after its own. Read marks arrive with the versions that are new here, without a reading position.
+12. **Links** keep their identity, origin and time where the identity is free here.
+13. **Material** goes into the workspace its conversation is in here, with its extracted text; chunks and their keyword index are made again from that text.
+14. **What an answer's task kept** arrives as a finished task row without any connection: the model's name, and the steps of a run. Usage records do not travel; the statistics that count from the conversations (questions, runs and their tool calls) count what is in them, wherever it was asked.
+15. **An answer being written** in a conversation that would gain messages, or **a summary being written** of one that would be joined (it was asked for up to a number the joining would move): the dialog says to let it finish or stop it, and Import is unavailable. The transaction checks again and imports nothing if one began meanwhile.
+16. **The dialog** shows per workspace its name (marked when it is new) and what will happen: new, gains messages, joined by time, gains summary versions or a source, links, already here, in another workspace, skipped. After importing it stays open and names what was done, then Close. A created workspace appears in the list; nothing opens by itself.
+17. **No migration.** Nothing in the schema changed.
+18. **An independent review** of the joining and renumbering (2026-11-27) found: attempts' order lost under clock skew, a summary written during a join, and links or sources the plan counted but could not write. All three are fixed and tested. It also raised the question below, which the owner decided.
+
+*Decided by the owner on 2026-11-27: the branch follows the line.* Following §2, a branch below a joined conversation keeps the place it left from, so its context now also holds the other side's questions asked before that place, and, where the other side retried an answer above it, the later attempt. The alternative is to keep a branch's context to what it knew, as a summary's coverage is; that would need a stored exception to "up to number N", which is a migration, and was not chosen.
 
 ## 10. Known limits
 
