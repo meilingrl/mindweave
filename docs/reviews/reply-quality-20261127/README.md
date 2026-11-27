@@ -31,8 +31,11 @@ bound): previous 0.061, current 0.078, judge 0.051, **about USD 0.19 in all**. 1
   run timed out; the current one hit the output limit (10,106 output tokens over the digest requests; the limit per
   request is 8,192). Digests still get cut off on this reasoning model: context summaries and summaries use 16,384 and
   retry once on a cut-off, digests do neither.
-- Cost of the instructions: input tokens +31 % on the answers under test (about 177 more per request, plus more tool calls in
-  the network scenarios), output tokens +40 %. Time to first text −9 % in total; one sample.
+- Tokens: the report's totals (input +31 %, output +40 %) count three scenarios where the previous run produced nothing
+  (no-info, limit-two, tight-context). On the 17 scenarios both completed: input +23 %, output −10 %. The fixed
+  instructions add about 177 input tokens per request (input +3 % on the nine one-request scenarios); most of the input
+  growth is extra tool calls in a few network scenarios (follow-up-on, injection, long-page). Output without
+  attachment-long, whose answer got much shorter: +20 %. Time to first text −9 % in total; one sample.
 - Judge (hints only): clearer answer, current 9, previous 4, inconsistent 3, unreadable 1. Its support check marks few
   cited sentences as fully supported in either edition (previous 7 / 28, current 4 / 38, most "partly"); read it as weak.
 
