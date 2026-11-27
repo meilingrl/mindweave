@@ -27,6 +27,11 @@ public static partial class UiText
     public static string MarkerNewAnswer => T("New answer", "有新回答");
     public static string CreateBranch => T("Create branch", "创建分支");
 
+    /// <summary>Above a message whose formulas or formatting could not be drawn (D2 §2.5).</summary>
+    public static string MessageShownAsPlainText => T(
+        "This message’s formatting couldn’t be drawn, so it is shown as plain text.",
+        "这条消息的格式无法显示，下面按纯文本显示。");
+
     /// <summary>Creating a branch from the selection by keyboard (2026-11-13; ⌘/Ctrl+B stays the sidebar's).</summary>
     public static string BranchShortcut => OperatingSystem.IsMacOS() ? "⌘⇧B" : "Ctrl+Shift+B";
 

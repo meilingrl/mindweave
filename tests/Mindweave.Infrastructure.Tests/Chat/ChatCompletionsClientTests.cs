@@ -501,6 +501,15 @@ public class ChatCompletionsClientTests
         Assert.Equal(kind, error.Kind);
     }
 
+    /// <summary>Low finding security-4 (D2 §2.5): a stream line that never ends is cut off as an invalid response.</summary>
+    [Fact]
+    public async Task A_stream_line_that_never_ends_is_an_invalid_response()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new EndlessLine()) })));
+
+        Assert.Equal(GenerationErrorKind.InvalidResponse, error.Kind);
+    }
+
     [Fact]
     public async Task Choices_with_a_null_delta_or_content_are_not_failures()
     {

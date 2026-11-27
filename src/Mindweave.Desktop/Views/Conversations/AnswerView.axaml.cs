@@ -30,6 +30,9 @@ public sealed partial class AnswerView : UserControl
     private const string HighlightMarkResource = "SourceHighlightMark";
 
     private readonly MarkdownRenderer _renderer = new();
+
+    /// <summary>Shows the answer as plain text when its formulas or formatting cannot be drawn (D2 §2.5).</summary>
+    private readonly RenderGuard _guard;
     private MessageItemViewModel? _item;
     private ObservableStringBuilder? _live;
     private string _shown = string.Empty;
@@ -51,7 +54,8 @@ public sealed partial class AnswerView : UserControl
     public AnswerView()
     {
         InitializeComponent();
-        BodyHost.Content = _renderer;
+        _guard = new RenderGuard(_renderer);
+        BodyHost.Content = _guard;
         // Links in answers are never followed; a 出处 opens the viewer at its passage (requirements §10.4.5).
         _renderer.LinkClick += (_, e) =>
         {
@@ -108,6 +112,9 @@ public sealed partial class AnswerView : UserControl
 
     internal MarkdownRenderer Renderer => _renderer;
 
+    /// <summary>The guard around the renderer (tests).</summary>
+    internal RenderGuard Guard => _guard;
+
     /// <summary>False while a streamed update is still being laid out, or the answer is not rendered yet; positions measured then are not trustworthy.</summary>
     internal bool IsLayoutCurrent => _pending is null && (_live is null || _renderer.DocumentUpdate?.Version == _live.Version);
 
@@ -126,9 +133,9 @@ public sealed partial class AnswerView : UserControl
         }
 
         _pending = null;
-        _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Parse(markdown));
+        _guard.Show(markdown, r => r.DocumentUpdate = new MarkdownDocumentUpdate.Full(Parse(markdown)));
         _shown = markdown;
-        BodyHost.Content = _renderer;
+        BodyHost.Content = _guard;
         TakeOverSelection();
         UpdateBranchButton();
     }
@@ -209,7 +216,7 @@ public sealed partial class AnswerView : UserControl
         _live = null;
         _shown = string.Empty;
         _pending = null;
-        BodyHost.Content = _renderer;
+        BodyHost.Content = _guard;
 
         // Shown once attached, when the page it is on is known (it may render it later; see RenderNow).
         if (_item is not null && this.IsAttachedToVisualTree())
@@ -346,12 +353,13 @@ public sealed partial class AnswerView : UserControl
                 _shown = string.Empty;
             }
 
+            _guard.Source = markdown;
             _live.Append(markdown[_shown.Length..]);
         }
         else
         {
             _live = null;
-            _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Parse(markdown));
+            _guard.Show(markdown, r => r.DocumentUpdate = new MarkdownDocumentUpdate.Full(Parse(markdown)));
         }
 
         _shown = markdown;

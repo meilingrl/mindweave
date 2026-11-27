@@ -465,6 +465,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         {
             return afterCompletion ? null : throw new ChatClientException(GenerationErrorKind.Network, ex.Message, ex);
         }
+        catch (InvalidDataException ex)
+        {
+            // A line or event larger than any answer could be (low finding security-4).
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, ex.Message, ex);
+        }
     }
 
     /// <summary>The whole body of a JSON answer, within the idle limit: a body that stalls after the headers is a timeout.</summary>
