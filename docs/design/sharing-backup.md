@@ -92,7 +92,7 @@ It extends sharing-import.md §2. Everything is matched by identity; what is her
   - a question keeps its answers with it, attempts included, so the line is ordered by when each question was asked;
   - a further attempt at an answer both sides have goes with that answer's question;
   - each side's own order is kept; questions asked at the same instant are ordered by identity.
-- The messages of that conversation are then numbered anew. Whatever refers to a place in it by number follows the message it meant: the context of branches that left from it, and the coverage of its summaries.
+- The messages of that conversation are then numbered anew, and which attempt replaced which follows the new line. Whatever refers to a place in it by number follows the message it meant: the context of branches that left from it, and the coverage of its summaries.
 - A summary version covers only as far as the line goes without a message it did not know. Where a question from the other side now lies before its end, its coverage ends before that question, so the conversation shows "later content not included".
 - The same copy imported again adds nothing and numbers nothing anew.
 - A received conversation is read-only everywhere, so a copy can only bring more of it, never two lines.
