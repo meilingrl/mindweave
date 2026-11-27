@@ -56,6 +56,7 @@ public sealed class SchemaV4MigrationTests : IDisposable
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<IChatClient>(new FakeChatClient());
         services.AddSingleton<ICredentialStore>(new MemoryCredentialStore());
+        services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown());
         services.AddMindweaveInfrastructure(_dir.Paths);
         services.AddMindweaveApplication();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

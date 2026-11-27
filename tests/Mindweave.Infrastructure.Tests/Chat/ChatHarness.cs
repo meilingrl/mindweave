@@ -416,6 +416,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         services.AddSingleton(credentials);
         services.AddSingleton<Application.Tools.ISearchProvider>(Search);
         services.AddSingleton<Application.Tools.IWebPageFetcher>(Pages);
+        services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown()); // The app's own is in Desktop.
         services.AddSingleton(new StorageHealthOptions { RetryInterval = storageRetry ?? TimeSpan.FromMilliseconds(50) });
         services.AddSingleton(TestMcpOptions);
 

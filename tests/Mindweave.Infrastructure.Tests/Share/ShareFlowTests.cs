@@ -11,6 +11,7 @@ using Mindweave.Infrastructure.Export;
 using Mindweave.Infrastructure.Share;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Tests.Chat;
+using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Share;
 

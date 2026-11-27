@@ -127,6 +127,7 @@ switch (args[0])
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<ICredentialStore>(new OneKey());
         services.AddSingleton<IChatClient>(new EndlessClient());
+        services.AddSingleton<Mindweave.Application.Share.IShareMarkdown>(new NoMarkdown());
         services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
         services.AddMindweaveInfrastructure(paths);
         services.AddMindweaveApplication();
@@ -252,6 +253,15 @@ internal static class KillPoint
                 return roots;
             },
             CancellationToken.None);
+}
+
+/// <summary>The app's Markdown is in Desktop; nothing here makes a share.</summary>
+internal sealed class NoMarkdown : Mindweave.Application.Share.IShareMarkdown
+{
+    public IReadOnlyList<Mindweave.Application.Share.ShareNode> Draw(string markdown, IReadOnlySet<int> citations, IReadOnlyList<Mindweave.Application.Share.ShareMark> marks) =>
+        throw new NotSupportedException();
+
+    public int? OffsetOf(BranchSource source) => throw new NotSupportedException();
 }
 
 internal sealed class OneKey : ICredentialStore
