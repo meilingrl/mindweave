@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.21 · 2026-11-27
+
+- Changed the checkpoint of an answer being written: it updates only the blocks that changed (performance-9, D-042); the stored rows are the same
+- Changed reloading a page: usage comes from what the page already read, and a page off screen reads once when it is shown again (performance-5)
+- Try: nothing on screen should look different; a long answer with many tool steps, and renaming with pages in the back stack, do less work
+- Not verified: Linux and Windows before CI; a real window; pages replayed from the back stack, which have no test
+
 ## 0.6.20 · 2026-11-27
 
 - Documents: Added the design for security, diagnostics and upkeep ([diagnostics-and-upkeep.md](design/diagnostics-and-upkeep.md), D-042, evolution D2), and its text in the requirements (v0.31, §10.8) and architecture (§17)
