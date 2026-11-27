@@ -80,7 +80,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 | --- | --- | --- | --- |
 | macOS full run | architecture-4 and -5, 0.6.29 | 2026-11-27 | passed: Core 943, Architecture 39, Infrastructure 1368 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
-| Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
+| Windows 11 hardware, full run | 3e90875 (0.6.29) | 2026-11-27 | passed: 3329 passed, 0 failed, 128 skipped of 3457; Credential Manager test ran |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
 | Daily build | f9edc39 (0.6.11, schema v18) | 2026-11-24 | published by you; the backup taken before it is `mindweave-v18-20261124T143852Z-before-publish-f9edc39.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
 
