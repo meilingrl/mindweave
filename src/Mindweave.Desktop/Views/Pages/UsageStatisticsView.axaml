@@ -187,6 +187,8 @@
                                    IsVisible="{Binding HasPrice}" />
                         <TextBlock Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding UsageText}" />
                       </DockPanel>
+                      <!-- Prompt caching (requirements §10.11.4): the share of input read from the cache, or "not reported". -->
+                      <TextBlock Name="ModelCache" Classes="caption" TextWrapping="Wrap" Text="{Binding CacheText}" />
                       <DockPanel IsVisible="{Binding !IsEditing}">
                         <Button DockPanel.Dock="Right" Name="SetPriceButton" Classes="quiet small" Content="{x:Static t:UiText.SetPrice}"
                                 Command="{Binding EditPriceCommand}" AutomationProperties.Name="{Binding SetPriceName}" Click="OnSetPriceClick" />

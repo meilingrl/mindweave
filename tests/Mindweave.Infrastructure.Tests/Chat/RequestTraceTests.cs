@@ -56,6 +56,32 @@ public class RequestTraceTests
         Assert.Equal(AiRequestOutcome.Stopped, Assert.Single(await RequestsForAsync(h, sent.Answer!.Value)).Outcome);
     }
 
+    /// <summary>
+    /// Prompt caching, step 1 (requirements §10.11.4): what the provider read from its cache and wrote to it is stored with the
+    /// request and read back; a provider that reports neither leaves both null, not zero.
+    /// </summary>
+    [Fact]
+    public async Task Cached_input_the_provider_reports_is_recorded_and_its_absence_stays_null()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.PromptTokens = _ => 2000;
+        h.Client.CompletionTokens = _ => 40;
+        h.Client.CacheReadTokens = _ => 1536;
+        h.Client.CacheWriteTokens = _ => 0;
+
+        var cached = await h.Conversations.StartAsync(h.Workspace, "火车", Ct);
+        await h.WaitForAnswerAsync(cached.Answer!.Value);
+        var record = Assert.Single(await RequestsForAsync(h, cached.Answer!.Value));
+        Assert.Equal((2000, 1536, 0), (record.PromptTokens, record.CacheReadTokens, record.CacheWriteTokens));
+
+        h.Client.CacheReadTokens = null;
+        h.Client.CacheWriteTokens = null;
+        var silent = await h.Conversations.StartAsync(h.Workspace, "轮船", Ct);
+        await h.WaitForAnswerAsync(silent.Answer!.Value);
+        record = Assert.Single(await RequestsForAsync(h, silent.Answer!.Value));
+        Assert.Equal((2000, (int?)null, (int?)null), (record.PromptTokens, record.CacheReadTokens, record.CacheWriteTokens));
+    }
+
     /// <summary>The trace is written after the answer's terminal state, so wait for it.</summary>
     private static async Task<IReadOnlyList<AiRequestRecord>> RequestsForAsync(ChatHarness h, MessageId answer)
     {

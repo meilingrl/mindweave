@@ -177,6 +177,36 @@ public class UsageStatisticsTests
         Assert.Equal(5, report.RequestsEver);
     }
 
+    /// <summary>
+    /// Prompt caching, step 1 (requirements §10.11.4): per model, the share of input read from the cache over the requests that
+    /// reported it, and what was written; a model whose service reported nothing has no share, never a share of zero.
+    /// </summary>
+    [Fact]
+    public async Task Cached_input_is_summed_per_model_over_the_requests_that_reported_it()
+    {
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var seed = new UsageSeed(h.Database);
+        var now = Local(2026, 11, 27, 10);
+        var c = await seed.ConversationAsync(h.Workspace, now.AddDays(-1));
+        await seed.RequestAsync(c, "answer", "cached", now.AddHours(-3), 1000, 10, cacheRead: 0, cacheWrite: 900);
+        await seed.RequestAsync(c, "answer", "cached", now.AddHours(-2), 1200, 10, cacheRead: 900, cacheWrite: 0);
+        await seed.RequestAsync(c, "title", "cached", now.AddHours(-2), 300, 5, cacheRead: 0);
+        await seed.RequestAsync(c, "answer", "cached", now.AddHours(-1), 800, 10); // recorded before caching was: not reported
+        await seed.RequestAsync(c, "answer", "cached", now.AddHours(-1), null, null, cacheRead: 50); // no input to compare with
+        await seed.RequestAsync(c, "answer", "silent", now.AddHours(-1), 500, 50);
+
+        var report = (await Service(h, now).LoadAsync(null, UsagePeriod.Daily, Ct)).Usage;
+
+        var cached = Assert.Single(report.ByModel, m => m.Key.Model == "cached").Counts;
+        Assert.Equal(new CacheCounts(Read: 900, ReadOfInput: 2500, ReadReported: 3, Written: 900, WriteReported: 2), cached.Cache);
+        Assert.Equal(0.36, cached.Cache.ReadShare!.Value, 6);
+        var silent = Assert.Single(report.ByModel, m => m.Key.Model == "silent").Counts;
+        Assert.Equal(default, silent.Cache);
+        Assert.Null(silent.Cache.ReadShare);
+        Assert.Equal(cached.Cache, report.Totals.Cache);
+        Assert.Equal(cached.Cache, report.Buckets[^1].Counts.Cache);
+    }
+
     [Fact]
     public async Task The_current_workspace_counts_its_own_requests_including_its_suggested_names()
     {

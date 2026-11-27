@@ -260,6 +260,12 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>Completion tokens the service reports for a request; null reports none.</summary>
     public Func<ChatRequest, int?>? CompletionTokens { get; set; }
 
+    /// <summary>The input this request read from the provider's cache, reported with the usage; null: not reported.</summary>
+    public Func<ChatRequest, int?>? CacheReadTokens { get; set; }
+
+    /// <summary>The input this request wrote to the provider's cache, reported with the usage; null: not reported.</summary>
+    public Func<ChatRequest, int?>? CacheWriteTokens { get; set; }
+
     /// <summary>Every (address, key) pair sent to the service, by listing models or generating, in order.</summary>
     public ConcurrentQueue<(string BaseUrl, string ApiKey)> KeysSent { get; } = new();
 
@@ -278,7 +284,7 @@ public sealed class FakeChatClient : IChatClient
         var produced = CompletionTokens?.Invoke(request);
         if (billed is not null || produced is not null)
         {
-            yield return new ChatStreamEvent.Usage(billed, produced);
+            yield return new ChatStreamEvent.Usage(billed, produced, CacheReadTokens?.Invoke(request), CacheWriteTokens?.Invoke(request));
         }
 
         if (ScriptFor(request) is { } internalRequest)

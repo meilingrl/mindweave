@@ -31,7 +31,12 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
                            sum(CASE WHEN {Reported} THEN coalesce(r.prompt_tokens, 0) ELSE 0 END),
                            sum(CASE WHEN {Reported} THEN coalesce(r.completion_tokens, 0) ELSE 0 END),
                            sum(CASE WHEN {Reported} THEN 1 ELSE 0 END),
-                           sum(CASE WHEN {Reported} THEN 0 ELSE 1 END)
+                           sum(CASE WHEN {Reported} THEN 0 ELSE 1 END),
+                           sum(CASE WHEN {CacheReadReported} THEN r.cache_read_tokens ELSE 0 END),
+                           sum(CASE WHEN {CacheReadReported} THEN r.prompt_tokens ELSE 0 END),
+                           sum(CASE WHEN {CacheReadReported} THEN 1 ELSE 0 END),
+                           sum(coalesce(r.cache_write_tokens, 0)),
+                           sum(CASE WHEN r.cache_write_tokens IS NOT NULL THEN 1 ELSE 0 END)
                     FROM ai_request r
                     LEFT JOIN generation_task t ON t.id = r.task_id
                     {scope.Join}
@@ -48,7 +53,9 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
                             reader.NullableString(1) ?? string.Empty,
                             reader.NullableString(2) ?? string.Empty,
                             LocalCalendar.FromEpochDay(reader.GetInt64(3)),
-                            new TokenCounts(reader.GetInt64(4), reader.GetInt64(5), reader.GetInt32(6), reader.GetInt32(7))));
+                            new TokenCounts(
+                                reader.GetInt64(4), reader.GetInt64(5), reader.GetInt32(6), reader.GetInt32(7),
+                                new CacheCounts(reader.GetInt64(8), reader.GetInt64(9), reader.GetInt32(10), reader.GetInt64(11), reader.GetInt32(12)))));
                     }
                 }
 
@@ -176,6 +183,12 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
 
     /// <summary>The service reported usage for the request (either count); otherwise it is counted apart, never estimated.</summary>
     private const string Reported = "(r.prompt_tokens IS NOT NULL OR r.completion_tokens IS NOT NULL)";
+
+    /// <summary>
+    /// The service reported both the input and the part of it read from the cache, so the request counts in the share read
+    /// from the cache (requirements §10.11.4); a request without the cached count is left out of it, never taken as zero.
+    /// </summary>
+    private const string CacheReadReported = "(r.cache_read_tokens IS NOT NULL AND r.prompt_tokens IS NOT NULL)";
 
     /// <summary>
     /// A request belongs to the workspace through its task's conversation, or directly when it was made without a task

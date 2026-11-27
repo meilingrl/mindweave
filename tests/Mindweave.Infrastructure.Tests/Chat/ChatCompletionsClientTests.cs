@@ -109,6 +109,45 @@ public class ChatCompletionsClientTests
         Assert.Equal(new ChatStreamEvent.Usage(89, 61), Assert.Single(events.OfType<ChatStreamEvent.Usage>()));
     }
 
+    /// <summary>
+    /// Prompt caching, step 1 (requirements §10.11.4): the cached input each provider reports, in the shape its documentation
+    /// gives, is passed on as read and written; a count left out stays null, never zero.
+    /// </summary>
+    [Theory]
+    [InlineData( // OpenAI, GLM and Qwen's implicit cache
+        """{"prompt_tokens":2006,"completion_tokens":300,"total_tokens":2306,"prompt_tokens_details":{"cached_tokens":1920}}""", 2006, 1920, null)]
+    [InlineData( // DeepSeek
+        """{"prompt_tokens":1500,"completion_tokens":20,"prompt_cache_hit_tokens":1280,"prompt_cache_miss_tokens":220}""", 1500, 1280, null)]
+    [InlineData( // Kimi
+        """{"prompt_tokens":900,"completion_tokens":61,"total_tokens":961,"cached_tokens":512}""", 900, 512, null)]
+    [InlineData( // Qwen's explicit cache, first request: written, nothing read
+        """{"prompt_tokens":1500,"completion_tokens":10,"prompt_tokens_details":{"cached_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":1446},"cache_creation_input_tokens":1446,"cache_type":"ephemeral"}}""", 1500, 0, 1446)]
+    [InlineData( // OpenRouter
+        """{"prompt_tokens":3000,"completion_tokens":50,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":2800}}""", 3000, 0, 2800)]
+    [InlineData( // A service that says nothing about its cache
+        """{"prompt_tokens":120,"completion_tokens":7,"total_tokens":127}""", 120, null, null)]
+    [InlineData( // Details without the cached count, or of the wrong kind
+        """{"prompt_tokens":120,"completion_tokens":7,"prompt_tokens_details":{"audio_tokens":0}}""", 120, null, null)]
+    [InlineData(
+        """{"prompt_tokens":120,"completion_tokens":7,"prompt_tokens_details":null,"cached_tokens":"many"}""", 120, null, null)]
+    public async Task Cached_input_is_passed_on_as_the_provider_reports_it(string usage, int prompt, int? read, int? written)
+    {
+        var expected = new ChatStreamEvent.Usage(prompt, Completion(usage), read, written);
+        var streamed = await Collect(Client(_ => Sse(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"stop\"}]}\n\n"
+            + "data: {\"choices\":[],\"usage\":" + usage + "}\n\n"
+            + "data: [DONE]\n\n")));
+        Assert.Equal(expected, Assert.Single(streamed.OfType<ChatStreamEvent.Usage>()));
+
+        var whole = await Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"a\"},\"finish_reason\":\"stop\"}],\"usage\":" + usage + "}", Encoding.UTF8, "application/json"),
+        }));
+        Assert.Equal(expected, Assert.Single(whole.OfType<ChatStreamEvent.Usage>()));
+
+        static int Completion(string usage) => JsonNode.Parse(usage)!["completion_tokens"]!.GetValue<int>();
+    }
+
     [Fact]
     public async Task Done_without_finish_reason_still_completes_and_length_marks_truncation()
     {

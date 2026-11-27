@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.28 · 2026-11-27
+
+- Added the cache line in Statistics › by model: the share of input read from the cache, tokens written to it, and how many requests reported it, or "not reported" ([ask-anywhere.md](design/ask-anywhere.md), prompt caching step 1)
+- Added migration v20: `ai_request.cache_read_tokens` and `cache_write_tokens`
+- Try: `scripts/daily.sh trial`, ask a few questions, then open Statistics › by model
+- Not verified: Windows; providers other than the one in your trial; the request-details line, which is not built. You ran v20 on a copy of your data: integrity and foreign keys were fine, nothing was lost, and real cache numbers were recorded
+
 ## 0.6.27 · 2026-11-27
 
 - Added importing a manual backup ([sharing-backup.md](design/sharing-backup.md), increment 3b): "Import…" or a drop takes a `.mwbackup`; it only adds, and the same conversation asked further on two devices is joined by time

@@ -2057,6 +2057,8 @@ public class GalleryTests
     {
         app.Client.PromptTokens = _ => 1_800;
         app.Client.CompletionTokens = _ => 420;
+        app.Client.CacheReadTokens = _ => 1_024;
+        app.Client.CacheWriteTokens = _ => 640;
         var seed = await SeedAsync(app, summaries: true);
         var usage = new UsageSeed(app.Services.GetRequiredService<SqliteDatabase>());
         var random = new Random(20261112);
@@ -2073,7 +2075,11 @@ public class GalleryTests
             for (var q = 0; q < asked; q++)
             {
                 await usage.QuestionAsync(history, at.AddMinutes(q * 7));
-                await usage.RequestAsync(history, "answer", "deepseek-flash", at.AddMinutes(q * 7), random.Next(2_000, 14_000), random.Next(400, 1_800), DeepSeek);
+                // Prompt caching (requirements §10.11.4): DeepSeek reports what it read from its cache, here only for the
+                // last 20 days, as if the older requests were recorded before the app kept the number; GLM reports nothing.
+                var input = random.Next(2_000, 14_000);
+                await usage.RequestAsync(history, "answer", "deepseek-flash", at.AddMinutes(q * 7), input, random.Next(400, 1_800), DeepSeek,
+                    cacheRead: day <= 20 ? input * random.Next(30, 80) / 100 : null);
             }
 
             if (day <= 30 && asked > 0)

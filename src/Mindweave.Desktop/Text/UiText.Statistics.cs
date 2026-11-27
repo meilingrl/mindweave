@@ -300,6 +300,41 @@ public static partial class UiText
             string.Format(CultureInfo.CurrentCulture, "{0:N0} 次（{1} 次未返回用量）", requests, unreported))
         : RequestCount(requests);
 
+    /// <summary>
+    /// A model's cached input (requirements §10.11.4): "缓存：输入的 62% 读自缓存 · 写入 1,234", with how many requests reported it
+    /// when not all did. "缓存：未返回" when none did: not reported is never shown as zero.
+    /// </summary>
+    public static string CacheLine(TokenCounts counts)
+    {
+        var cache = counts.Cache;
+        var reporting = counts.Requests + counts.Unreported;
+        if (cache.ReadShare is not { } share)
+        {
+            return cache.WriteReported == 0
+                ? T("Cache: not reported", "缓存：未返回")
+                : T(string.Format(Culture, "Cache: reads not reported · {0} written", Tokens(cache.Written)),
+                    string.Format(CultureInfo.CurrentCulture, "缓存：读取未返回 · 写入 {0}", Tokens(cache.Written)));
+        }
+
+        var percent = share <= 0 ? "0%"
+            : share < 0.005 ? "<1%"
+            : string.Format(CultureInfo.InvariantCulture, "{0:0}%", Math.Round(share * 100, MidpointRounding.AwayFromZero));
+        var line = T(string.Format(Culture, "Cache: {0} of input read from it", percent), string.Format(CultureInfo.CurrentCulture, "缓存：输入的 {0} 读自缓存", percent));
+        if (cache.WriteReported > 0)
+        {
+            line += T(string.Format(Culture, " · {0} written", Tokens(cache.Written)), string.Format(CultureInfo.CurrentCulture, " · 写入 {0}", Tokens(cache.Written)));
+        }
+
+        if (cache.ReadReported < reporting)
+        {
+            line += T(
+                string.Format(Culture, " · reported by {0} of {1}", cache.ReadReported, Plural(reporting, "request", "requests")),
+                string.Format(CultureInfo.CurrentCulture, " · {0} 次请求中 {1} 次返回", reporting, cache.ReadReported));
+        }
+
+        return line;
+    }
+
     /// <summary>A share of the period's tokens: "45%", "<1%" for a little, "—" for none.</summary>
     public static string Share(long part, long whole) =>
         whole <= 0 || part <= 0 ? "—"
