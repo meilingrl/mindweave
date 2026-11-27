@@ -26,7 +26,7 @@ public sealed partial class ModelConnectionNote : ViewModelBase, IDisposable
         Checked = CheckAsync();
     }
 
-    /// <summary>No model settings are saved.</summary>
+    /// <summary>No model settings are saved, or they hold no key.</summary>
     [ObservableProperty]
     public partial bool IsShown { get; private set; }
 
@@ -56,7 +56,8 @@ public sealed partial class ModelConnectionNote : ViewModelBase, IDisposable
         bool missing;
         try
         {
-            missing = await _models.GetAsync(CancellationToken.None) is null;
+            // Never saved, or saved and its key removed since (D2 §2.3).
+            missing = await _models.GetAsync(CancellationToken.None) is not { CredentialRef.Length: > 0 };
         }
 #pragma warning disable CA1031 // A hint: when the settings cannot be read, sending says what is wrong.
         catch (Exception swallowed)

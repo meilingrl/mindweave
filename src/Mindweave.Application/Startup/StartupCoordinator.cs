@@ -32,7 +32,8 @@ public sealed partial class StartupCoordinator(
     IClock clock,
     ILocationStore locations,
     ILogger<StartupCoordinator> logger,
-    Resources.IResources resources)
+    Resources.IResources resources,
+    Credentials.RetiredCredentials retiredKeys)
 {
     public async Task<StartupOutcome> StartAsync(CancellationToken cancellationToken)
     {
@@ -100,6 +101,10 @@ public sealed partial class StartupCoordinator(
         // Unsent attachments no draft holds and originals nothing names go, as do leftover temporary files (architecture
         // §15.2). In the background: it never delays the window and its failure is only logged.
         _ = Task.Run(() => resources.CleanUpAsync(CancellationToken.None), CancellationToken.None);
+
+        // Replaced model keys that the interrupted tasks held, or that a restored backup listed, leave the system's key store
+        // (D2 §2.3). In the background too: a key store that waits for the user to unlock it never holds up the window.
+        retiredKeys.CleanUpSoon();
 
         var all = await workspaces.ListAsync(cancellationToken).ConfigureAwait(false);
         if (all.Count == 0)
