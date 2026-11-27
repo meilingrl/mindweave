@@ -17,6 +17,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.31 · 2026-11-28
+
+- Fixed text boxes where an input method (pinyin, say) started composing over selected text: the selection stayed and the composing text was drawn in front of it, with the highlight shifted. The selection is now replaced, as typing does, in every text box (Avalonia 12.1.4 skipped this in most boxes)
+- Try: rename a row in the sidebar and type pinyin over the selected name; the old name goes at the first letter
+- Not verified: Windows input methods
+
 ## 0.6.30 · 2026-11-27
 
 - Added `nuget.config` with nuget.org as the only source, and `global.json` with one SDK feature band; CI installs what it names (dependencies-2, ci-build-7, D-042)
