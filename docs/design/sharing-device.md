@@ -171,6 +171,8 @@ Neither has a migration. Each merge states how to try it, what was run and what 
 
 ## 11. Text that changed with this note
 
+The requirements and architecture rows were written as their own commit and confirmed by the owner on 2026-11-27 (requirements v0.31).
+
 | Where | Change |
 | --- | --- |
 | [sharing.md](sharing.md) S3, S4, S11, §6.5 | A device copy is a backup that only adds; no "newer one wins", no deletion offer, no separate conversation for two continuations: they join by time |
