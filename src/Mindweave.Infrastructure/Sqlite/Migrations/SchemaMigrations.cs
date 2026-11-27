@@ -806,5 +806,13 @@ internal static class SchemaMigrations
                 DELETE FROM import WHERE id = old.import_id AND NOT EXISTS (SELECT 1 FROM import_conversation WHERE import_id = old.import_id);
             END;
             """),
+
+        Migration.Sql(20, "cached input tokens of a request", """
+            -- Prompt caching, step 1 (requirements §10.11.4, architecture §18.5): the input tokens a request read from the
+            -- provider's cache and those it wrote to it, as the provider reported them. Both are part of prompt_tokens. NULL
+            -- means the provider did not report the number, which is not the same as 0; older requests have NULL.
+            ALTER TABLE ai_request ADD COLUMN cache_read_tokens INTEGER CHECK (cache_read_tokens >= 0);
+            ALTER TABLE ai_request ADD COLUMN cache_write_tokens INTEGER CHECK (cache_write_tokens >= 0);
+            """),
     ];
 }

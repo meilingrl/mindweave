@@ -20,6 +20,8 @@ internal sealed class RequestTrace
     private int _characters;
     private int? _promptTokens;
     private int? _completionTokens;
+    private int? _cacheReadTokens;
+    private int? _cacheWriteTokens;
 
     /// <summary>A request made for a task (its model is the task's snapshot).</summary>
     public RequestTrace(GenerationTaskId task, IClock clock, ChatRequest request, string? purpose = null)
@@ -68,6 +70,8 @@ internal sealed class RequestTrace
             case ChatStreamEvent.Usage usage:
                 _promptTokens = usage.PromptTokens ?? _promptTokens;
                 _completionTokens = usage.CompletionTokens ?? _completionTokens;
+                _cacheReadTokens = usage.CacheReadTokens ?? _cacheReadTokens;
+                _cacheWriteTokens = usage.CacheWriteTokens ?? _cacheWriteTokens;
                 break;
         }
     }
@@ -97,5 +101,7 @@ internal sealed class RequestTrace
             _attribution,
             _attribution is null ? null : _request.Model.Model,
             _attribution is null ? null : _request.Model.BaseUrl,
-            _purpose);
+            _purpose,
+            _cacheReadTokens,
+            _cacheWriteTokens);
 }
