@@ -32,6 +32,8 @@ public class PromptLibraryTests
     {
         ["answer"] = ("Answer in the language of the user's question.", "使用提问所用的语言回答。"),
         ["answer-branch"] = (null, null),
+        ["answer-note"] = (null, null),
+        ["answer-summaries"] = (null, null),
         ["summary"] = ("Use the language of the conversation.", "使用对话所用的语言。"),
         ["summary-branch-background"] = (null, null),
         ["summary-naming"] = ("in the language of the summaries", null),
@@ -149,7 +151,7 @@ public class PromptLibraryTests
             foreach (var (key, text) in english)
             {
                 var own = text.Replace("引用的一段话", string.Empty, StringComparison.Ordinal).Replace("来源回答的开头", string.Empty, StringComparison.Ordinal);
-                foreach (var sample in tools.Select(t => t.DisplayName).Concat(["蒸汽机车", "蒸汽机的原理", "蒸汽机", "瓦特改良了冷凝器", "火车", "铁路", "为什么铁轨是钢的？", "机械"]))
+                foreach (var sample in tools.Select(t => t.DisplayName).Concat(["蒸汽机车", "蒸汽机的原理", "蒸汽机", "瓦特改良了冷凝器", "火车", "铁路", "为什么铁轨是钢的？", "机械", "我是中学生物老师。", "无砟轨道"]))
                 {
                     own = own.Replace(sample, string.Empty, StringComparison.Ordinal);
                 }
@@ -242,6 +244,8 @@ public class PromptLibraryTests
         {
             ["answer"] = AnswerPrompt.For(false),
             ["answer.branch"] = AnswerPrompt.For(true),
+            ["answer.note"] = AnswerPrompt.NotePart("我是中学生物老师。"),
+            ["answer.summaries"] = AnswerPrompt.SummariesPart(["蒸汽机车", "无砟轨道"]),
             ["summary"] = PromptLibrary.Get("summary"),
             ["summary.request"] = Static(typeof(SummaryService), "Request"),
             ["summary-branch-background"] = PromptLibrary.Get("summary-branch-background", ("quote", "引用的一段话"), ("excerpt", "来源回答的开头")),

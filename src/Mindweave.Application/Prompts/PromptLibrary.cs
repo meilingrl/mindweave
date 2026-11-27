@@ -17,6 +17,8 @@ public static partial class PromptLibrary
     [
         "answer",
         "answer-branch",
+        "answer-note",
+        "answer-summaries",
         "summary",
         "summary-branch-background",
         "summary-naming",

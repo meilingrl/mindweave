@@ -203,7 +203,7 @@ public class RunEvalTests
         var second = new EvalRun(EvalEdition.Current, current);
         var markdown = EvalComparison.Markdown(first, second, "scripted", DateTimeOffset.UnixEpoch, new EvalPrices(2, 8), judged, new EvalJudgeCost(4, 1_000, 20));
 
-        Assert.Contains("- 对照：上一版（回答说明 0，运行说明 3，总结 1） → 本版（回答说明 1，运行说明 4，总结 2）", markdown, StringComparison.Ordinal);
+        Assert.Contains("- 对照：上一版（回答说明 0，运行说明 3，总结 1） → 本版（回答说明 2，运行说明 4，总结 2）", markdown, StringComparison.Ordinal);
         Assert.Contains("| 指标 | 上一版 | 本版 | 差 |", markdown, StringComparison.Ordinal);
         foreach (var row in new[] { "| 输入 token（被测） |", "| 输出 token（被测） |", "| 模型请求（被测） |", "| 工具调用 |", "| 到首字秒数（合计） |", "| 总秒数（合计） |", "| 费用（全部） |" })
         {
