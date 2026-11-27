@@ -114,7 +114,7 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | share (分享) (requirements v0.29 §10.7): the selection, the share dialog and the shared page | `Share` |
 | exchange document (交换文档): the one outward form of conversations, which a share and a manual backup both carry (seam E5) | `Exchange` (the document `ExchangeDocument`) |
 | import (导入) of a shared file or a manual backup (requirements v0.29 §10.7) | `Import` |
-| manual backup (手动备份) (requirements v0.33 §10.7; called manual backup until v0.32): everything in the user's workspaces as one file the user keeps | `ManualBackup`. The stored word for the kind of file stays `device` (`ExchangeDocument.DeviceKind`, the `import` table), and existing code that says `DeviceCopy` is not required to be renamed |
+| manual backup (手动备份) (requirements v0.33 §10.7; called device copy until v0.32): everything in the user's workspaces as one file the user keeps | `ManualBackup`. The stored word for the kind of file stays `device` (`ExchangeDocument.DeviceKind`, the `import` table), and existing code that says `DeviceCopy` is not required to be renamed |
 | automatic backup (自动备份): a copy of the database the app makes by itself, kept in its data folder (§12.2) | `Backup` (existing code) |
 | sync (同步): networked sync between devices through a server; a vision (requirements §10.1), nothing is built | no code name; the word is not used for the manual backup |
 | continuation (接续): the user's own conversation that continues a received one, a branch of it with no quoted sentence (requirements v0.30 §10.7) | `BranchSource.IsContinuation` |
