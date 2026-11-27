@@ -5,7 +5,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 ## In progress
 
 - Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); step 2 is built: importing a structure-only share (0.6.18, migration v19) and a share with content (0.6.19). Next are device copies (step 3), after a short note.
-- Four design discussions are open with you on task branches: reply quality; return and review; safety, diagnostics and upkeep; ask from anywhere and local AI. Nothing in them is agreed as a whole.
+- Security, diagnostics and upkeep (evolution D2, [diagnostics-and-upkeep.md](docs/design/diagnostics-and-upkeep.md)): adopted (D-042). The code fixes performance-5 and -9 are being built; architecture-4 and -5 follow once the manual-backup branches of sharing are in.
+- Design discussions on task branches: reply quality (agreed; its requirement text waits for you); return and review (agreed and confirmed; to be renumbered before merging); ask from anywhere and local AI (open).
 
 ## Next steps
 
@@ -76,7 +77,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | import 2b, 0.6.19 | 2026-11-26 | passed: Core 138, Architecture 39, Infrastructure 1294 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the safety design, 0.6.20 | 2026-11-27 | passed: Core 138, Architecture 39, Infrastructure 1294 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

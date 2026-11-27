@@ -39,6 +39,12 @@ This directory records the choices that the handoff document lets implementers r
 | [Sharing, step 2: import and continue](sharing-import.md) | Approved 2026-11-25, built (0.6.18, 0.6.19): a structure-only share arrives as empty conversations; a shared file only adds; a received conversation is read-only and the user's questions attach as conversations of their own; the rules of comparison, the migration, acceptance scenarios and increments 2a and 2b |
 | [Sharing, step 3: the manual backup](sharing-backup.md) | Approved 2026-11-26, not built: everything in all workspaces as one package file the user keeps; the same operation as sharing with a wider scope; not the app's automatic backups and not sync: importing only adds, and what differs keeps this device's value; a conversation continued on both sides is joined by time; no migration; acceptance scenarios and increments 3a and 3b |
 
+## Security and diagnostics
+
+| Document | Content |
+| --- | --- |
+| [Security, diagnostics and upkeep](diagnostics-and-upkeep.md) | Approved 2026-11-27 (evolution D2, D-042), not built: what a failed request shows, the diagnostics page and package, removing keys and keys left behind, erasing deleted content for good, the renderer guard, failure cases, acceptance scenarios and five increments; the standing of the health check's open rows and the upkeep decisions |
+
 ## Model access
 
 | Document | Content |
