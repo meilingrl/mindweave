@@ -9,8 +9,16 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## Next steps
 
+- Next optimization round, opened as its own task: collapsing branches in the sidebar (you, 2026-11-27); the questions to settle with you first are in [evolution D1](docs/evolution.md).
 - Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
-- Free trial (evolution D9): adopted, done later, no schedule. The design is [free-trial.md](docs/design/free-trial.md).
+- Later directions, no schedule ([evolution.md](docs/evolution.md) §3):
+  - D1 two-pane side-by-side reading;
+  - D2 a diagnostics view and a redacted diagnostic package;
+  - D4 measured performance work;
+  - D5 phase 5, generated charts and audio (requirements §10.4.7);
+  - D6 map-based exploration (prototype first);
+  - D7 asking with multiple quotes;
+  - D9 the free trial, adopted ([free-trial.md](docs/design/free-trial.md)).
 - `node_layout` (the positions of the earlier summary-only view) is dropped in a later migration, once you have used a daily build of 0.6.0 or later and are satisfied (D-038).
 - Verify in daily use:
   - agent platform phases 2–4;
