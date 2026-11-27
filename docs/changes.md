@@ -17,6 +17,25 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.27 · 2026-11-27
+
+- Added importing a manual backup ([sharing-backup.md](design/sharing-backup.md), increment 3b): "Import…" or a drop takes a `.mwbackup`; it only adds, and the same conversation asked further on two devices is joined by time
+- Fixed a backup saved as `.mwbackup.mwbackup` on macOS
+- Try: `scripts/daily.sh trial`, back up a workspace, then "Import…" the file into a second data folder; ask in the same conversation in both, back one up and import it into the other
+- Not verified: Windows; a real window (a file dropped from Finder); real data from two devices; a very large package
+
+## 0.6.26 · 2026-11-27
+
+- Added saving a manual backup ([sharing-backup.md](design/sharing-backup.md), increment 3a): "Back up to a file…" in a workspace's menu saves everything in the ticked workspaces as one package, with the originals of attachments and a readable page per workspace
+- Try: `scripts/daily.sh trial`, then a workspace's menu › "Back up to a file…", and open the package's pages in a browser
+- Not verified: Windows; a real window and save panel; a very large workspace
+
+## 0.6.25 · 2026-11-27
+
+- Documents: Added the design of sharing step 3, the manual backup ([sharing-backup.md](design/sharing-backup.md), D-046, D-047), and its text in the requirements (v0.35, v0.36) and architecture
+- Try: nothing on screen changed
+- Not verified: nothing new
+
 ## 0.6.24 · 2026-11-27
 
 - Documents: Added the design for asking from anywhere, several connections, search by meaning and prompt caching ([ask-anywhere.md](design/ask-anywhere.md), D-045), and its text in the requirements (v0.34) and architecture; moved the decided directions out of the ideas

@@ -19,6 +19,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     private readonly ISidebarLayout? _sidebarLayout;
     private readonly WorkspaceSwitchRequests? _switches;
     private readonly ImportViewModel? _import;
+    private readonly ManualBackupViewModel? _manualBackup;
     private PageViewModel? _observedPage;
     private double _sidebarWidth = SidebarLayout.DefaultWidth;
 
@@ -30,9 +31,11 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         ISidebarLayout? sidebarLayout = null,
         WorkspaceNewsViewModel? workspaceNews = null,
         WorkspaceSwitchRequests? switches = null,
-        ImportViewModel? import = null)
+        ImportViewModel? import = null,
+        ManualBackupViewModel? manualBackup = null)
     {
         _import = import;
+        _manualBackup = manualBackup;
         WorkspaceNews = workspaceNews;
         _summaryNetworks = summaryNetworks;
         _sidebarLayout = sidebarLayout;
@@ -285,6 +288,14 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     {
         IsWorkspaceMenuOpen = false;
         _import?.Pick();
+    }
+
+    /// <summary>The menu's "Back up to a file…" (docs/design/sharing-backup.md §5): the manual backup's dialog.</summary>
+    [RelayCommand]
+    private void BackUp()
+    {
+        IsWorkspaceMenuOpen = false;
+        _manualBackup?.Open();
     }
 
     /// <summary>Esc or 取消 in the form: it closes and forgets what was typed.</summary>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The entry page of a manual backup: it loads nothing and runs nothing. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="generator" content="Mindweave">
+<link rel="icon" href="data:,">
+<title>Mindweave · Manual backup · 手动备份</title>
+<style>
+:root { color-scheme: light dark; --bg: #FFFFFF; --text: #1C1917; --muted: #78716C; --link: #2563EB; --divider: #E7E5E4; }
+@media (prefers-color-scheme: dark) { :root { --bg: #18191B; --text: #E6E8EE; --muted: #9299A6; --link: #A9B8F5; --divider: #2C2E33; } }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.7 Inter, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 40px 20px 64px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px; }
+p { color: var(--muted); margin: 0 0 4px; }
+ul { list-style: none; padding: 0; margin: 24px 0 0; border-top: 1px solid var(--divider); }
+li { padding: 10px 0; border-bottom: 1px solid var(--divider); display: flex; justify-content: space-between; gap: 16px; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.count { color: var(--muted); white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+<h1>Mindweave · Manual backup · <span lang="zh-CN">手动备份</span></h1>
+<p>Saved on {{day}}. Each workspace opens as a page you can read without Mindweave. The number is how many conversations it has.</p>
+<p lang="zh-CN">保存于 {{day}}。每个工作区都可以作为网页阅读，无需 Mindweave。数字是其中的会话数。</p>
+<ul>
+{{rows}}</ul>
+</main>
+</body>
+</html>

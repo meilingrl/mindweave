@@ -27,46 +27,7 @@ internal sealed class SqliteResourceStore(SqliteDatabase database) : IResourceSt
         return database.WriteAsync(
             (connection, transaction) =>
             {
-                connection.Execute(transaction, """
-                    INSERT INTO resource (id, workspace_id, conversation_id, sha256, media_type, byte_size, origin, name, source_url, provenance, created_at)
-                    VALUES ($id, $ws, $conv, $hash, $type, $size, $origin, $name, $url, $provenance, $created);
-                    """,
-                    ("$id", resource.Id.ToString()),
-                    ("$ws", resource.WorkspaceId.ToString()),
-                    ("$conv", resource.ConversationId?.ToString()),
-                    ("$hash", resource.Hash.Hex),
-                    ("$type", resource.MediaType),
-                    ("$size", resource.Size),
-                    ("$origin", SqlNames.Of(resource.Origin)),
-                    ("$name", resource.Name),
-                    ("$url", resource.SourceUrl?.ToString()),
-                    ("$provenance", SqlNames.Of(resource.Provenance)),
-                    ("$created", resource.CreatedAt.Ms()));
-                foreach (var form in derivatives)
-                {
-                    InsertDerivative(connection, transaction, resource.Id, form, resource.CreatedAt);
-                }
-
-                var text = derivatives.FirstOrDefault(d => d.Kind == DerivativeKind.Text)?.Text;
-                foreach (var chunk in chunks)
-                {
-                    if (text is null || chunk.End > text.Length)
-                    {
-                        throw new ArgumentException("Chunks must lie within the resource's text.", nameof(chunks));
-                    }
-
-                    connection.Execute(transaction, """
-                        INSERT INTO resource_chunk (resource_id, ordinal, start_char, end_char, estimated_tokens) VALUES ($id, $ord, $start, $end, $tokens);
-                        INSERT INTO resource_chunk_fts (rowid, terms) VALUES (last_insert_rowid(), $terms);
-                        """,
-                        ("$id", resource.Id.ToString()),
-                        ("$ord", chunk.Ordinal),
-                        ("$start", chunk.Start),
-                        ("$end", chunk.End),
-                        ("$tokens", chunk.EstimatedTokens),
-                        ("$terms", SearchTerms.Of(text[chunk.Start..chunk.End])));
-                }
-
+                Insert(connection, transaction, resource, derivatives, chunks);
                 if (draft is not null)
                 {
                     connection.Execute(transaction, """
@@ -86,6 +47,50 @@ internal sealed class SqliteResourceStore(SqliteDatabase database) : IResourceSt
                 return 0;
             },
             cancellationToken);
+    }
+
+    /// <summary>A resource row with its derived forms and its text's chunks and keyword index, in the caller's transaction.</summary>
+    internal static void Insert(SqliteConnection connection, SqliteTransaction transaction, Resource resource, IReadOnlyList<ResourceDerivative> derivatives, IReadOnlyList<ResourceChunk> chunks)
+    {
+        connection.Execute(transaction, """
+            INSERT INTO resource (id, workspace_id, conversation_id, sha256, media_type, byte_size, origin, name, source_url, provenance, created_at)
+            VALUES ($id, $ws, $conv, $hash, $type, $size, $origin, $name, $url, $provenance, $created);
+            """,
+            ("$id", resource.Id.ToString()),
+            ("$ws", resource.WorkspaceId.ToString()),
+            ("$conv", resource.ConversationId?.ToString()),
+            ("$hash", resource.Hash.Hex),
+            ("$type", resource.MediaType),
+            ("$size", resource.Size),
+            ("$origin", SqlNames.Of(resource.Origin)),
+            ("$name", resource.Name),
+            ("$url", resource.SourceUrl?.ToString()),
+            ("$provenance", SqlNames.Of(resource.Provenance)),
+            ("$created", resource.CreatedAt.Ms()));
+        foreach (var form in derivatives)
+        {
+            InsertDerivative(connection, transaction, resource.Id, form, resource.CreatedAt);
+        }
+
+        var text = derivatives.FirstOrDefault(d => d.Kind == DerivativeKind.Text)?.Text;
+        foreach (var chunk in chunks)
+        {
+            if (text is null || chunk.End > text.Length)
+            {
+                throw new ArgumentException("Chunks must lie within the resource's text.", nameof(chunks));
+            }
+
+            connection.Execute(transaction, """
+                INSERT INTO resource_chunk (resource_id, ordinal, start_char, end_char, estimated_tokens) VALUES ($id, $ord, $start, $end, $tokens);
+                INSERT INTO resource_chunk_fts (rowid, terms) VALUES (last_insert_rowid(), $terms);
+                """,
+                ("$id", resource.Id.ToString()),
+                ("$ord", chunk.Ordinal),
+                ("$start", chunk.Start),
+                ("$end", chunk.End),
+                ("$tokens", chunk.EstimatedTokens),
+                ("$terms", SearchTerms.Of(text[chunk.Start..chunk.End])));
+        }
     }
 
     public Task<StoredResource?> GetAsync(ResourceId id, CancellationToken cancellationToken) =>

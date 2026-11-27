@@ -114,9 +114,11 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | personal note (个人说明) (requirements v0.32 §10.9): what the user writes in Settings about themself and how they want answers | `PersonalNote` |
 | recap (回顾): the short text kept for a rested conversation, and its questions left open (未解决的问题) (requirements v0.33 §10.10) | `Recap` (a conversation's is `ConversationRecap`); a question left open is `OpenQuestion`; the rule that says when one is due is `RecapSchedule` |
 | share (分享) (requirements v0.29 §10.7): the selection, the share dialog and the shared page | `Share` |
-| exchange document (交换文档): the one outward form of conversations, which a share and a device copy both carry (seam E5) | `Exchange` (the document `ExchangeDocument`) |
-| import (导入) of a shared file or a device copy (requirements v0.29 §10.7) | `Import` |
-| device copy (设备副本) (requirements v0.29 §10.7) | `DeviceCopy` |
+| exchange document (交换文档): the one outward form of conversations, which a share and a manual backup both carry (seam E5) | `Exchange` (the document `ExchangeDocument`) |
+| import (导入) of a shared file or a manual backup (requirements v0.29 §10.7) | `Import` |
+| manual backup (手动备份) (requirements v0.36 §10.7; called device copy until v0.35): everything in the user's workspaces as one file the user keeps | `ManualBackup`. The stored word for the kind of file stays `device` (`ExchangeDocument.DeviceKind`, the `import` table), and existing code that says `DeviceCopy` is not required to be renamed |
+| automatic backup (自动备份): a copy of the database the app makes by itself, kept in its data folder (§12.2) | `Backup` (existing code) |
+| sync (同步): networked sync between devices through a server; a vision (requirements §10.1), nothing is built | no code name; the word is not used for the manual backup |
 | continuation (接续): the user's own conversation that continues a received one, a branch of it with no quoted sentence (requirements v0.30 §10.7) | `BranchSource.IsContinuation` |
 | stand-in (替身): what shows that an attachment or the tool steps did not travel in a share (requirements v0.30 §10.7) | `AbsentAttachmentBlock`, `ActivityCountBlock`; a citation without stored material is a `CitationBlock` without a resource |
 | quote (引用): a piece of content sent with a question as numbered material, with an optional note (requirements v0.34 §10.11.1) | `Quote` (content block `QuoteBlock`); a quote taken outside the app is a resource with `ResourceOrigin.Capture`; quotes that wait to be sent are `PendingQuote` |
@@ -577,7 +579,7 @@ Specific interactions for request timeouts, retries and answer attempts were onc
 
 ### 14.3 Later scope
 
-The design of the agent platform (requirements §10.4) is in §15, and it is implemented on schedule; a code execution sandbox and long-running background agents are not planned. Automatic cross-device sync, a full multi-provider management UI, cross-workspace semantic associations and automatic classification, free-quota services, Linux and 3D are not current prerequisites. The first batch of recommendations and summary links is written into requirements §10.3 as increments after the first release, not as first-release gates. Manual dragging and decorative animation keep their recorded phasing; explicit saving of automatic layout coordinates is already the current plan and is not postponed as a whole.
+The design of the agent platform (requirements §10.4) is in §15, and it is implemented on schedule; a code execution sandbox and long-running background agents are not planned. Sync between devices (requirements §10.1, a vision that needs a server), a full multi-provider management UI, cross-workspace semantic associations and automatic classification, free-quota services, Linux and 3D are not current prerequisites. The first batch of recommendations and summary links is written into requirements §10.3 as increments after the first release, not as first-release gates. Manual dragging and decorative animation keep their recorded phasing; explicit saving of automatic layout coordinates is already the current plan and is not postponed as a whole.
 
 ### 14.4 Notes on adopting the review
 
@@ -803,14 +805,14 @@ Product basis: requirements §10.4.6 (v0.19). This section fills in the details 
 - **Tools.** `McpToolSource` gives the enabled tools when a question is accepted (`McpTool : ITool`, using the definition snapshot taken at enabling, without starting the server for this); the registry places them after the built-in tools; name conflicts are resolved at enabling time (requirements §10.4.6). `McpTool.ExecuteAsync` connects through the manager (starting on demand). It first compares the definition the server currently gives with the snapshot; if they differ, it disables the tool and reports an error; then it calls. The content items of the result are converted to Markdown text (text, image placeholders, resource links, embedded text resources); images are also saved as resources (`origin = 'mcp'`, `provenance = 'external'`). A call with risk "side effect" returns the approval card content (server, tool, formatted arguments) through `ITool.ApprovalFor`. Before the card is shown, `ITool.PrepareAsync` starts the server and compares the definitions; a call that cannot be executed errors directly, without asking the user for approval. Approval and waiting reuse phase 3's mechanism (`IRunSlots`, `run_step.approval`); the result text for a denial is given by the tool (`ITool.DeniedResult`). `run_step.target` is the server name, and statistics group by it and the tool name.
 - **Unknown outcome.** When a call with side effects times out or the server exits during the call, the tool throws `ToolOutcomeUnknownException`. The step is recorded as `unknown`, the result block is an error that says “结果未知，请自行核对”, the error is given back to the model, and the run continues.
 
-## 16. Sharing, import and device copies (after the first release)
+## 16. Sharing, import and the manual backup (after the first release)
 
-Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered and the increments are in [sharing.md](design/sharing.md).
+Product basis: requirements §10.7 (v0.36). Sharing and the manual backup are one operation, export to a file and import from a file, on one exchange document, one writer and one importer; they differ in the selection, the filter and what import may do. Neither is the automatic backup of §12.2, which copies the database inside the data folder, and neither is sync, which would need a server (requirements §10.1). Reasons, the approaches considered and the increments are in [sharing.md](design/sharing.md).
 
 ### 16.1 Layers
 
 - **Application** builds the exchange document from the stores, applies the selection and the filter, and holds the import rules. It has no Markdown library and writes no HTML.
-- **Infrastructure** writes and reads the files: the shared HTML file, the device copy package, and the atomic file write already used by the summary export (§8.1).
+- **Infrastructure** writes and reads the files: the shared HTML file, the manual backup package, and the atomic file write already used by the summary export (§8.1).
 - **Desktop** holds the share dialog and the import entry points.
 - Core gains no dependency. The existing summary export (§8) is unchanged.
 
@@ -828,7 +830,7 @@ Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered a
 - Nothing is fetched: no remote script, font or image. Links in answers and citations are ordinary links.
 - Answers must read as they do in the app (§5): emphasis next to Chinese punctuation, tables, and the four formula delimiters. HTML inside an answer is escaped. Formulas are drawn by a library carried in the file.
 - The timeline in the page follows the rules of §11.2's timeline layout.
-- A device copy is a package holding the same page, the exchange document and the attachment originals by content hash (§15.2).
+- A manual backup is a package (a zip with an extension of its own) holding the exchange document of kind device, split by workspace, the attachment originals by content hash (§15.2), and readable pages drawn as a share with content is. It is read entry by entry by known names; a path in it is never used as a path on disk, and every original is checked against its hash.
 
 ### 16.4 Import
 
@@ -836,17 +838,18 @@ Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered a
 - One import is one transaction.
 - Rules, by identity: present → left as it is; unknown → added; a received conversation gains the messages it lacks, each at its stored number; a conversation present in another workspace is reported, not moved, and its branches in the file are skipped with it.
 - **A received conversation is read-only** (requirements §10.7): the conversation records that it was received, and no use case adds a message to it. The user's question at its end creates a branch whose source is its last message, with no quoted sentence. So a shared file only ever extends a received conversation, and a number held by a different message means the file does not fit: that conversation is skipped.
-- **Two continuations** exist only with device copies. When the copy and the store each hold messages the other lacks after their last common message, the stored conversation is not changed, and the incoming one is written as a separate conversation whose identities are derived from the incoming ones, so that a second import finds it already there.
+- **A manual backup only adds** (requirements §10.7): it is matched by identity like a share, what it brings is the user's own, and no stored value is changed. Summaries are matched by their conversation; versions missing here are added as saved versions.
+- **Joined by time.** When a manual backup and the store each hold messages the other lacks in one conversation, the conversation's line is rebuilt in the order the questions were asked, each question with its answers and attempts, each side's own order kept. Its messages are numbered anew, and what refers to a place in it by number follows the message it meant: the context ranges of branches that left from it and the coverage of its summaries. A summary version's coverage ends before the first message it did not know. Both sides reach the same line, and a second import changes nothing. A received conversation is read-only, so it never has two lines.
 - Import never deletes.
 - A structure-only share is stored as conversations without messages. A branch may have a parent and no source message (an empty received branch), or a source message and no quoted sentence (a continuation). Its context rows exist for every ancestor and may say that nothing of the ancestor is used, so that the tree reads of §11, archiving (§9.2) and the deletion checks (§4.2) see it as a branch. The context of received branches is set from the file's sources, also when a source arrives later; the context of the user's own conversations is never rewritten.
 - A branch source from a file carries the source message, the quoted sentence, the position in the answer's Markdown and, when the file has it, the stored anchor. The anchor is used only when its version and render profile match (§5); otherwise returning goes to the source answer.
 - For the web fetch approval (§15.7), URLs in received conversations do not count as the user's own, along the whole context chain.
-- A shared file never changes single-valued fields (title, current summary version, archived state). With a device copy the newer value wins; this needs the time of the last title change to be stored.
-- A device copy carries the identities of deleted conversations, which the app records from the release that adds device copies. Import only offers them for deletion, through the deletion flow of §9.1.
+- No import changes single-valued fields (title, current summary version, archived state); neither a shared file nor a manual backup.
+- Deletions are not recorded and do not travel; a manual backup can bring back what was deleted.
 
 ### 16.5 Migrations
 
-The share itself needs none. Import rebuilds `branch_source` and `branch_context_range` for branches without a source sentence, and adds the record of imports and of which conversations were received. Device copies add the time of the last title change and the record of deleted identities. Each is tried on a copy of real data first (§12.2).
+The share itself needs none. Import rebuilds `branch_source` and `branch_context_range` for branches without a source sentence, and adds the record of imports and of which conversations were received. Manual backups need none. Each is tried on a copy of real data first (§12.2).
 
 ## 17. Diagnostics and erasing (after the first release)
 

@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             x:Class="Mindweave.Desktop.Views.ManualBackupView"
+             x:DataType="vm:ManualBackupViewModel">
+  <!-- The manual backup's dialog (docs/design/sharing-backup.md §5): what the file is, the workspaces with ticks, the size, Save;
+       while saving, how far it has got and Cancel. Never taller than the window: the list scrolls, the buttons stay in sight. -->
+  <Border Classes="dialog wide" Margin="24">
+    <DockPanel>
+      <TextBlock DockPanel.Dock="Top" Classes="dialog-title" Text="{x:Static t:UiText.ManualBackupTitle}" Margin="0,0,0,12" />
+      <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+        <TextBlock Name="ManualBackupSize" DockPanel.Dock="Left" Classes="caption" Text="{Binding Size}" VerticalAlignment="Center" IsVisible="{Binding !IsBusy}" />
+        <TextBlock Name="ManualBackupProgress" DockPanel.Dock="Left" Classes="caption" Text="{Binding Progress}" VerticalAlignment="Center"
+                   IsVisible="{Binding IsBusy}" AutomationProperties.LiveSetting="Polite" />
+        <StackPanel Classes="dialog-buttons">
+          <Button Name="ManualBackupCancel" Classes="secondary" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" />
+          <Button Name="ManualBackupClose" Classes="secondary" Content="{x:Static t:UiText.ShareClose}" Command="{Binding CloseCommand}" IsCancel="True" IsVisible="{Binding !IsBusy}" />
+          <Button Name="ManualBackupSave" Classes="primary" Content="{x:Static t:UiText.ManualBackupSave}" Command="{Binding SaveCommand}" IsDefault="True" />
+        </StackPanel>
+      </DockPanel>
+      <Border Name="ManualBackupNotice" DockPanel.Dock="Bottom" Classes="notice" Classes.error="{Binding NoticeIsError}" Classes.info="{Binding !NoticeIsError}" Margin="0,12,0,0"
+              IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="✓" IsVisible="{Binding !NoticeIsError}" />
+          <TextBlock Classes="notice-icon" Text="!" IsVisible="{Binding NoticeIsError}" />
+          <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        </DockPanel>
+      </Border>
+      <ScrollViewer Classes="autohide" Margin="0,0,-14,0" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="12" Margin="0,0,14,0">
+          <TextBlock Name="ManualBackupIntro" Classes="dialog-body" Text="{x:Static t:UiText.ManualBackupIntro}" TextWrapping="Wrap" />
+          <Border Name="ManualBackupList" Classes="share-contents" IsEnabled="{Binding !IsBusy}" AutomationProperties.Name="{x:Static t:UiText.ManualBackupWorkspacesHeading}">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="share-heading" Text="{x:Static t:UiText.ManualBackupWorkspacesHeading}" />
+              <TextBlock Classes="dialog-body" Text="{x:Static t:UiText.ManualBackupReading}" IsVisible="{Binding IsReading}" />
+              <ItemsControl Name="ManualBackupWorkspaces" ItemsSource="{Binding Workspaces}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="2" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ManualBackupWorkspaceViewModel">
+                    <CheckBox IsChecked="{Binding IsTicked}" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Name}">
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Classes="caption" Text="{Binding Details}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      </DockPanel>
+                    </CheckBox>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+          <StackPanel Spacing="4">
+            <TextBlock Name="ManualBackupLeavesOut" Classes="caption" Text="{x:Static t:UiText.ManualBackupLeavesOut}" TextWrapping="Wrap" />
+            <TextBlock Name="ManualBackupNotAutomatic" Classes="caption" Text="{x:Static t:UiText.ManualBackupNotAutomatic}" TextWrapping="Wrap" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

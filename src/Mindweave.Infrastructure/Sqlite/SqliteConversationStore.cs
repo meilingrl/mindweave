@@ -383,11 +383,25 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             Touch(connection, transaction, conversation, message.CreatedAt);
         }
 
+        RelinkAttempts(connection, transaction, conversation);
+    }
+
+    /// <summary>
+    /// Every answer of the conversation is the retry of an answer directly before it, and of nothing else: the rule a retry
+    /// here follows, applied to a line that a file filled or that was joined by time (docs/design/sharing-backup.md V2).
+    /// </summary>
+    internal static void RelinkAttempts(SqliteConnection connection, SqliteTransaction transaction, ConversationId conversation) =>
         connection.Execute(transaction, """
             UPDATE message SET supersedes_id =
                 (SELECT CASE p.role WHEN 'assistant' THEN p.id END FROM message p WHERE p.conversation_id = message.conversation_id AND p.seq < message.seq ORDER BY p.seq DESC LIMIT 1)
             WHERE conversation_id = $id AND role = 'assistant';
             """, ("$id", conversation.ToString()));
+
+    /// <summary>A message of the user's own, as a manual backup brings it: at the number it is given, with its blocks in full.</summary>
+    internal static void InsertStored(SqliteConnection connection, SqliteTransaction transaction, Message message)
+    {
+        InsertMessage(connection, transaction, message);
+        Touch(connection, transaction, message.ConversationId, message.CompletedAt ?? message.CreatedAt);
     }
 
     private static void InsertMessage(SqliteConnection connection, SqliteTransaction transaction, Message m)

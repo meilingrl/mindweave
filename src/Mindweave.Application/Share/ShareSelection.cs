@@ -32,6 +32,13 @@ public sealed class ShareSelection
         return parents.ContainsKey(opened) ? none.With(none.WithBranches(none.Ancestors(opened).LastOrDefault(opened))) : none;
     }
 
+    /// <summary>Every conversation of the workspace: what a manual backup's readable page is drawn from.</summary>
+    public static ShareSelection All(IReadOnlyDictionary<ConversationId, ConversationId?> parents)
+    {
+        ArgumentNullException.ThrowIfNull(parents);
+        return Of(parents, parents.Keys.ToHashSet());
+    }
+
     /// <summary>
     /// Ticks a conversation: a branch with its ancestors (its own branches and its siblings stay as they are), a root with
     /// its whole exploration.

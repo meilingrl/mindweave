@@ -106,6 +106,10 @@
     <Border Name="ImportDialog" Classes="dialog-scrim" IsVisible="{Binding Import.IsOpen}">
       <v:ImportView DataContext="{Binding Import}" />
     </Border>
+    <!-- Saving a manual backup (docs/design/sharing-backup.md §5), from the workspace menu. -->
+    <Border Name="ManualBackupDialog" Classes="dialog-scrim" IsVisible="{Binding ManualBackup.IsOpen}">
+      <v:ManualBackupView DataContext="{Binding ManualBackup}" />
+    </Border>
     <Border Name="ExitTaskPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsTaskPromptOpen}">
       <Border Classes="dialog">
         <StackPanel Spacing="12">

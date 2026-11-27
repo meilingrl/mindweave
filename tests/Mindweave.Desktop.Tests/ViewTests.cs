@@ -21,6 +21,7 @@ public class ViewTests
         {
             typeof(RootViewModel), typeof(WorkspaceNameForm), typeof(ExitCoordinator), typeof(WorkspaceDeletionViewModel), typeof(ConversationDeletionViewModel),
             typeof(BackupRestoreViewModel), typeof(BackupDeletionViewModel), typeof(ShareViewModel), typeof(ShareDotViewModel), typeof(ImportViewModel), typeof(ImportTargetViewModel),
+            typeof(ManualBackupViewModel), typeof(ManualBackupWorkspaceViewModel),
             typeof(ViewModels.Conversations.Composer), typeof(ViewModels.Conversations.MessageItemViewModel),
             typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),
             typeof(ViewModels.Conversations.ConversationSummaryPanel), typeof(ViewModels.Conversations.ConversationLifecycleActions),

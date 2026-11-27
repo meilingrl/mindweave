@@ -28,7 +28,7 @@ Checked in the code and the package cache on 2026-11-22:
 
 ## Across platforms
 
-- **Data between devices.** Each device keeps its own SQLite database. Sync goes through a log of changes, keyed by the stable IDs already in use, into a folder the user owns (iCloud Drive, WebDAV, Syncthing). There is no Mindweave server. The exchange format (E5) is the basis.
+- **Data between devices.** Each device keeps its own SQLite database. Work moves between devices by the manual backup: a file the user saves and imports ([sharing-backup.md](../design/sharing-backup.md)). That is not sync. Real sync is networked and needs a server, which Mindweave does not have; it is a vision (evolution D10; the owner, 2026-11-27). The exchange format (E5) is the basis of both.
 - **The relay again.** The Web target needs a relay for cross-origin calls. It can be the same relay as in the [free trial](../design/free-trial.md) design.
 
 ## Not verified

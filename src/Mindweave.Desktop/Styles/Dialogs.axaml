@@ -113,6 +113,12 @@
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
+  <!-- A manual backup's workspace, above what happens to it. -->
+  <Style Selector="TextBlock.import-workspace">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
   <Style Selector="TextBlock.import-count">
     <Setter Property="FontSize" Value="13" />
     <Setter Property="LineHeight" Value="19" />
