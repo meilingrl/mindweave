@@ -52,7 +52,8 @@ internal static class SummaryNetworkScenario
 
     /// <summary>
     /// <see cref="SeedAsync"/> with every answer seen: the hints its answers popped up are gone, so none covers the details
-    /// panel a test clicks in (they come up a moment after the answers, so a click may or may not race them otherwise).
+    /// panel a test clicks in, and none shortens a Settings page under its pointer (in Settings the page ends above them).
+    /// They come up a moment after the answers, so a click may or may not race them otherwise.
     /// </summary>
     /// <param name="secondExploration">
     /// Also a second exploration: one summarized conversation, "蒸汽机", of its own. Link suggestions pair summaries across

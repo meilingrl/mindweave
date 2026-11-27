@@ -17,6 +17,16 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.30 · 2026-11-27
+
+- Added `nuget.config` with nuget.org as the only source, and `global.json` with one SDK feature band; CI installs what it names (dependencies-2, ci-build-7, D-042)
+- Added a performance workflow on `main` that never blocks a merge, with budgets three times the local ones (ci-build-9)
+- Added direct tests for `ServiceAddress` and `SelectionCarry` (tests-10)
+- Changed CI to end a hanging test after 5 minutes and name it (tests-7), and to run the Windows key store tests (cross-platform-5); the macOS ones run in the full local run
+- Fixed the class of desktop tests that waited for one state and then asserted another, which failed now and then under load
+- Try: nothing on screen changed; see the first CI run and the performance workflow on GitHub
+- Not verified: whether hosted Windows runners allow the key store tests; the performance budgets on CI's machines
+
 ## 0.6.29 · 2026-11-27
 
 - Changed every service the app builds to take its parts as required parameters; a test resolves each registered service (architecture-4, D-042)

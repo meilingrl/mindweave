@@ -1894,7 +1894,7 @@ public class GalleryTests
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel);
         await page.Marking;
         var conversation = ((ConversationViewModel)app.Workbench.CurrentPage!).Id;
-        await UiWait.UntilAsync(() => !app.Services.GetRequiredService<IConversations>().HasUnfinishedAnswer(conversation));
+        await UiWait.AnswersStoredAsync(app.Services.GetRequiredService<IConversations>(), conversation);
         app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
         await UiWait.UntilAsync(() => network.RecommendedNodes.Count == 0);
         await SettleAsync(window);
@@ -2248,7 +2248,7 @@ public class GalleryTests
 
     /// <summary>The answers as stored are final: one ends on screen a moment before its last write, and archiving is refused until then.</summary>
     internal static Task FinishedAsync(ConversationService conversations, ConversationId conversation) =>
-        UiWait.UntilAsync(() => conversations.LoadAsync(conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
+        UiWait.AnswersStoredAsync(conversations, conversation);
 
     private static async Task SummarizeAsync(SummaryService service, ConversationId conversation)
     {

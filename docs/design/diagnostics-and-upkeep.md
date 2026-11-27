@@ -266,6 +266,6 @@ No increment needs a migration.
 ## 5. To check when building
 
 - Whether the search index keeps deleted text until it is merged; the rewrite in §2.4 step 2 must include that merge.
-- Whether the macOS key store tests raise a prompt.
+- Whether the macOS key store tests raise a prompt. No: tried on 2026-11-27, the round trip passed in 36 ms; `scripts/test.sh full` runs them on macOS.
 - Whether hosted Windows runners allow the key store tests.
 - How many of the 29 interfaces are used only inside one project.

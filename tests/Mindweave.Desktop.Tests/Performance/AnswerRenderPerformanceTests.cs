@@ -14,6 +14,7 @@ using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
+using Mindweave.Testing;
 
 namespace Mindweave.Desktop.Tests.Performance;
 
@@ -25,22 +26,22 @@ namespace Mindweave.Desktop.Tests.Performance;
 public class AnswerRenderPerformanceTests
 {
     /// <summary>Showing a finished answer: parse, build the controls and lay them out once (the answer view alone).</summary>
-    private static readonly Dictionary<int, TimeSpan> ShowBudget = new() { [30_000] = TimeSpan.FromMilliseconds(400), [100_000] = TimeSpan.FromMilliseconds(1_000) };
+    private static readonly Dictionary<int, TimeSpan> ShowBudget = new() { [30_000] = PerfBudget.Ms(400), [100_000] = PerfBudget.Ms(1_000) };
 
     /// <summary>Opening the conversation from the sidebar until it is placed at its reading position.</summary>
-    private static readonly Dictionary<int, TimeSpan> OpenBudget = new() { [30_000] = TimeSpan.FromMilliseconds(500), [100_000] = TimeSpan.FromMilliseconds(1_500) };
+    private static readonly Dictionary<int, TimeSpan> OpenBudget = new() { [30_000] = PerfBudget.Ms(500), [100_000] = PerfBudget.Ms(1_500) };
 
     /// <summary>UI-thread work per streamed update (apply the new parse and lay out): within one frame at 60 Hz.</summary>
-    private static readonly TimeSpan ChunkUiBudget = TimeSpan.FromMilliseconds(16);
+    private static readonly TimeSpan ChunkUiBudget = PerfBudget.Ms(16);
 
     /// <summary>The background parse per streamed update; above the 50 ms update interval, updates merge rather than queue.</summary>
-    private static readonly TimeSpan ChunkParseBudget = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan ChunkParseBudget = PerfBudget.Ms(50);
 
     /// <summary>
     /// UI-thread work per streamed chunk in the whole app (view model, page, scrolling included): at most half of the
     /// 50 ms interval at which a running answer's text is refreshed, so the window stays responsive while it streams.
     /// </summary>
-    private static readonly TimeSpan AppChunkBudget = TimeSpan.FromMilliseconds(25);
+    private static readonly TimeSpan AppChunkBudget = PerfBudget.Ms(25);
 
     private const int ChunkCharacters = 40;
 
@@ -381,10 +382,10 @@ public class AnswerRenderPerformanceTests
     }
 
     /// <summary>Opening 60 turns of 2,500 characters (150,000 in all): what a long but ordinary study conversation is.</summary>
-    private static readonly TimeSpan ManyTurnsOpenBudget = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan ManyTurnsOpenBudget = PerfBudget.Ms(500);
 
     /// <summary>Each answer rendered after the page is placed: short enough that input between steps is not noticeably delayed.</summary>
-    private static readonly TimeSpan RenderStepBudget = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan RenderStepBudget = PerfBudget.Ms(100);
 
     private static async Task<ConversationId> AskAsync(DesktopHarness app, string question, string answer, bool fresh = false)
     {

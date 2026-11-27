@@ -8,12 +8,15 @@ Settled after the test health check on 2026-11-15 (at the time 1,157 tests, abou
 | --- | --- | --- |
 | `scripts/test.sh quick [NAME…]` | Core, Architecture, Infrastructure (without fault injection), plus the desktop tests whose full name contains any of the names | The loop while changing code, about 15–30 seconds |
 | `scripts/test.sh suite [DIR]` | The tests that block CI, with desktop tests run in parallel shards (see below); writes TRX when given a directory | Full suite locally |
-| `scripts/test.sh full` | `suite`, then the quarantined tests run separately, report only | Before merging back into `main`; must pass |
+| `scripts/test.sh full` | `suite`, then the quarantined tests run separately, report only; on macOS the real Keychain test runs too | Before merging back into `main`; must pass |
 | `scripts/test.sh repeat N FILTER [PROJECT] [--load]` | Runs the same filter N times in a row and counts failures; `--load` also keeps all cores busy | Hunting intermittent failures |
 | `scripts/test.sh timings [DIR]` | Full suite with TRX recorded; lists the slowest projects, classes and tests, and the tests over budget; also refreshes the per-class timings used for sharding | When things feel slower; after desktop test classes are noticeably added or removed |
 | `scripts/test.sh quarantined` | Lists the quarantined tests | At the start of a fix batch |
 
 Existing categories (the `Category` attribute): `FaultInjection`, `Performance`, `Gallery`, `RealApi`, `Trial`, `Quarantine`. By default, depending on environment variables or attributes, all but `FaultInjection` do not run or do not block.
+
+- **Performance** (`scripts/perf.sh`) also runs in the `performance` workflow on every push to `main`, at three times the local budgets (`PerfBudget`; on a CI runner the factor is 3, `MINDWEAVE_PERF_BUDGET_SCALE` sets it anywhere). It is a workflow of its own and never blocks: "CI passes on `main`" means the `ci` workflow. A red run there is a regression to look at. The gallery stays manual.
+- **The real key store** (`PlatformCredentialStoreTests`, `MINDWEAVE_CREDENTIAL_TESTS=1`) runs on Windows CI and in `full` on macOS, where the Keychain raised no prompt (tried 2026-11-27). Each run makes and deletes its own items under a throw-away name.
 
 ## Desktop test shards
 
@@ -29,6 +32,8 @@ Avalonia headless tests have only one UI thread per process, so desktop tests in
 
 ## Time budget
 
+- **CI ends a hanging test after 5 minutes and names it**: `dotnet test --blame-hang-timeout 5m` reports "The test running when the crash occurred", and a desktop shard (`test-shards.py --hang 300`, which `suite` uses too) prints `HUNG: <test>` and fails. No coverage figure is kept.
+
 - A single test over 3 seconds (except in the `Faults` and `Performance` namespaces) is recorded as a warning on CI, not a failure: runner speeds vary too much, and failing on time would itself be intermittent.
 - A new test over budget must have a reason (a real child process, a real lock wait, and so on); where `ManualTime` can advance time, do not use real waits.
 - Data rules go in Infrastructure tests (fast, can run in parallel); desktop tests only verify what is seen in the UI and how it is wired, and do not verify storage behavior again.
@@ -42,4 +47,6 @@ Avalonia headless tests have only one UI thread per process, so desktop tests in
 - Common causes and the matching fixes:
   - A wait sets a deadline on the real clock (`UiWait` defaults to 5 seconds) and a slow machine cannot make it → wait for the actual event or state, and widen the deadline if needed;
   - A real timer (pulse, toast auto-dismiss) ends before the check → use `ManualTime` instead, or count starts instead of looking at the momentary state;
-  - Layout measurements depend on the font (the runner's fallback font is wider) → assert relationships (no overlap, inside the track) instead of pixel values, or leave a margin for font differences.
+  - Layout measurements depend on the font (the runner's fallback font is wider) → assert relationships (no overlap, inside the track) instead of pixel values, or leave a margin for font differences;
+  - A wait on one state, then an assert on another that lands in a later step (a dialog's count, then the notice a later recount sets; a page showing an answer's end, then a summary that needs the stored write and the free slot) → wait for everything that is asserted: `UiWait.SettledAsync(() => { Assert…; })` retries the assertions together and reports the last failure; a helper that hands a conversation to a service call waits until the answers are stored (`UiWait.AnswersStoredAsync`), not for the page or the running flag, which turn a moment before the write;
+  - Something that arrives late moves a control between press and release ("the release did not reach …"): new-answer hints come up a moment after the answers, and in Settings the page ends above them → a test that seeds answers and then clicks starts from seen ones (`SummaryNetworkScenario.SeedSeenAsync`).
