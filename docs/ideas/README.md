@@ -15,9 +15,9 @@ Each file starts with its status and the date of its last discussion.
 | Draft | About | Status |
 | --- | --- | --- |
 | [More platforms](platforms.md) | Linux, Web and HarmonyOS on the current code; no mobile (owner, 2026-11-24) | First draft, 2026-11-22 |
-| [More directions](more-directions.md) | Seven further directions, and the technical pieces worth publishing | First draft, 2026-11-22 |
+| [More directions](more-directions.md) | Three further directions still open (voice and camera, bringing history in, answers that show), and the technical pieces worth publishing; four directions have moved out | First draft, 2026-11-22; decided parts moved out 2026-11-27 |
 
-Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9); [sharing a thinking path](../design/sharing.md) (2026-11-25, evolution D8), with its note for [import](../design/sharing-import.md); [security, diagnostics and upkeep](../design/diagnostics-and-upkeep.md) (2026-11-27, evolution D2); [reply quality](../design/reply-quality.md) (2026-11-26, D-043); [return and review](../design/return-and-review.md) (2026-11-26, D-044; from the directions of the evolution D8 discussion).
+Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9); [sharing a thinking path](../design/sharing.md) (2026-11-25, evolution D8), with its note for [import](../design/sharing-import.md); [security, diagnostics and upkeep](../design/diagnostics-and-upkeep.md) (2026-11-27, evolution D2); [reply quality](../design/reply-quality.md) (2026-11-26, D-043); [return and review](../design/return-and-review.md) (2026-11-26, D-044; from the directions of the evolution D8 discussion); [ask from anywhere, connections, search and caching](../design/ask-anywhere.md) (2026-11-27, D-045).
 
 ## Where these came from
 

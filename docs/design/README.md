@@ -51,6 +51,7 @@ This directory records the choices that the handoff document lets implementers r
 | Document | Content |
 | --- | --- |
 | [Free trial](free-trial.md) | Adopted 2026-11-22 (evolution D9), not built: a relay on the owner's VPS, anonymous install tokens with proof-of-work, per-install and global caps, the request flow, starting limits, hosting, the app changes, cost and open decisions |
+| [Ask from anywhere, connections, search and caching](ask-anywhere.md) | Approved 2026-11-27 (D-045), not built: quoting with notes from a conversation, from another application and from the screen, with the app staying in the menu bar; several connections with one current model, a model for background work, a local server and the Messages and Responses protocols; search by meaning with an embedding model on a saved connection; cached tokens recorded, a stable request order and cache points; what is set aside (browser extension, MCP server, command line, a model inside the app) |
 
 ## Interface
 

@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.33  
+**Version:** v0.34  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -71,6 +71,7 @@ Existing products cover parts of this, such as branching, returning, summarizati
 | Recommended question (after the first release) | A question shown in new exploration that the user may be interested in; it is only filled into the input box and is not sent automatically; see §10.3.1 |
 | Recommended node (after the first release; short for recommended exploration node) | A potential exploration direction whose full content has not been generated. It includes a question, the reason for the recommendation and the existing summary it extends from (the basis summary). It does not pose as a saved summary; see §10.3.2 |
 | Recap (回顾) (after the first release, v0.33) | A short text the system writes for a conversation that has rested and carries weight: one or two key points, and at most two questions left open. It is what the app shows when the user comes back. It is not a summary node: it has no versions, no read state and no ring, and the user does not manage it; see §10.10 |
+| Quote (引用) (after the first release, v0.34) | A piece of content the user points at, with an optional note, sent with a question as numbered material: a passage of an answer in the conversation, text selected in another application, or a rectangle of the screen. A quote is not a branch source and creates no branch; see §10.11.1 |
 | Spatial view, timeline view (v0.25) | The two views of the summary network (§7.3): the spatial view arranges each exploration as a group by its structure; the timeline view lines explorations up in the order they started |
 | Time thread (v0.25) | The quiet arrow in the spatial view from each exploration's root to the next exploration's root in time |
 | Summary link (after the first release) | A topical or semantic relation between summaries, created by the user or confirmed by the user; distinct from conversation lineage, which can be recorded directly; see §10.3.3–10.3.4 |
@@ -267,7 +268,7 @@ Import and export of whole conversations, with messages, branch sources, summari
 ### 9.2 Generation lifecycle
 
 - Each conversation has at most one answer in progress; different conversations can each generate. Switching views does not cancel tasks automatically. Globally there are at most two AI requests; the rest queue and can be canceled, and work the user starts (questions and summaries, first come first served) takes priority over automatic titles and names. After the first release, one answer can be a run that includes several model calls, and this limit then counts runs instead; see §10.4.4.
-- If answers or summaries the user started are still running at quit, the user should be told. After the user confirms quitting, generation stops and the content already received is saved, marked as stopped (interrupted if it did not stop in time; a queued answer: canceled); running in the background is not required. The prompt about running tasks can be canceled, and it comes before any irreversible step such as stopping tasks; for the order, see [architecture](architecture.md) §12.3 [review suggestion · MW-C09].
+- If answers or summaries the user started are still running at quit, the user should be told. After the user confirms quitting, generation stops and the content already received is saved, marked as stopped (interrupted if it did not stop in time; a queued answer: canceled); running in the background is not required. The prompt about running tasks can be canceled, and it comes before any irreversible step such as stopping tasks; for the order, see [architecture](architecture.md) §12.3 [review suggestion · MW-C09]. After the first release, closing the main window is not quitting (§10.11.1).
 - When an action is accepted, its destination, model parameters and input range are frozen. Changing settings does not change requests already queued; changing the destination must be done by canceling and then explicitly sending again.
 
 ### 9.3 Persistence, navigation and recovery
@@ -281,6 +282,7 @@ Import and export of whole conversations, with messages, branch sources, summari
 ### 9.4 API and extension boundaries
 
 - Users should know which conversation content is handed to the AI for processing. In the first release the user provides the API: the UI configures one OpenAI-compatible Chat Completions service and model, and the desktop app calls it directly; no account system or relay backend is built. The architecture must separate the provider connection, the model and the protocol, and keep extension boundaries for multiple providers, multiple models and different interface formats. The first release does not implement full management of multiple configurations or offline inference. Credentials are managed separately and are not stored in ordinary business fields.
+- After the first release, several connections, further protocols, a model for background work and a model for search by meaning are in §10.11; what is sent to which connection is stated in Settings.
 
 ### 9.5 Protecting branch sources
 
@@ -296,7 +298,7 @@ Capacity is estimated per model, with room reserved for output and a safety marg
 
 The answer output limit is optional and set by the user in 设置 › 模型连接 › 高级设置 › “输出上限” (Settings › Model connection › Advanced settings › Output limit). Left empty, no limit is sent, the service's own default applies, and the budget reserves 4,096 tokens for the answer. When set, it is sent with every answer request and the budget reserves the same room; it must be at least 256 tokens and at most half the context capacity. Internal requests (context summaries, knowledge summaries, names, recommendations) keep their own limits. The setting says in one line what it does and when to change it (raise it when answers are often cut off; lower it for shorter answers or lower cost), and an info icon beside it explains the details on hover.
 
-The first release does not rely on providers' native compression, and does not introduce vector search or a complex memory system. Later, native capabilities may be used in adapters for specific protocols.
+The first release does not rely on providers' native compression, and does not introduce vector search or a complex memory system. Later, native capabilities may be used in adapters for specific protocols. After the first release, search by meaning is in §10.11.3 and the use of providers' prompt caches in §10.11.4.
 
 ## 10. Later vision, not a first-release threshold
 
@@ -307,7 +309,7 @@ The first release does not rely on providers' native compression, and does not i
 - Recommended exploration nodes that have not been generated, and the interaction of entering a new exploration from a candidate direction (the first batch is in §10.3).
 - Fine-grained reading progress, manual dragging of nodes, decorative animations, more complex layouts, and optimization for large summary networks.
 - A more complete data-organizing mechanism; distinct from the first release's lightweight export, version cleanup and archiving. Import and export of whole conversations are in §10.7 (v0.29).
-- Extensions such as automatic cross-device sync (moving work between devices by hand is in §10.7), management of multiple provider and model configurations, and more protocol implementations. The first release first keeps the necessary interfaces and data boundaries.
+- Extensions such as automatic cross-device sync (moving work between devices by hand is in §10.7), management of multiple provider and model configurations, and more protocol implementations. The first release first keeps the necessary interfaces and data boundaries. Several connections and further protocols are in §10.11.2 (v0.34).
 
 The long-term vision also includes a "built-in free AI experience with a quota", so that users who cannot configure an API can start exploring directly, while the bring-your-own-API way is kept. This vision needs a separate assessment of accounts, server-side calls, quotas and usage metering, cost control and possible billing arrangements. No specific free quota, refill cycle, charging model or launch date is promised. **For now, no account, relay, quota, payment or billing backend is built, and the free experience is not a first-release acceptance condition.**
 
@@ -844,6 +846,94 @@ A conversation that has finished answers after its recap keeps the recap; the de
 
 Where an answer's prompt is given the titles of the user's own summaries that match the question, the same search also looks through the key points of recaps in the workspace, under the same limit. A match on a recap gives the conversation's title and its key points. How the prompt uses the matches is not set here.
 
+### 10.11 Quoting, model connections, search by meaning and prompt caching (v0.34)
+
+By the user's decisions of 2026-11-25 to 2026-11-27 (design, reasons and increments in [Ask from anywhere, connections, search and caching](design/ask-anywhere.md); D-045). This section does not change the first-release scope in §5 or the first-release acceptance in §11. The Chinese wording of the new settings and actions is set with the interface, which the user judges before it is built in.
+
+#### 10.11.1 Quoting
+
+A quote (§4) is a piece of content the user points at, with an optional note. Several quotes and one question are sent together. Answers are read in the main window; nothing outside it shows an answer.
+
+**The quote list.**
+
+1. The input area of a conversation holds a numbered list of quotes above the question. Each quote shows its content, its note and, when it came from outside, where it came from. A quote can be removed, and the numbers close up.
+2. A selection in an answer offers “引用” (Quote) beside the branch action. The passage joins the list of that conversation, and the user can add a note. Quoting a passage does not create a branch.
+3. Quotes from outside (below) can be added to the open conversation's list, where they mix with passages of that conversation.
+
+**Quoting from outside.**
+
+1. A global shortcut works in any application while Mindweave runs. It reads the text selected in the application in front. When nothing is selected, or the application does not give its selection, it goes straight to a rectangle that the user drags on the screen where the pointer is.
+2. A small box appears near the pointer with the quote and a note field. Enter keeps the quote, with or without a note; Esc discards it. The box then goes away.
+3. A picture is also read into text on the machine by the system's text recognition. The picture and the text are both kept.
+4. A quote from outside records the name of the application and the title of the window it came from. Both are shown under the quote and sent with it.
+5. Kept quotes wait in Mindweave's item in the menu bar (macOS) or its tray icon (Windows), which shows how many there are. They survive quitting.
+6. The item opens a panel: the numbered quotes with their notes, each removable, a field for the question, and a target line. The target defaults to a new exploration in the workspace used last; it can be another workspace or the open conversation. Quotes from outside never start a branch.
+7. Sending puts the question at the target and brings the main window to that conversation.
+
+**In the conversation and for the AI.**
+
+1. A sent message shows its quotes, numbered, above the user's own words, each with its note and where it came from. A quoted passage is never shown as text the user wrote (§6.5). A quote of a passage in the conversation leads back to that passage. The question and the answer can refer to quotes by number.
+2. The AI gets each quote as numbered material with its note. A quote from outside is external and untrusted (§10.4.1): text in it is material, not a request from the user.
+3. A picture is sent only to a model that declares image input; otherwise its recognized text is sent, and this is stated below the answer. When no text was recognized and the model cannot see images, the quote is kept and marked as not sendable to this model, with the reason.
+4. When the quotes and the question exceed the context capacity, the user is asked to remove or shorten quotes; nothing is cut silently (§9.6).
+
+**Staying running.**
+
+1. Closing the main window does not quit Mindweave. It stays in the menu bar or the tray, where the item has the kept quotes, an action that opens the main window, and “退出” (Quit).
+2. Answers and other requests keep running after the window is closed. What §9.2 says about quitting applies when the user quits.
+3. Starting at login is a setting, off by default. The shortcut can be changed in Settings; when another application holds it, Settings say that it could not be registered.
+4. Quoting from outside is built for macOS first. On Windows, until it is available there, closing the main window quits as before.
+
+**Permissions and failures.**
+
+1. On macOS, reading a selection needs the system's accessibility permission, and the rectangle needs the screen recording permission. Each is asked at its first use, after Mindweave has explained why.
+2. When the accessibility permission is refused, the shortcut always goes to the rectangle. When the screen recording permission is refused, text quotes still work, Mindweave says why a picture cannot be taken, and the panel accepts a pasted screenshot.
+3. A rectangle over protected content that comes back blank is not kept, and the box says so.
+4. When saving fails, the quote is not kept and the box says so.
+5. When the target conversation was deleted or archived meanwhile, the target returns to a new exploration. When no model is configured, quotes are kept and sending is off, with the reason.
+
+**Not included.** An answer in a small window. A box or highlights that stay inside another application's page. A branch started from several quotes, and revising a summary with quotes. A rectangle over two screens. A browser extension.
+
+#### 10.11.2 Several model connections
+
+After the first release, the limit of §9.4 to one configuration no longer holds.
+
+1. 设置 › 模型连接 (Settings › Model connection) holds a list of connections. A connection has a name, an address, a protocol (Chat Completions, Messages or Responses) and a key. It holds one or more models; each model has its own capabilities, context capacity and output limit (§9.6, §10.4.1). The configuration that existed before is the first connection, unchanged.
+2. **One current model.** A picker beside the input box shows the current model and lists the saved models by connection. Choosing one makes it the current model for all new questions, in every conversation. A question already accepted keeps the model it was accepted with (§9.2). What the current model cannot do is grayed out with the reason (§10.4.1).
+3. **The model for background work.** One setting, which defaults to the current model and can be any saved model. It serves automatic titles and names, compression (§9.6), attachment digests, recommended questions and nodes, link suggestions, and recaps (§10.10). Summaries use the current model.
+4. **Nothing switches on its own.** When a model cannot be reached, the request fails with its reason (§10.8). The app never chooses another model, connection or key by itself.
+5. **A local server.** The list offers a ready entry for a model server on this machine, with no key. Its models are listed from the server; capabilities and context capacity are read from it where it gives them, and are otherwise declared by the user. The app does not install or start the server and downloads no model. With a local model, that content stays on the machine.
+6. **Protocols.** With Messages and Responses, everything works as with Chat Completions: streaming, tool calls, images, reasoning and token counts. Responses is used without the provider keeping the conversation or running tools.
+7. The details of an answer name its model and connection, and the statistics tell models apart.
+8. When the current model cannot take images or tool steps that are earlier in the conversation, they are left out, and this is stated below the answer (§10.4.1). Reasoning of one model is not sent to another.
+9. Removing a connection deletes its key (§10.8). Answers keep the recorded name of their model. If the connection holds the current model, another is chosen first; a background or search setting that pointed at it returns to its default.
+10. Settings state that a question goes to the connection of the current model, and background work to the connection of the model for background work (§9.4).
+
+**Not included.** A model per conversation. Asking two models side by side. Running a model inside the app. Signing in with a provider account instead of a key.
+
+#### 10.11.3 Search by meaning
+
+1. A third model setting, the model for search by meaning. It is empty by default, and then search works as before: by title for the user, by keyword for the tools. It can be set to an embedding model on any saved connection.
+2. Before it is turned on with a connection that is not on this machine, Settings state that the text of all workspaces is sent there once, and about how much text that is (§9.4).
+3. The search covers, inside one workspace: the current versions of summaries, the questions and answers of conversations, and attachments, including the recognized text of a picture quote.
+4. The index is built in the background, with its progress in Settings; after an interruption it continues. New content is added once it is saved, and deleted content leaves the index. Choosing another model builds the index again.
+5. A search runs by keyword and by meaning and merges the two. Content that is not indexed yet is still found by keyword. The words searched for are sent to the embedding model.
+6. **For the user.** Title search also lists passages found by meaning, below the titles: the passage, where it is, and a jump to that place. Titles come first and at once, as before.
+7. **For the AI.** “检索总结” (search summaries) and “检索附件” (search attachments) (§10.4.4) use the same search, and the step details say that meaning was used.
+8. Embedding requests are recorded and counted like other AI requests, with a purpose of their own (§10.8).
+9. When the embedding model cannot be reached, a search shows title and keyword results with a line saying that search by meaning was not available; building pauses and continues later.
+10. The search made before an answer for the titles of matching summaries and recaps (§10.9, §10.10.7) stays by keyword and adds no request.
+
+**Not included.** Search across workspaces. An embedding model carried by the app. Related explorations shown without being asked for. Searching pictures by what they show.
+
+#### 10.11.4 Prompt caching
+
+1. When the provider reports them, each request records the input tokens read from the provider's cache and those written to it. The request's details (§10.8) show both, and the statistics show per model how much of the input was read from the cache. A provider that reports nothing shows as not reported, never as zero.
+2. A request is ordered so that what was sent before is sent again unchanged and what belongs only to this request comes last: the instructions that are the same for every conversation, the tools in a fixed order, the ancestors from the root down, the conversation so far, then the rest. What the instructions say (§10.9) does not change; only where each part stands.
+3. On a Messages connection the app marks where the provider should cache. The connection's advanced settings choose how long: off, 5 minutes or 1 hour, with 1 hour as the default. Settings state that the longer time costs more to write.
+4. The app sends no request whose only purpose is to keep or fill a cache.
+5. Nothing more is sent than without caching. The provider keeps the start of recent requests for the chosen time (§9.4).
+
 ## 11. First-release acceptance scenarios
 
 | Scenario | Observable expected result |
@@ -1014,6 +1104,26 @@ Sharing, import and device copies acceptance (v0.29, §10.7; not part of the fir
 | Ask about a topic that has a summary in this workspace; ask about one that has none | The summary's title is in the first request; the second request has no such line |
 | In a run, read a page of about 10,000 words whose answer is near the end | The first result the model gets contains that passage and the opening of the page |
 | Generate a summary of a conversation that moved between several ideas | It starts with a gist, is grouped by concept and lists the key terms; a summary made before is unchanged |
+| Select two passages in an answer and choose “引用” for each, add a note to one, and ask about both | The list above the question shows two numbered quotes; the sent message shows them above the user's words; no branch is created; each leads back to its passage |
+| In another application, select a sentence and press the shortcut; write a note and press Enter; repeat in a second application | The item in the menu bar shows 2; each quote names its application and window |
+| Press the shortcut with nothing selected, or in an application that does not give its selection | A rectangle can be dragged; the picture is kept as a quote, with its recognized text |
+| Open the panel, remove one of three quotes, write a question and send | The numbers close up; the main window comes forward on a new exploration in the workspace used last; the answer streams there |
+| Collect a quote and choose the open conversation as the target | The question lands in that conversation |
+| Send a quote from a web page that contains an instruction aimed at the AI | The app does nothing the user did not ask for; the quote is material |
+| Close the main window while an answer runs; later quit with two kept quotes and start again | The answer finishes; the shortcut still works; quitting warns about a running answer; the two quotes are there after the start |
+| Update from a build with one configuration | It is the first connection and the current model; nothing else changed |
+| Add a second connection with two models, switch the current model in the picker and ask in two conversations | Both answers' details name the new model; an answer that was streaming during the switch finished on its old model |
+| Add the local server entry, ask with the network off; then stop the server and ask | The first question is answered; the second fails and says the server cannot be reached; no other model is used |
+| Set the model for background work to another model than the current one and start a conversation | Its title is made by the background model; the statistics show both models |
+| Add a Messages connection and a Responses connection and ask a question with a tool call on each | Both are answered with streaming, like a Chat Completions model |
+| Remove a connection | Its key is gone from the system's key store; old answers still name their model |
+| With the model for search by meaning empty | Search behaves as before |
+| Set an embedding model on the local server; search for words that are in no title and no text but describe something explored earlier | The index is built with its progress shown; the passage is found below the titles, and the jump opens the conversation at that message |
+| Choose a provider's embedding model | Before anything is sent, Settings state that the text of all workspaces goes there and about how much |
+| Delete a conversation, then search for its content; stop the embedding server, then search | The deleted passages do not appear; the second search shows title and keyword results and says that search by meaning was not available |
+| In a run with three tool steps | The second and the third request each begin with exactly what the previous one sent |
+| Ask in two sibling branches of the same answer | Their first requests are identical up to the branch point |
+| On a Messages connection, ask a second question within the hour; then set the cache time to off and ask again | The first reports the earlier conversation as read from the cache; after the change nothing is reported as written |
 
 These scenarios verify functional behavior. Passing them still does not prove that the product is more useful than other approaches.
 
@@ -1084,3 +1194,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.31 · 2026-11-27:** Following the user's decisions of 2026-11-27 ([Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md)), added §10.8: what a failed request shows, the diagnostics page and package, removing keys and keys left behind, erasing deleted content for good, and content that cannot be drawn. §9.3: quitting without saving after a failed retry, and telling the user about a data upgrade. §10.6: appearance and the right-click menu, which were built and written down nowhere. Does not change the first-release scope and acceptance; no migration.
 - **v0.32 · 2026-11-27:** Following the user's decisions of 2026-11-25 and 2026-11-26 ([reply-quality.md](design/reply-quality.md), Q1–Q11; D-043), added §10.9, how answers and summaries are written: answer instructions for every answer, with a part for branch answers and for a question with two readings; a personal note in Settings; the titles of matching summaries sent with a question; the passages of a long page that match the question (§10.4.4, §10.4.5); summaries with a gist, a body by concept and key terms. No suggested questions under an answer, no quiz or guided mode. §11 adds its acceptance. One new stored preference.
 - **v0.33 · 2026-11-27:** Following the user's decisions of 2026-11-25 and 2026-11-26 (return and review), added §10.10: a recap for a conversation that has rested and carries weight, written automatically under a rest rule, a weight rule and daily limits; the recap at a branch entry; questions left open in new exploration; the dashed ring and the recap in the summary network's details; “延伸” (Extend) on a dot with a summary or a recap; a summary of a conversation with its branches; answers that build on recaps. §4 adds the recap; §4.2, §6.3, §7.1, §10.2 and §10.3.2 point to it. Relations across workspaces and automatic categorization stay vision with nothing planned. Does not change the first-release scope and acceptance; needs migrations (recaps, a recommendation's basis, a summary version's covered branches).
+- **v0.34 · 2026-11-27:** Following the user's decisions of 2026-11-25 to 2026-11-27 ([ask-anywhere.md](design/ask-anywhere.md); D-045), added §10.11: quoting (a numbered quote list with notes, fed by passages of the conversation, by text selected in another application and by a rectangle of the screen; the app keeps running after its main window is closed); several model connections with one current model, a model for background work, a local server entry and the Messages and Responses protocols; search by meaning with an embedding model on a saved connection, for the user and for the tools; recording cached tokens, a stable order of each request, and cache points with a one-hour default on Messages connections. §4 adds the quote; §9.2, §9.4, §9.6 and §10.1 point to §10.11; §11 adds its acceptance. Does not change the first-release scope and acceptance; two migrations and new stored preferences come with the increments.
