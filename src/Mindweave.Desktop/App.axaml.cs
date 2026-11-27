@@ -29,6 +29,7 @@ public sealed partial class App : Avalonia.Application
     {
         Markdown.MarkdownSetup.EnsureRegistered();
         Markdown.BoldWeight.EnsureRegistered();
+        ComposingOverSelection.EnsureRegistered();
         AvaloniaXamlLoader.Load(this);
 
         // Hover, press and selection transitions (s7-ui-polish.md, 2026-11-10); left out of headless tests and screenshots.
