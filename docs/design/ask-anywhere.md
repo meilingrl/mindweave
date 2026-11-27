@@ -2,7 +2,7 @@
 
 **Status:** approved by the owner on 2026-11-27 (D-045), after the discussion of 2026-11-25 to 2026-11-27, for four topics: quoting, several connections and local models, search by meaning, prompt caching. Not built. The requirement and architecture text (requirements v0.34 §10.11; architecture §2.3, §7.5, §15.5 and §18) was confirmed by the owner on 2026-11-27. Where this note and that text differ, the text holds.
 
-This draft takes over directions 1, 3 and 7 of [more directions](../ideas/more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
+This note took over directions 1, 3 and 7 of [more directions](../ideas/more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4.
 
 ## 1. Topics
 
@@ -79,6 +79,9 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-26 | Prompt caching: the first increment has all three steps, in this order (owner): record and show cached tokens; stop changing the start of the request; mark the cache points for Messages. |
 | 2026-11-26 | On a Messages connection the cache is kept for one hour (owner). Claude added: this is the default of a setting on the connection (off, 5 minutes, 1 hour), and Mindweave sends no requests on its own to keep a cache alive. |
 | 2026-11-27 | The section on prompt caching in §7 is agreed as written, Claude's calls included, and with it the whole draft (owner). |
+| 2026-11-27 | What is decided leaves `docs/ideas` (owner): directions 1, 3, 6 and 7 moved out of [more directions](../ideas/more-directions.md), which keeps a table saying where each went. |
+| 2026-11-27 | The owner will have the API keys ready for the real checks (Messages, Responses, the run evaluation). Each check still states what it spent. |
+| 2026-11-27 | The interface and the experience are fine as described for now (owner). The new parts are built from this note and judged in the build; no prototype is asked for first. |
 
 ## 6. Set aside
 
