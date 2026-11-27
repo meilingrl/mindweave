@@ -161,8 +161,25 @@ public static partial class UiText
         "Sends one very short real request. Getting the model list generates no content.",
         "发出一次很短的真实请求。获取模型列表不生成内容。");
     public static string PrivacyHint => T(
-        "Questions and conversation content are sent to this service. The key is stored only in the system Keychain / Credential Manager.",
-        "提问与会话内容会发送到此服务；密钥只存于系统钥匙串／凭据管理器。");
+        "Questions and conversation content are sent to this service, with your personal note and the titles of up to three matching summaries of the workspace. The key is stored only in the system Keychain / Credential Manager.",
+        "提问与会话内容会发送到此服务，同时发送你的个人说明和本工作区最多三个相关总结的标题；密钥只存于系统钥匙串／凭据管理器。");
+
+    // The personal note (requirements §10.9): what the user writes about themself and how they want answers.
+    public static string PersonalNoteSection => T("Personal note", "个人说明");
+    public static string PersonalNoteIntro => T(
+        "A few lines about you and how you like answers: your background, what to skip, how long. Sent to the AI service with every question and every summary as your own preferences; when it is empty, nothing is sent.",
+        "写几句关于你自己、以及你希望怎样回答的话：你的背景、可以略过什么、回答多长。它会作为你的个人偏好，随每次提问和每次生成总结发给 AI 服务；留空则不发送。");
+    public static string PersonalNotePlaceholder => T(
+        "For example: I’m a nurse and know basic chemistry. Skip the history and keep answers short.",
+        "例如：我是护士，懂一些基础化学。不用讲历史背景，回答简短一些。");
+    public static string PersonalNoteCount(int used, int max) =>
+        string.Create(CultureInfo.InvariantCulture, $"{used} / {max}");
+    public static string PersonalNoteFull(int max) => T(
+        string.Create(CultureInfo.InvariantCulture, $"{max} / {max} · the limit; no more can be typed"),
+        string.Create(CultureInfo.InvariantCulture, $"{max} / {max} · 已到上限，不能再输入"));
+    public static string PersonalNoteSaveFailed => T(
+        "The personal note couldn’t be saved. It still applies until you quit.",
+        "个人说明未能保存，本次运行中仍然有效。");
     public static string SettingsSaved => T(
         "Saved. New questions will use this configuration; answers in progress are not affected.",
         "已保存。新的提问将使用此配置；正在进行的回答不受影响。");

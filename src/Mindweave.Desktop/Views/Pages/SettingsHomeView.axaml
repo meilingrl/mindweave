@@ -15,6 +15,10 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0,10,0,4" />
     </Style>
+    <!-- The note's count turns to the warning colour once nothing more can be typed. -->
+    <Style Selector="TextBlock.caption.warning">
+      <Setter Property="Foreground" Value="{DynamicResource WarningText}" />
+    </Style>
   </UserControl.Styles>
   <!-- A list of the categories that stays in sight, with the find box on top of it, beside one scrolling page (D-037): the
        list jumps to a category and follows the scrolling. On a narrow page only the find box stays, above the settings. -->
@@ -29,6 +33,7 @@
       <RadioButton Name="CategoryAppearance" Classes="settings-category" GroupName="SettingsCategory" IsChecked="True" Content="{x:Static t:UiText.AppearanceSection}" />
       <RadioButton Name="CategoryHints" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.HintsSection}" IsVisible="{Binding CanChooseNewsSound}" />
       <RadioButton Name="CategoryModel" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.ModelSection}" />
+      <RadioButton Name="CategoryNote" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.PersonalNoteSection}" IsVisible="{Binding HasNote}" />
       <RadioButton Name="CategoryTools" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.SettingsTools}" IsVisible="{Binding HasTools}" />
       <RadioButton Name="CategoryData" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.DataAndWorkspaceSection}" />
     </StackPanel>
@@ -216,6 +221,23 @@
                      Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
                      IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
         </StackPanel>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- 个人说明 (requirements §10.9): one note for all workspaces, saved as it is typed; the box takes no more than the limit,
+         and the count under it says how much is used. -->
+    <StackPanel Name="NoteSection" Classes="settings-section" IsVisible="{Binding HasNote}">
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.PersonalNoteSection}" />
+      <StackPanel Classes="settings-block" DataContext="{Binding Note}" x:DataType="vm:PersonalNotePanel" Spacing="8" Margin="0,4,0,0">
+        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.PersonalNoteIntro}" />
+        <TextBox Name="PersonalNoteBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="88" MaxHeight="220"
+                 MaxLength="{x:Static vm:PersonalNotePanel.MaxLength}" Text="{Binding Text}"
+                 PlaceholderText="{x:Static t:UiText.PersonalNotePlaceholder}"
+                 AutomationProperties.Name="{x:Static t:UiText.PersonalNoteSection}" AutomationProperties.HelpText="{x:Static t:UiText.PersonalNoteIntro}" />
+        <TextBlock Name="PersonalNoteCount" Classes="caption" HorizontalAlignment="Right" Margin="0,-2,2,0"
+                   Classes.warning="{Binding IsFull}" Text="{Binding CountText}" />
+        <TextBlock Name="PersonalNoteStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap"
+                   Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
       </StackPanel>
     </StackPanel>
 
