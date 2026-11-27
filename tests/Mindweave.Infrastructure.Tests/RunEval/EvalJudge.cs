@@ -7,7 +7,8 @@ namespace Mindweave.Infrastructure.Tests.RunEval;
 /// <summary>
 /// The optional judge (docs/design/reply-quality.md Q10): a model that gives two hints and never a pass or a fail. Which of
 /// two answers explains more clearly, asked twice with the answers' places swapped; and whether each sentence that cites a
-/// source is supported by the passage it cites. Its own requests and tokens are counted apart from the answers under test.
+/// source is supported by the passage it cites, all of an answer's sentences in one request. Its own requests and tokens
+/// are counted apart from the answers under test.
 /// </summary>
 internal sealed class EvalJudge(IChatClient client, ModelSnapshot model, string key)
 {
@@ -22,8 +23,9 @@ internal sealed class EvalJudge(IChatClient client, ModelSnapshot model, string 
         """;
 
     private const string SupportInstructions = """
-        You check one sentence of an answer against the passage it cites. Reply with one word only: yes if the passage supports
-        everything the sentence says, partly if it supports only some of it, no if it does not support it.
+        You check numbered sentences of an answer, each against the passage it cites. For each sentence write one line: its
+        number, a colon, and one word: yes if the passage supports everything the sentence says, partly if it supports only
+        some of it, no if it does not. Write nothing else.
         """;
 
     public int Requests { get; private set; }
@@ -49,19 +51,40 @@ internal sealed class EvalJudge(IChatClient client, ModelSnapshot model, string 
             : EvalClarity.Inconsistent;
     }
 
-    /// <summary>How many of the cited sentences their passages support, in part, or not; a sentence naming no source counts as unsupported.</summary>
+    /// <summary>
+    /// How many of the cited sentences their passages support, in part, or not: one request for all of an answer's sentences
+    /// (the judge's cost stays near two requests per scenario). A sentence naming no source counts as unsupported; one the
+    /// reply leaves out, as unreadable.
+    /// </summary>
     public async Task<EvalSupport> SupportAsync(IReadOnlyList<EvalCited> cited, CancellationToken ct)
     {
-        int yes = 0, partly = 0, no = 0, unreadable = 0;
-        foreach (var c in cited)
+        var asked = cited.Where(c => c.Passage.Length > 0).ToList();
+        var no = cited.Count - asked.Count;
+        if (asked.Count == 0)
         {
-            if (c.Passage.Length == 0)
-            {
-                no++;
-                continue;
-            }
+            return new EvalSupport(0, 0, no, 0);
+        }
 
-            switch (Pick(await AskAsync(SupportInstructions, $"Sentence:\n{c.Sentence}\n\nPassage:\n{c.Passage}", ct)))
+        var question = new StringBuilder();
+        foreach (var (c, i) in asked.Select((c, i) => (c, i + 1)))
+        {
+            question.Append(System.Globalization.CultureInfo.InvariantCulture, $"Sentence {i}:\n{c.Sentence}\nPassage {i}:\n{c.Passage}\n\n");
+        }
+
+        var verdicts = new Dictionary<int, string>();
+        foreach (var line in (await AskAsync(SupportInstructions, question.ToString(), ct)).ReplaceLineEndings("\n").Split('\n'))
+        {
+            var parts = line.Split((char[])[':', '：'], 2);
+            if (parts.Length == 2 && int.TryParse(parts[0].Trim().TrimStart('#').Replace("Sentence", string.Empty, StringComparison.OrdinalIgnoreCase).Trim(), out var n))
+            {
+                verdicts.TryAdd(n, Pick(parts[1]));
+            }
+        }
+
+        int yes = 0, partly = 0, unreadable = 0;
+        for (var i = 1; i <= asked.Count; i++)
+        {
+            switch (verdicts.GetValueOrDefault(i))
             {
                 case "yes":
                     yes++;

@@ -10,7 +10,7 @@
 #   scripts/real-api.sh compare [profile] [ids]
 #                                             the same with the previous prompts and the current ones, and a side-by-side
 #                                             report (docs/design/reply-quality.md Q10): twice the requests of eval.
-#                                             MINDWEAVE_RUN_EVAL_JUDGE=1 adds the judge's hints (about 30 more requests);
+#                                             MINDWEAVE_RUN_EVAL_JUDGE=1 adds the judge's hints (about 55 more requests);
 #                                             MINDWEAVE_RUN_EVAL_PRICES=in,out (per million tokens, here or in the profile
 #                                             file) adds the cost
 #   scripts/real-api.sh list                  show configured profiles (never the key)

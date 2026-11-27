@@ -51,8 +51,8 @@ public class BranchUiTests
         child.Composer.Text = "它最先通往哪里？";
         await child.Composer.SendCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].State == MessageState.Complete);
-        var sent = app.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
-        Assert.Equal(["火车是怎么发明的？", LongAnswer, "关于上文中的这段内容：\n> 铁路随后\n\n它最先通往哪里？"], sent.Turns.Select(t => t.Content));
+        var sent = app.Client.Requests.Last(Testing.FakeChatClient.IsAnswer);
+        Assert.Equal(["火车是怎么发明的？", LongAnswer, "关于上文中的这段内容：\n> 铁路随后\n\n它最先通往哪里？"], Testing.FakeChatClient.Dialogue(sent).Select(t => t.Content));
 
         window.UpdateLayout();
         Screenshots.Capture(window, "04-branch");

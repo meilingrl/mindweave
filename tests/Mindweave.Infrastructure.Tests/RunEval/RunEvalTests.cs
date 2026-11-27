@@ -243,11 +243,12 @@ public class RunEvalTests
         client.Reply("same");
         Assert.Equal(EvalClarity.Same, await judge.ClarityAsync("问", null, "旧", "新", Ct));
 
-        client.Reply("yes");
-        client.Reply("Partly, because");
-        var support = await judge.SupportAsync([new("甲[1]", 1, "甲"), new("乙[2]", 2, "乙丙"), new("丁[3]", 3, string.Empty)], Ct);
-        Assert.Equal(new EvalSupport(1, 1, 1, 0), support);
-        Assert.Equal(8, judge.Requests);
+        // One request for all of an answer's cited sentences; a sentence that names no source is not asked about.
+        client.Reply("1: yes\n2: Partly, because\n");
+        var support = await judge.SupportAsync([new("甲[1]", 1, "甲"), new("乙[2]", 2, "乙丙"), new("丁[3]", 3, string.Empty), new("戊[4]", 4, "戊")], Ct);
+        Assert.Equal(new EvalSupport(1, 1, 1, 1), support);
+        Assert.Equal(7, judge.Requests);
+        Assert.Contains("Sentence 3:\n戊[4]\nPassage 3:\n戊", client.Requests.Last().Turns[1].Content, StringComparison.Ordinal);
 
         // The swapped question shows the second answer first, and the passage of a branch.
         var asked = client.Requests.Skip(2).Take(2).Select(r => r.Turns[1].Content).ToList();
