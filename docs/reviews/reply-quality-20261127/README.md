@@ -9,6 +9,8 @@ budget was USD 1 (2026-11-27), capped in the run at USD 0.90.
 | --- | --- |
 | [deepseek-flash.md](deepseek-flash.md) | The side-by-side report: totals, one row per scenario, each scenario's checks and both answers |
 | [deepseek-flash.json](deepseek-flash.json) | The same run's numbers |
+| [tight-context-digest-fix.md](tight-context-digest-fix.md) | The check of the digest fix: tight-context alone, current prompts |
+| [tight-context-digest-fix.json](tight-context-digest-fix.json) | Its numbers |
 
 ## Cost
 
@@ -34,3 +36,12 @@ bound): previous 0.061, current 0.078, judge 0.051, **about USD 0.19 in all**. 1
   cited sentences as fully supported in either edition (previous 7 / 28, current 4 / 38, most "partly"); read it as weak.
 
 Whether the answers read better is the owner's reading of the report.
+
+## The digest fix, checked (2026-11-27)
+
+The digest fix (0dbef0b: 16,384 output tokens, or all but 4,000 tokens of input in a small window, and one more request
+after a cut-off) was checked with `scripts/real-api.sh eval default tight-context` at a85ee43, on the owner's word, with a cap
+of USD 0.05 counted per request. **tight-context completed with 4 / 4 checks**: the answer names 邓远山 from the attachment and
+玉衡-7 from the web, with 2 valid citations. 8 requests in all (3 for the answer), 32,796 input and 13,382 output tokens,
+**about USD 0.026** at the peak price, 90 seconds. The report does not show whether a digest request needed the second try.
+
