@@ -33,6 +33,16 @@ public interface IWorkbenchNavigator : IMenuNavigator, IContentNavigator
     /// the page that was shown (a conversation deleted with its parent's branch lands on that parent).
     /// </summary>
     void Forget(Func<ContentRoute, bool> match, Func<ContentRoute, ContentRoute?> fallbackFor);
+
+    /// <summary>Opens 设置 scrolled to <paramref name="section"/>: a failure's link to the setting that fixes it (D2 §2.1).</summary>
+    void OpenSettings(SettingsSection section);
+}
+
+/// <summary>A part of 设置 that a link can open directly.</summary>
+public enum SettingsSection
+{
+    ModelConnection,
+    WebSearch,
 }
 
 /// <summary>Content level: detail pages pushed within the current section, and back.</summary>

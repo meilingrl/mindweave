@@ -175,9 +175,10 @@ public static partial class UiText
         "Found " + Plural(count, "model", "models") + ".",
         string.Format(CultureInfo.CurrentCulture, "找到 {0} 个模型。", count));
 
-    public static string TestFailed(GenerationErrorKind? kind, string? detail) => T(
-        $"Connection failed: {(kind.HasValue ? ErrorKind(kind.Value) : "unknown error")}{(string.IsNullOrWhiteSpace(detail) ? string.Empty : $" ({detail})")}",
-        $"连接失败：{(kind is { } k ? ErrorKind(k) : "未知错误")}{(string.IsNullOrWhiteSpace(detail) ? string.Empty : $"（{detail}）")}");
+    /// <summary>The failure block's first line for a failed test or model list (D2 §2.1); the service's text is in its details.</summary>
+    public static string ConnectionFailed(GenerationErrorKind? kind) => T(
+        $"Connection failed: {(kind.HasValue ? ErrorKind(kind.Value) : "unknown error")}",
+        $"连接失败：{(kind is { } k ? ErrorKind(k) : "未知错误")}");
 
     public static string SettingsProblem(ModelSettingsProblem problem) => problem switch
     {

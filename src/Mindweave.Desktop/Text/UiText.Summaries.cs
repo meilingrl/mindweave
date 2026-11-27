@@ -93,9 +93,10 @@ public static partial class UiText
         {
             GenerationTaskState.Interrupted => T("The last summary was interrupted by quitting or restarting; nothing was saved.", "上次的总结在退出或重启时中断，没有保存任何内容。"),
             GenerationTaskState.Stopped or Application.Storage.GenerationTaskState.Cancelled => T("The last summary was stopped; nothing was saved.", "上次的总结已停止，没有保存任何内容。"),
+            // The service's own text is in the block's details (D2 §2.1).
             _ => T(
-                "The last summary failed and nothing was saved: " + (status.Error is { } englishKind ? ErrorKind(englishKind) : "reason unknown") + (status.Detail is { Length: > 0 } englishDetail ? " (" + englishDetail + ")" : string.Empty),
-                "上次的总结失败，没有保存任何内容：" + (status.Error is { } kind ? ErrorKind(kind) : "原因未知") + (status.Detail is { Length: > 0 } detail ? "（" + detail + "）" : string.Empty)),
+                "The last summary failed and nothing was saved: " + (status.Error is { } englishKind ? ErrorKind(englishKind) : "reason unknown"),
+                "上次的总结失败，没有保存任何内容：" + (status.Error is { } kind ? ErrorKind(kind) : "原因未知")),
         };
     }
 

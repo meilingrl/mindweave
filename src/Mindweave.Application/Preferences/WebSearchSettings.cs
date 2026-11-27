@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Mindweave.Application.Credentials;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Tools;
@@ -10,7 +12,11 @@ namespace Mindweave.Application.Preferences;
 public sealed record WebSearchState(string ProviderId, string ProviderName, bool HasKey, WebSearchMode DefaultMode);
 
 /// <summary>The outcome of 测试: usable, or why not (in words, in both languages).</summary>
-public sealed record WebSearchTestResult(bool Succeeded, BilingualText? Problem, SearchFailureKind? Kind = null);
+public sealed record WebSearchTestResult(bool Succeeded, BilingualText? Problem, SearchFailureKind? Kind = null)
+{
+    /// <summary>When the test ran and how long it took (D2 §2.1); the reason is <see cref="Problem"/>.</summary>
+    public FailureDetails? Details { get; init; }
+}
 
 /// <summary>
 /// 设置 › 工具 › 网络搜索 (requirements §10.4.5, decision W14): the search service, its key and the default of the switch beside
@@ -47,7 +53,7 @@ public interface IWebSearchSettings
     event EventHandler? Changed;
 }
 
-public sealed class WebSearchSettingsService : IWebSearchSettings
+public sealed partial class WebSearchSettingsService : IWebSearchSettings
 {
     public const string ProviderKey = "websearch.provider";
     public const string CredentialKey = "websearch.credential";
@@ -59,10 +65,22 @@ public sealed class WebSearchSettingsService : IWebSearchSettings
     private readonly IPreferenceStore _store;
     private readonly ICredentialStore _credentials;
     private readonly IReadOnlyList<ISearchProvider> _providers;
+    private readonly IClock _clock;
+    private readonly KnownSecrets _secrets;
+    private readonly ILogger<WebSearchSettingsService> _logger;
 
-    public WebSearchSettingsService(IPreferenceStore store, ICredentialStore credentials, IEnumerable<ISearchProvider> providers)
+    public WebSearchSettingsService(
+        IPreferenceStore store,
+        ICredentialStore credentials,
+        IEnumerable<ISearchProvider> providers,
+        IClock clock,
+        KnownSecrets secrets,
+        ILogger<WebSearchSettingsService> logger)
     {
         ArgumentNullException.ThrowIfNull(providers);
+        _clock = clock;
+        _secrets = secrets;
+        _logger = logger;
         _store = store;
         _credentials = credentials;
         _providers = [.. providers];
@@ -128,6 +146,21 @@ public sealed class WebSearchSettingsService : IWebSearchSettings
 
     public async Task<WebSearchTestResult> TestAsync(string? key, CancellationToken cancellationToken)
     {
+        var started = _clock.UtcNow;
+        var result = await TestCoreAsync(key, cancellationToken).ConfigureAwait(false);
+        var outcome = result.Succeeded ? "succeeded" : $"failed ({result.Kind?.ToString() ?? "key store"})";
+        var took = (long)(_clock.UtcNow - started).TotalMilliseconds;
+        LogTested(_logger, Provider.Id, outcome, took); // Low finding observability-8: a test leaves a trace.
+        return result.Succeeded
+            ? result
+            : result with { Details = new FailureDetails(started, null, null, null, _clock.UtcNow - started, null) };
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Web search test with {Provider}: {Outcome}, {Milliseconds} ms")]
+    private static partial void LogTested(ILogger logger, string provider, string outcome, long milliseconds);
+
+    private async Task<WebSearchTestResult> TestCoreAsync(string? key, CancellationToken cancellationToken)
+    {
         string? secret;
         try
         {
@@ -142,6 +175,8 @@ public sealed class WebSearchSettingsService : IWebSearchSettings
         {
             return new WebSearchTestResult(false, new BilingualText("No key has been entered yet.", "还没有填写密钥。"), SearchFailureKind.MissingKey);
         }
+
+        _secrets.Add(secret); // A typed key never passes the key store; the log scrubs it all the same (D2).
 
         try
         {

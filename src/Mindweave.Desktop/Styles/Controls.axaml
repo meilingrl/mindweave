@@ -186,6 +186,22 @@
     <Setter Property="Foreground" Value="{DynamicResource NoticeErrorIcon}" />
   </Style>
 
+  <!-- The failure block (D2 §2.1): its details toggle turns its chevron; the details are a quiet caption. -->
+  <Style Selector="PathIcon.failure-chevron">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Opacity" Value="0.7" />
+    <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+  </Style>
+  <Style Selector="PathIcon.failure-chevron.open">
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+  <Style Selector="SelectableTextBlock.failure-details">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="LineHeight" Value="18" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+
   <!-- Badges: small rounded tags (未读 accent, 已读 neutral, 候选 warning …). -->
   <Style Selector="Border.badge">
     <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />

@@ -89,6 +89,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>设置 › 工具 › 网络搜索.</summary>
     public Application.Preferences.IWebSearchSettings WebSearch => _services.GetRequiredService<Application.Preferences.IWebSearchSettings>();
 
+    /// <summary>An answer's or a task's last failed request (D2 §2.1).</summary>
+    public Application.Diagnostics.IFailureDetailsSource Failures => _services.GetRequiredService<Application.Diagnostics.IFailureDetailsSource>();
+
+    /// <summary>The keys the log scrubs (D2).</summary>
+    public Application.Diagnostics.KnownSecrets Secrets => _services.GetRequiredService<Application.Diagnostics.KnownSecrets>();
+
     /// <summary>The client the coordinator uses: the fake unless a real one was supplied.</summary>
     public IChatClient ActiveClient { get; }
 

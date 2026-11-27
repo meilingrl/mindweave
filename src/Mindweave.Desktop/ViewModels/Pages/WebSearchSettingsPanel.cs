@@ -70,6 +70,13 @@ public sealed partial class WebSearchSettingsPanel : ViewModelBase, Navigation.I
     [ObservableProperty]
     public partial bool StatusIsError { get; private set; }
 
+    /// <summary>A failed test, as the failure block (D2 §2.1); in place of <see cref="Status"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFailure))]
+    public partial FailureViewModel? Failure { get; private set; }
+
+    public bool HasFailure => Failure is not null;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TestCommand))]
     public partial bool IsTesting { get; private set; }
@@ -100,11 +107,20 @@ public sealed partial class WebSearchSettingsPanel : ViewModelBase, Navigation.I
     private async Task TestAsync()
     {
         IsTesting = true;
+        Failure = null;
         (Status, StatusIsError) = (UiText.WebSearchTesting, false);
         try
         {
             var result = await _settings.TestAsync(string.IsNullOrWhiteSpace(NewKey) ? null : NewKey, CancellationToken.None);
-            (Status, StatusIsError) = result.Succeeded ? (UiText.WebSearchTestOk, false) : (result.Problem?.ToString(), true);
+            if (result.Succeeded)
+            {
+                (Status, StatusIsError) = (UiText.WebSearchTestOk, false);
+            }
+            else
+            {
+                (Status, StatusIsError) = (null, true);
+                Failure = new FailureViewModel(result.Problem?.ToString() ?? UiText.WebSearchTestFailed, UiText.SearchFailureAdvice(result.Kind), details: result.Details);
+            }
         }
         finally
         {

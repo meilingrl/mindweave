@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:c="using:Mindweave.Desktop.Views.Conversations"
+             x:Class="Mindweave.Desktop.Views.FailureBlock"
+             x:DataType="vm:FailureViewModel">
+  <!-- The one failure block (D2 §2.1): what failed, what to do with a link to the fix, then details that can be selected and
+       copied. Placed inside each page's own error notice, so it takes that notice's colours. -->
+  <StackPanel Classes="failure" Spacing="3">
+    <SelectableTextBlock Name="FailureHeadline" Text="{Binding Headline}" TextWrapping="Wrap" AutomationProperties.Name="{Binding Headline}" />
+    <TextBlock Name="FailureAdvice" Classes="caption" Text="{Binding Advice}" TextWrapping="Wrap" IsVisible="{Binding HasAdvice}" />
+    <WrapPanel Orientation="Horizontal" Margin="-8,0,0,0">
+      <Button Name="FailureFix" Classes="quiet small" Content="{Binding FixLabel}" Command="{Binding FixCommand}" IsVisible="{Binding HasFix}" />
+      <Button Name="FailureDetailsToggle" Classes="quiet small failure-toggle" Command="{Binding ToggleDetailsCommand}"
+              AutomationProperties.Name="{x:Static t:UiText.FailureDetails}">
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <TextBlock Text="{x:Static t:UiText.FailureDetails}" VerticalAlignment="Center" />
+          <PathIcon Data="{StaticResource IconChevronDown}" Classes="failure-chevron" Classes.open="{Binding IsOpen}" />
+        </StackPanel>
+      </Button>
+    </WrapPanel>
+    <StackPanel Name="FailureDetailsPanel" Spacing="4" IsVisible="{Binding IsOpen}" Margin="0,0,0,2">
+      <TextBlock Classes="caption" Text="{x:Static t:UiText.FailureLoading}" IsVisible="{Binding IsLoading}" />
+      <TextBlock Name="FailureNoRecord" Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.FailureNoRecord}" IsVisible="{Binding ShowsNoRecord}" />
+      <SelectableTextBlock Name="FailureDetailsText" Classes="caption failure-details" Text="{Binding DetailsText}" TextWrapping="Wrap"
+                           IsVisible="{Binding ShowsLines}" AutomationProperties.Name="{Binding DetailsText}" />
+      <c:CopyButton Name="CopyFailureDetails" Classes="quiet small" HorizontalAlignment="Left" Margin="-8,0,0,0"
+                    Label="{x:Static t:UiText.CopyFailureDetails}" Text="{Binding CopyText}" IsVisible="{Binding !IsLoading}" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

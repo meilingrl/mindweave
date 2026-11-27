@@ -94,10 +94,10 @@ public class ConversationPolishTests
         Assert.Contains("error", notice.Classes);
         var retry = Find<Button>(notice, "ErrorRetryButton");
         Assert.True(retry.IsEffectivelyVisible);
-        Assert.Equal(page.Messages[1].StateLabel, Find<TextBlock>(notice, "ErrorText").Text);
+        Assert.Equal(page.Messages[1].StateLabel, Find<TextBlock>(notice, "FailureHeadline").Text);
 
-        // Together: the retry starts right after the error text, inside the same notice, not at the far edge of the page.
-        var text = Find<TextBlock>(notice, "ErrorText");
+        // Together: the retry starts right after the failure block (D2 §2.1), inside the same notice, not at the far edge of the page.
+        var text = Find<Control>(notice, "AnswerFailure");
         var textRight = text.TranslatePoint(new Point(text.DesiredSize.Width, 0), notice)!.Value.X;
         var retryLeft = retry.TranslatePoint(default, notice)!.Value.X;
         Assert.InRange(retryLeft - textRight, 0, 40);

@@ -765,7 +765,10 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
         if (status is >= 300 and < 400)
         {
-            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"HTTP {status}: redirects are not followed; check the service address.", httpStatus: status);
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"HTTP {status}: redirects are not followed; check the service address.", httpStatus: status)
+            {
+                ProviderRequestId = ProviderRequestId(response),
+            };
         }
 
         var (text, _) = await ReadAtMostAsync(response.Content, MaxErrorBodyBytes, cancellationToken).ConfigureAwait(false);
@@ -791,7 +794,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         var wait = response.Headers.RetryAfter is { } retry
             ? retry.Delta ?? (retry.Date is { } date ? date - DateTimeOffset.UtcNow : null)
             : null;
-        throw new ChatClientException(kind, detail, httpStatus: status) { RetryAfter = wait is { } w && w > TimeSpan.Zero ? w : null };
+        throw new ChatClientException(kind, detail, httpStatus: status)
+        {
+            RetryAfter = wait is { } w && w > TimeSpan.Zero ? w : null,
+            ProviderRequestId = ProviderRequestId(response),
+        };
     }
 
     /// <summary>The message of an error node: OpenAI's <c>{"message": …}</c> object, or whatever else a relay sent, as text.</summary>
@@ -808,7 +815,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
     /// <summary>Every failure leaving this client is scrubbed of the key it was called with (services echo keys).</summary>
     private static ChatClientException Redacted(ChatClientException ex, string apiKey) =>
-        new(ex.Kind, ScrubbedAndShort(ex.Message, apiKey), ex.InnerException, ex.HttpStatus) { RetryAfter = ex.RetryAfter };
+        new(ex.Kind, ScrubbedAndShort(ex.Message, apiKey), ex.InnerException, ex.HttpStatus) { RetryAfter = ex.RetryAfter, ProviderRequestId = ex.ProviderRequestId };
 
     private static string? ProviderRequestId(HttpResponseMessage response) =>
         response.Headers.TryGetValues("x-request-id", out var values) || response.Headers.TryGetValues("request-id", out values)

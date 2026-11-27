@@ -86,6 +86,22 @@ public sealed partial class StorageDetailsViewModel : PageViewModel, IDisposable
     [RelayCommand]
     private void OpenDataFolder() => _shell.OpenFolder(Environment.DataDirectory);
 
+    /// <summary>D2: the log is what a report of a problem needs first; the folder is made if nothing was logged yet.</summary>
+    [RelayCommand]
+    private void OpenLogFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(Environment.LogDirectory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DesktopLog.Swallowed(ex); // The system's own message about a missing folder says enough.
+        }
+
+        _shell.OpenFolder(Environment.LogDirectory);
+    }
+
     [RelayCommand]
     private void Restore(BackupRowViewModel row)
     {
