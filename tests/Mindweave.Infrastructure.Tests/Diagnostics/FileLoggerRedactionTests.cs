@@ -19,7 +19,7 @@ public sealed class FileLoggerRedactionTests : IDisposable
     [Fact]
     public void Keys_in_messages_and_exceptions_never_reach_the_file()
     {
-        using (var provider = new FileLoggerProvider(_directory, TimeProvider.System))
+        using (var provider = new FileLoggerProvider(_directory, TimeProvider.System, new Mindweave.Application.Diagnostics.KnownSecrets()))
         {
 #pragma warning disable CA1848, CA2254 // The point is an arbitrary, unstructured message.
             provider.CreateLogger("test").LogWarning(new InvalidOperationException("echo sk-live-AbCdEf123456"), "header Bearer abcdefgh12345678");
@@ -47,7 +47,7 @@ public sealed class FileLoggerRedactionTests : IDisposable
         File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
         try
         {
-            using var provider = new FileLoggerProvider(folder, TimeProvider.System);
+            using var provider = new FileLoggerProvider(folder, TimeProvider.System, new Mindweave.Application.Diagnostics.KnownSecrets());
 #pragma warning disable CA1848 // A plain call in a test of the logger itself.
             provider.CreateLogger("test").LogWarning("nothing may be thrown");
 #pragma warning restore CA1848

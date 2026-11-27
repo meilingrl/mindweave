@@ -73,6 +73,7 @@ public static class InfrastructureServices
         services.AddSingleton<Application.ManualBackup.IManualBackupReader, ManualBackup.ManualBackupReader>();
         services.AddSingleton<Application.ManualBackup.IManualBackupImportStore, SqliteManualBackupImportStore>();
         services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
+        services.TryAddSingleton<KnownSecrets>(); // The composition gives its own to the file log first.
         services.TryAddSingleton(new ChatClientOptions());
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(
             new HttpClient(ChatCompletionsClient.CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan },
@@ -87,6 +88,9 @@ public static class InfrastructureServices
 
         // Third-party tools (phase 4, architecture §15.14): the MCP library is used only behind this.
         services.TryAddSingleton<Application.Tools.Mcp.IMcpConnector>(_ => new Tools.Mcp.SdkMcpConnector(paths));
+
+        // Last: whichever key store is registered (a test's own included), its keys reach the log scrub.
+        CredentialStores.RecordKeys(services);
         return services;
     }
 }

@@ -73,6 +73,11 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
     private int _outstanding;
     private StorageFailureKind _lastKind = StorageFailureKind.IoError;
 
+    // The log of one pause (low finding observability-6): its first failure in full, then only counts, in one line when it ends.
+    private DateTimeOffset _pausedAt;
+    private int _laterFailures;
+    private int _failedChecks;
+
     public StorageHealth(IStorageProbe probe, StorageHealthOptions options, ILogger<StorageHealth> logger)
     {
         _probe = probe;
@@ -132,17 +137,15 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
     public void Report(StorageWriteException failure)
     {
         ArgumentNullException.ThrowIfNull(failure);
-        LogFailure(_logger, failure);
-        Block(failure.Kind, keep: false);
+        Block(failure, keep: false);
     }
 
     /// <summary>A core write failed and its content is kept to be saved later; recovery waits for it.</summary>
     public StorageObligation Retain(StorageWriteException failure)
     {
         ArgumentNullException.ThrowIfNull(failure);
-        LogFailure(_logger, failure);
         var obligation = new StorageObligation(this);
-        Block(failure.Kind, keep: true);
+        Block(failure, keep: true);
         return obligation;
     }
 
@@ -197,6 +200,11 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
         catch (OperationCanceledException)
         {
         }
+
+        if (!already && TakePauseCounts() is { } counts)
+        {
+            LogStillPaused(_logger, counts.Seconds, counts.LaterFailures, counts.FailedChecks);
+        }
     }
 
     /// <summary>Stops the loop (see <see cref="StopAsync"/>); touches no storage.</summary>
@@ -223,7 +231,7 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
         }
     }
 
-    private void Block(StorageFailureKind kind, bool keep)
+    private void Block(StorageWriteException failure, bool keep)
     {
         bool changed;
         lock (_lock)
@@ -235,15 +243,42 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
                 _outstanding++;
             }
 
-            _lastKind = kind;
+            _lastKind = failure.Kind;
             changed = !_blocked;
             _blocked = true;
+            if (changed)
+            {
+                _pausedAt = DateTimeOffset.UtcNow;
+                _laterFailures = 0;
+                _failedChecks = 0;
+            }
+            else
+            {
+                _laterFailures++;
+            }
+
             EnsureLoop();
         }
 
         if (changed)
         {
+            // One line per pause (low finding observability-6); the failures after it are counted in the line that ends it.
+            LogFailure(_logger, failure);
             RaiseChanged();
+        }
+    }
+
+    /// <summary>How long the pause has lasted and what failed during it, once; null when storage is not paused.</summary>
+    private (long Seconds, int LaterFailures, int FailedChecks)? TakePauseCounts()
+    {
+        lock (_lock)
+        {
+            if (!_blocked)
+            {
+                return null;
+            }
+
+            return ((long)(DateTimeOffset.UtcNow - _pausedAt).TotalSeconds, _laterFailures, _failedChecks);
         }
     }
 
@@ -321,26 +356,33 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
                 return;
             }
 #pragma warning disable CA1031 // Still failing: stay blocked and try again after the interval.
-            catch (Exception ex)
+            catch (Exception)
 #pragma warning restore CA1031
             {
-                LogProbeFailed(_logger, ex);
+                // Counted, not logged: every interval would write the same exception again (low finding observability-6).
+                lock (_lock)
+                {
+                    _failedChecks++;
+                }
+
                 continue;
             }
 
             bool cleared;
+            (long Seconds, int LaterFailures, int FailedChecks) counts = default;
             lock (_lock)
             {
                 cleared = !_stopped && _epoch == epoch && _outstanding == 0 && _blocked;
                 if (cleared)
                 {
                     _blocked = false;
+                    counts = ((long)(DateTimeOffset.UtcNow - _pausedAt).TotalSeconds, _laterFailures, _failedChecks);
                 }
             }
 
             if (cleared)
             {
-                LogRecovered(_logger);
+                LogRecovered(_logger, counts.Seconds, counts.LaterFailures, counts.FailedChecks);
                 RaiseChanged();
             }
         }
@@ -375,12 +417,12 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
     [LoggerMessage(Level = LogLevel.Error, Message = "Core write failed; new work is paused until storage recovers")]
     private static partial void LogFailure(ILogger logger, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Storage still refuses writes; new work stays paused")]
-    private static partial void LogProbeFailed(ILogger logger, Exception exception);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Closing while storage is still paused, after {Seconds} s: {LaterFailures} more failed writes, {FailedChecks} failed checks")]
+    private static partial void LogStillPaused(ILogger logger, long seconds, int laterFailures, int failedChecks);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Retrying kept writes failed unexpectedly")]
     private static partial void LogRetryFailed(ILogger logger, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Storage takes writes again; new work resumes")]
-    private static partial void LogRecovered(ILogger logger);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Storage takes writes again after {Seconds} s; new work resumes. During the pause: {LaterFailures} more failed writes, {FailedChecks} failed checks")]
+    private static partial void LogRecovered(ILogger logger, long seconds, int laterFailures, int failedChecks);
 }

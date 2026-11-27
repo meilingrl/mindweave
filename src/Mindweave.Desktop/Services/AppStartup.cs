@@ -32,6 +32,7 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
     private readonly LanguageSwitch _language;
     private readonly SummaryNetwork.SummaryNetworkDetails _summaryNetworkDetails;
     private readonly TextWidth _textWidth;
+    private readonly Application.AppEnvironment _environment;
     private readonly ILogger<AppStartup> _logger;
 
     public AppStartup(
@@ -54,8 +55,10 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
         LanguageSwitch language,
         SummaryNetwork.SummaryNetworkDetails summaryNetworkDetails,
         TextWidth textWidth,
+        Application.AppEnvironment environment,
         ILogger<AppStartup> logger)
     {
+        _environment = environment;
         _language = language;
         _summaryNetworkDetails = summaryNetworkDetails;
         _textWidth = textWidth;
@@ -160,6 +163,8 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
         // Every owner of kept writes was composed with this class (through the exit coordinator and the shell's pages),
         // so retry registration ends here, before any work is admitted.
         _health.Start();
+        var installation = Application.Diagnostics.Installation.Describe(_environment);
+        LogStarting(_logger, installation);
         _root.Show(new StartupViewModel());
         await GuardAsync(async () =>
         {
@@ -202,6 +207,10 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
             _root.Show(new RecoveryViewModel(result, backups, this, _system));
         }
     }
+
+    /// <summary>The log's start line (low finding observability-5): which build, channel, system and schema wrote what follows.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Starting {Installation}")]
+    private static partial void LogStarting(ILogger logger, string installation);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Start-up failed; showing the recovery page")]
     private static partial void LogStartFailed(ILogger logger, Exception exception);
