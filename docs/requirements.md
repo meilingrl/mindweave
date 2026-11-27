@@ -274,8 +274,8 @@ Import and export of whole conversations, with messages, branch sources, summari
 - Content that was saved successfully can be read after a restart; when the AI service is unavailable, existing conversations and summaries can still be read.
 - The runtime back history of each workspace and main area is kept and can be restored after switching. A restart restores only the last valid page, reading and drafts, not the full back history.
 - The same database has only one instance that writes and schedules; a repeated launch preferably returns to the existing window. After an abnormal exit, the app can be reopened safely.
-- When a core save fails, the input and in-memory state are kept and can be read and copied; new AI requests and actions that depend on a commit are paused. If quitting fails, the user can retry or go back; old tasks do not revive automatically. When only layout or page state fails, the app can degrade.
-- Before a data upgrade, a consistent backup is kept; forward migration and rollback on failure are supported. Restoring a backup is chosen explicitly by the user; it does not overwrite the original database automatically, and an empty database does not pose as a successful restore. A forced termination guarantees only committed checkpoints.
+- When a core save fails, the input and in-memory state are kept and can be read and copied; new AI requests and actions that depend on a commit are paused. If quitting fails, the user can retry or go back; after a retry has failed, the user can also quit without saving, and is first told what will be lost (v0.31). Old tasks do not revive automatically. When only layout or page state fails, the app can degrade.
+- Before a data upgrade, a consistent backup is kept, and the user is told that an upgrade is running and, afterwards, which version the data has and where the backup is (v0.31); forward migration and rollback on failure are supported. Restoring a backup is chosen explicitly by the user; it does not overwrite the original database automatically, and an empty database does not pose as a successful restore. A forced termination guarantees only committed checkpoints.
 
 ### 9.4 API and extension boundaries
 
@@ -616,6 +616,8 @@ Built after the first release, by the user's decisions of 2026-11-10 to 2026-11-
 - **Usage statistics.** A page states facts only: tokens as the services reported them, requests, activity, and tool calls, for all workspaces or the current one, by day or by month, by model and by purpose. Requests whose usage was not reported are counted apart and not estimated. The user can enter prices to see an approximate cost. It does not judge learning (§5.4).
 - **Restoring a backup inside the app.** The user can restore a backup from the list of backups, or delete backups. Restoring brings back all workspaces, not one. Before it, running work is stopped (the user is asked first), drafts are saved, and the current data is kept as a backup of its own, so the restore can be undone.
 - **Workspace name suggestions.** When a workspace is renamed, the AI can suggest names from the titles of its conversations (a conversation without one by the start of its first question), the names of its summaries and its current name. Suggestions may also be prepared in the background (on by default; it can be turned off); such a request gives way to questions, summaries, titles and names.
+- **Appearance** (v0.31). The app is light or dark, or follows the system (the default); the choice takes effect at once.
+- **Right-click menu** (v0.31). A right-click on a conversation in the sidebar opens a menu of the actions for it.
 
 ### 10.7 Sharing, import and the manual backup (v0.29)
 
@@ -704,6 +706,43 @@ Before the file is saved, the dialog lists what will leave: the numbers of conve
 - The app reads only the data in a shared file and never runs its page.
 
 **Not included.** Hosted links, accounts and a community; sync between devices (§10.1), including watching a cloud folder; attachment contents in a share; editing or hiding single sentences while sharing; password protection of the file; an exporter to PDF of its own; importing the exports of other assistants; a list of past shares.
+
+### 10.8 Failures, diagnostics, keys and erasing (v0.31)
+
+The user's decisions of 2026-11-27 (design in [Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md)). The app sends nothing about itself anywhere; everything here stays on the user's machine unless the user moves a file.
+
+**A failed request.**
+
+1. A failure looks the same wherever it is shown: an answer, a summary, a tool step, the connection test, the web search test, an MCP server. It states what failed and the kind of failure, then says in one sentence what to do, with a link to the setting that fixes it when there is one.
+2. Details can be opened: the time, the model, the status the service returned, the service's request number, the duration and the service's own text. All of it can be selected, and one action copies it together with the app version and the system. It holds no conversation text and no key.
+3. A request the user did not start (an automatic title or name) fails silently on the page.
+4. Settings has a page “诊断” (Diagnostics). It lists recent requests with time, purpose, model, result and duration, failures first; a row opens the same details. The list holds no conversation content.
+
+**Diagnostic package.**
+
+1. From “诊断” the user can save a diagnostic package: one file of plain files that can be read before it is sent. The app does not send it.
+2. It holds a summary of the installation (versions, system, language, sizes and counts, the list of backups), the request records of the last 14 days, the settings that are not secret, and the log.
+3. It never holds conversation text, questions, answers, summaries, titles, workspace names, attachment names or contents, saved web pages, keys, or an MCP server's command, arguments, environment or headers.
+4. Before the file is saved, the dialog lists what will leave. Model names with service hosts, and the log, can each be left out.
+5. The package can also be saved when the data cannot be opened; it then holds the summary and the log.
+6. The log folder can be opened from the same page.
+
+**Keys.**
+
+1. The key of the model connection can be removed, as the web search key can. When requests are using it, the user is asked first.
+2. A key that nothing uses any more does not stay in the system's key store: a replaced key is removed once no unfinished request uses it, and at start-up the app removes the items of its own that nothing refers to. After restoring an older backup, a key may therefore have to be entered again.
+3. “诊断” can remove all keys of Mindweave from this computer, for before the app is deleted. It asks once.
+4. When the system's key store does not answer, the request fails with that reason after a wait and does not hold up other requests.
+
+**Erasing deleted content for good.**
+
+1. Deleting stays as §8.2 states it: a backup may still hold the content. Erasing is a separate action in 设置 › 数据与存储 (Settings › Data and storage).
+2. It makes every copy the app keeps match the current data: the database file is rewritten, one fresh backup is made, and every backup or replaced database that still holds deleted content is deleted, with the attachment copies beside it.
+3. Before it starts, it names those backups, says it cannot be undone, and says what it does not reach: copies made by the system or by the user outside the app.
+4. It works on all deleted content at once, not on one chosen conversation.
+5. The confirmation of a deletion that makes a backup says that the backup keeps the content and where it can be erased.
+
+**Content the app cannot draw.** A message whose formula or formatting cannot be drawn is shown as plain text with a note; it does not stop the app.
 
 ## 11. First-release acceptance scenarios
 
@@ -934,5 +973,6 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.28 · 2026-11-24:** Following the user's decisions of 2026-11-24: the tool that searches saved summaries is called “检索总结” (search summaries) in the interface (§10.4.4, §10.4.5); “检索附件” is offered during a run once a result is not sent whole (§10.4.4); a page that is only a check that the visitor is not a robot counts as a failed fetch (§10.4.5). Does not change the first-release scope and acceptance.
 - **v0.29 · 2026-11-25:** Following the user's decisions of 2026-11-24 and 2026-11-25 (D-039), added §10.7 sharing, import and device copies: a share is a set of conversations from one workspace saved as one HTML file; it carries only the structure unless the user chooses the content; what never leaves; the page a reader sees; a share is a snapshot and no record is kept; import only keeps or adds and never copies what is already there; a device copy carries a whole workspace between the user's devices and offers deletions without making them. §4 gains the concepts share and device copy; §8.3 and §10.1 point to §10.7; §11 adds its acceptance. Does not change the first-release scope and acceptance.
 - **v0.30 · 2026-11-25:** Following the user's decisions of 2026-11-25 on import (D-041; [import note](design/sharing-import.md)), §10.7: a received conversation is read-only, and the user's question at its end starts a conversation of their own that continues from it; a shared file never changes a title, the current summary or the archived state; a structure-only share arrives as empty conversations that a later share with content fills; stand-ins for what a share left out; a URL in received text needs approval; two continuations of one conversation arise only between the user's own devices and move to device copies. §11's acceptance follows. Does not change the first-release scope and acceptance.
+- **v0.31 · 2026-11-27:** Following the user's decisions of 2026-11-27 ([Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md)), added §10.8: what a failed request shows, the diagnostics page and package, removing keys and keys left behind, erasing deleted content for good, and content that cannot be drawn. §9.3: quitting without saving after a failed retry, and telling the user about a data upgrade. §10.6: appearance and the right-click menu, which were built and written down nowhere. Does not change the first-release scope and acceptance; no migration.
 - **v0.32 · 2026-11-26:** Following the user's decisions of 2026-11-26 on device copies (D-043; [device copies note](design/sharing-backup.md)), §10.7: a device copy is a backup, not a sync. It holds all workspaces by default; importing it only adds, and what differs keeps this device's value; questions asked on both sides in one conversation join into one line by time; deletions do not travel, and what was deleted comes back from a copy. This replaces v0.29 and v0.30's "the newer value wins", the offer of deletions, and the separate conversation for another continuation. §4 and §11 follow. Does not change the first-release scope and acceptance.
 - **v0.33 · 2026-11-27:** Following the user's clarification of 2026-11-27 (D-044): sharing and backup are one operation, export to and import from a file, differing in scope and in what import may do; "device copy" is now called the manual backup (§4, §10.7, §11); it is told apart from the app's automatic backups, which live inside the app's data, and from sync, which is networked and needs a server; §10.1 states sync between devices as a later vision that the manual backup does not stand in for and that is not ruled out. No behavior of v0.32 changes.
