@@ -52,6 +52,8 @@ public static class ApplicationServices
         services.AddSingleton<ShareService>();
         services.AddSingleton<Application.Import.ImportService>();
         services.AddSingleton<Application.Import.IImports>(sp => sp.GetRequiredService<Application.Import.ImportService>());
+        services.AddSingleton<Application.ManualBackup.ManualBackupImportService>();
+        services.AddSingleton<Application.ManualBackup.IManualBackupImports>(sp => sp.GetRequiredService<Application.ManualBackup.ManualBackupImportService>());
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();

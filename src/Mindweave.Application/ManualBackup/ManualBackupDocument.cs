@@ -180,7 +180,7 @@ public static class ManualBackupDocument
     }
 
     /// <summary>The material a message refers to: in its blocks, and as the result of a step of its run.</summary>
-    internal static IEnumerable<ResourceId> Referred(ExchangeMessage message)
+    public static IEnumerable<ResourceId> Referred(ExchangeMessage message)
     {
         foreach (var block in message.Stored?.Blocks ?? [])
         {
