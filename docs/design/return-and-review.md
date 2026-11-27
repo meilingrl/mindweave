@@ -1,8 +1,8 @@
 # Return and review
 
-**Status:** agreed by the owner on 2026-11-26, after the discussion of 2026-11-25: the decisions R1 to R9, the writer's calls, the failure cases, the acceptance scenarios and the order of the increments. Nothing is built. The requirements and architecture text is proposed in commit `fd6c04b` of this branch (requirements v0.29, §10.7) and was confirmed by the owner on 2026-11-26, with the Chinese wording “回顾” (recap), “未解决的问题” (question left open), “自动写回顾” (the Settings switch) and “延伸” (Extend). It covers what happens between sessions of use: coming back, unresolved questions, and the summary network as the place to review. Decisions below are the owner's unless marked as the writer's call.
+**Status:** approved by the owner on 2026-11-26 (D-044), after the discussion of 2026-11-25: the decisions R1 to R9, the writer's calls, the failure cases, the acceptance scenarios and the order of the increments. Not built. The requirement and architecture text (requirements v0.33 §10.10; the glossary, entity rows and §11 of the architecture) was confirmed by the owner on 2026-11-26, with the Chinese wording “回顾” (recap), “未解决的问题” (question left open), “自动写回顾” (the Settings switch) and “延伸” (Extend). Written as a draft in `docs/ideas`; "this draft" below means this note.
 
-**Related:** [more directions](more-directions.md) (direction 6, gentle return), [evolution.md](../evolution.md) D8 ("Relation to other directions from the same discussion"), [session-network.md](../design/session-network.md), [requirements](../requirements.md) §4.2, §6.3–6.5, §7, §10.1–10.3.
+**Related:** [more directions](../ideas/more-directions.md) (direction 6, gentle return), [evolution.md](../evolution.md) D8 ("Relation to other directions from the same discussion"), [session-network.md](session-network.md), [requirements](../requirements.md) §4.2, §6.3–6.5, §7, §10.1–10.3.
 
 ## Settled before this draft
 
@@ -229,4 +229,4 @@ Writer's calls (agreed with the draft, 2026-11-26):
 4. **Extend (R7).**
 5. **A summary with branches (R8).** It depends on recaps only for explorations too large for the context.
 
-Each increment is merged on its own. Requirements and architecture text (a glossary row for the recap, §6.3, §7.1, §7.3, §9.4, §10.2, §10.3.2, §4.2) is proposed as a separate commit for the owner once this draft is agreed.
+Each increment is merged on its own. The requirements and architecture text is in requirements v0.33 (§10.10, with pointers in §4, §4.2, §6.3, §7.1, §10.2 and §10.3.2) and in the architecture's glossary, entity rows and §11.

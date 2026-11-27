@@ -273,3 +273,16 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Two rules for what is left for later.** A performance problem with an easy fix is fixed early, without waiting until users feel it. An architectural problem is never left. Four rows of the health check are therefore fixed now: performance-5, performance-9, architecture-4, architecture-5.
 - **The 15 upkeep rows are decided.** Among them: the schema version is the only gate for stored formats; "Quit without saving" after a failed retry; a broken relationship from before a migration does not stop it; no lock files before 1.0.0; performance budgets run in CI without blocking; no coverage figure.
 - The note is [diagnostics-and-upkeep.md](diagnostics-and-upkeep.md); the text is requirements v0.31 (§10.8) and architecture §17. Nothing is built.
+
+## D-044 Return and review is adopted (you, 2026-11-25 and 11-26)
+
+- **One new thing is kept: the recap.** A conversation that has rested and carries weight gets a short text written by the model: one or two key points, and at most two questions left open. Every place of return shows the same recap.
+- **When it is written is your rule.** Not each time a conversation is left: only after 36 hours of rest, for a conversation above the average weight of its workspace, and never a second time without new messages. The check is local; at most 3 recaps per check and 10 per day.
+- **Where it shows.** At the branch entry in the parent, once the branch has a recap; as up to 3 questions left open above the recommended questions in new exploration; in the network's details. Nothing opens at start.
+- **The mark is a dashed ring on the dot itself** (your choice; a line leaving the dot would look ugly).
+- **The search for what you already know also covers recaps** (with D-043).
+- **Extend** works on any dot with a summary or a recap and returns ordinary recommended nodes.
+- **A summary may cover a conversation with all its branches.** It stays that conversation's own summary node.
+- **Nothing across workspaces and no automatic categorization** (you: it is useless).
+- The note is [return-and-review.md](return-and-review.md); the text is requirements v0.33 (§10.10) and the architecture's glossary, entity rows and §11. Nothing is built; three migrations come with the increments.
+
