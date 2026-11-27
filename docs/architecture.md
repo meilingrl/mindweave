@@ -825,7 +825,7 @@ The share itself needs none. Import rebuilds `branch_source` and `branch_context
 
 ## 17. Diagnostics and erasing (after the first release)
 
-Product basis: requirements §10.8 (v0.31). Reasons, failure cases and the increments are in [Security, diagnostics and upkeep](ideas/diagnostics-and-upkeep.md).
+Product basis: requirements §10.8 (v0.31). Reasons, failure cases and the increments are in [Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md).
 
 ### 17.1 Layers
 

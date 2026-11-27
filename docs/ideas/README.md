@@ -17,9 +17,8 @@ Each file starts with its status and the date of its last discussion.
 | [More platforms](platforms.md) | Linux, Web and HarmonyOS on the current code; no mobile (owner, 2026-11-24) | First draft, 2026-11-22 |
 | [Reply quality](reply-quality.md) | What open-source projects do to make answers and summaries better, and what fits Mindweave | First draft, 2026-11-22 |
 | [More directions](more-directions.md) | Seven further directions, and the technical pieces worth publishing | First draft, 2026-11-22 |
-| [Security, diagnostics and upkeep](diagnostics-and-upkeep.md) | Evolution D2 (failed requests, a diagnostic package, keys, erasing for good) and the upkeep decisions left by the health check | Agreed 2026-11-27; not yet moved to a design note |
 
-Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9); [sharing a thinking path](../design/sharing.md) (2026-11-25, evolution D8), with its note for [import](../design/sharing-import.md).
+Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9); [sharing a thinking path](../design/sharing.md) (2026-11-25, evolution D8), with its note for [import](../design/sharing-import.md); [security, diagnostics and upkeep](../design/diagnostics-and-upkeep.md) (2026-11-27, evolution D2).
 
 ## Where these came from
 

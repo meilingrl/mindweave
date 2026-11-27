@@ -1,8 +1,8 @@
 # Security, diagnostics and upkeep
 
-**Status:** agreed with the owner on 2026-11-27, as written: the D2 design (§2) and the upkeep decisions (§3). Not built. The requirement and architecture text (requirements v0.31, architecture §17) is confirmed by the owner, 2026-11-27. Last discussed: 2026-11-27.
+**Status:** approved by the owner on 2026-11-27 (D-042), as written: the D2 design (§2) and the upkeep decisions (§3). It carries out [evolution.md](../evolution.md) D2. Not built. The requirement and architecture text (requirements v0.31, architecture §17) is confirmed by the owner, 2026-11-27. Last discussed: 2026-11-27.
 
-This draft covers evolution D2 (security and diagnostics) and the upkeep decisions left open by the health check of 2026-11-12. It does not cover sharing, import, the exchange format or device copies (the sharing draft, on its own branch), several connections and protocols, or look, colours and accessibility.
+This note covers evolution D2 (security and diagnostics) and the upkeep decisions left open by the health check of 2026-11-12. It does not cover sharing, import, the exchange format or device copies ([sharing.md](sharing.md)), several connections and protocols, or look, colours and accessibility.
 
 Already decided, not reopened here: backups made before a deletion are not cleaned up automatically (D-030); `secure_delete` stays off and only `checkpoint_fullfsync` is on (2026-11-14); git history is not rewritten (D-025); no Dependabot (2026-11-14).
 
@@ -84,7 +84,7 @@ observability-5, -6 and -8 (a start line in the log, one line per storage pause,
 The check found no defect outside the rows above. Two findings inside them are worth the owner's eye before the design, because they are about data that stays behind:
 
 - **An old model key can stay in the system's key store for good.** Retired keys are removed only when model settings are saved (`ModelSettingsService.cs:185`, the only caller of the clean-up). A key retired while a task was running stays until the next save; a key written after a backup that is later restored is never found again. Nothing lists or sweeps such items.
-- **Restoring from the "newer version" page puts the newer data out of reach.** It is renamed to `.replaced-…`, which the app can list and delete but not restore (`RecoveryViewModel.cs:54`, `SqliteBackupFiles.cs:299`). [daily-build.md](../design/daily-build.md) sends the owner down this path when going back after an upgrade.
+- **Restoring from the "newer version" page puts the newer data out of reach.** It is renamed to `.replaced-…`, which the app can list and delete but not restore (`RecoveryViewModel.cs:54`, `SqliteBackupFiles.cs:299`). [daily-build.md](daily-build.md) sends the owner down this path when going back after an upgrade.
 
 Both are handled in §2 and §3; nothing is fixed on this branch.
 
