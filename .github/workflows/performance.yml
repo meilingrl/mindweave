@@ -1,0 +1,48 @@
+name: performance
+
+# The performance budgets (scripts/perf.sh) on every push to main, at three times the budgets of the development
+# machines (PerfBudget in tests/Mindweave.Testing). It is a workflow of its own so it never blocks a merge: "CI passes on
+# main" means the ci workflow. It is there to catch a large regression early; a red run here is looked at, not a gate
+# (ci-build-9 in docs/design/diagnostics-and-upkeep.md). The gallery stays manual.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# The token can only read (low finding ci-build-8).
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  budgets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      MINDWEAVE_PERF_BUDGET_SCALE: 3
+    steps:
+      # Actions are pinned to the commit their tag named on 2026-11-14 (a tag can be moved; a commit cannot).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+      # The rendering budgets lay out Chinese text, as the answers they stand for do. The CJK fonts the ci workflow keeps
+      # in the Actions cache are used when they are there; without them the text falls back to another font and the
+      # times are less like the real ones, but the run still goes on (no mirror download here).
+      - name: CJK fonts cache
+        id: fonts-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/fonts-deb
+          key: fonts-noto-cjk-${{ runner.os }}-v1
+      - name: CJK fonts
+        if: steps.fonts-cache.outputs.cache-hit == 'true'
+        run: sudo dpkg -i ~/fonts-deb/fonts-noto-cjk_*.deb
+      # Each budget prints what it measured; a failure names the budget it went over.
+      - name: Budgets
+        run: scripts/perf.sh

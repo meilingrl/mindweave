@@ -45,6 +45,26 @@ out("  Mindweave.Desktop.Tests  Total: 1, Errors: 0, Failed: 1, Skipped: 0, Not 
 sys.exit(1)
 '''
 
+HUNG_TEST = f"{CLASS}.等待永不结束"
+
+# Stands in for the xUnit runner with one test that never ends: it reports it as the runner's -longRunning does, half
+# a line at a time, then waits for ever. The script must name it and end the process.
+HANGING_RUNNER = f'''
+import sys, time
+out = lambda text: (sys.stdout.buffer.write(text.encode("utf-8")), sys.stdout.flush())
+if "-list" in sys.argv:
+    out({CLASS!r} + "\\n")
+    sys.exit(0)
+limit = sys.argv[sys.argv.index("-longRunning") + 1] if "-longRunning" in sys.argv else None
+if limit != "300":
+    out("NO LONG RUNNING LIMIT\\n")
+    sys.exit(3)
+out("    [D::Mindweave.Desktop.Tests] [Long Running Test] '" + {HUNG_TEST!r}[:20])
+time.sleep(1.5)
+out({HUNG_TEST!r}[20:] + "', Elapsed: 00:05:02\\n")
+time.sleep(3600)
+'''
+
 # Runs test-shards.py with the fake runner in place of `dotnet DLL`.
 SHARDS_DRIVER = '''
 import importlib.util, sys
@@ -103,6 +123,19 @@ class ChineseTextTests(unittest.TestCase):
         self.assertIn("log: ", out)
         self.assertIn("test-shards: 1 shards in", out)
         self.assertIn("1 failed", out)
+
+    def test_a_hanging_test_is_named_and_its_shard_ended(self):
+        fake = self.path("fake_runner.py", HANGING_RUNNER)
+        driver = self.path("driver.py", SHARDS_DRIVER)
+        code, out, err = run(
+            [sys.executable, driver, os.path.join(SCRIPTS, "test-shards.py"), fake,
+             "run", self.path("Fake.dll"), "--shards", "1", "--hang", "300", "--results", self.path("results")],
+            self.dir.name)
+        self.assertEqual(1, code, f"a hung shard fails\n{out}\n{err}")
+        self.assertNotIn("Traceback", err)
+        self.assertNotIn("NO LONG RUNNING LIMIT", out)
+        self.assertIn(f"HUNG: {HUNG_TEST} ran longer than 300 s", out)
+        self.assertIn("FAILED", out)
 
     def test_timings_with_chinese_test_names_are_listed_whole(self):
         os.mkdir(self.path("trx"))

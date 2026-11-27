@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Mindweave.Application.Languages;
 using Mindweave.Core.Branches;
 using Mindweave.Infrastructure.Tests.Chat;
+using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Performance;
 
@@ -13,13 +14,13 @@ namespace Mindweave.Infrastructure.Tests.Performance;
 public class StoragePerformanceTests
 {
     /// <summary>Sidebar of a full workspace.</summary>
-    private static readonly TimeSpan ListBudget = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan ListBudget = PerfBudget.Ms(200);
 
     /// <summary>Opening the long conversation: every message and block.</summary>
-    private static readonly TimeSpan LoadBudget = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan LoadBudget = PerfBudget.Ms(300);
 
     /// <summary>Assembling what the deepest branch sends: every ancestor cut to its frozen range.</summary>
-    private static readonly TimeSpan ContextBudget = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan ContextBudget = PerfBudget.Ms(300);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

@@ -41,8 +41,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          # global.json accepts any .NET 10 feature band; CI uses the newest one.
-          dotnet-version: 10.0.x
+          # The SDK global.json names (one feature band, newer patches only; ci-build-7). Raising it is one line there.
+          global-json-file: global.json
       # Formulas are drawn by RaTeX with system fonts; without a CJK font a formula containing Chinese falls back
       # to its LaTeX source. Desktop macOS and Windows ship such fonts; the Ubuntu runner does not.
       # The package (61 MB) comes from the runner's Ubuntu mirror, which has stalled or failed for whole runs (health
@@ -105,16 +105,23 @@ jobs:
         run: |
           py="$(command -v python3 || command -v python)"
           "$py" -I scripts/script-checks.py
+      # A test that runs longer than 5 minutes is ended and named ("The test running when the crash occurred: …";
+      # tests-7). No dump: the name is what is needed, and a dump of the test host is hundreds of megabytes.
+      # On Windows the real Credential Manager is tested too (cross-platform-5); the test makes and deletes its own items.
       - name: Test (all but desktop)
         if: matrix.part == 'rest'
         shell: bash
+        env:
+          MINDWEAVE_CREDENTIAL_TESTS: ${{ runner.os == 'Windows' && '1' || '0' }}
         run: |
           failed=0
           for project in Core Architecture Infrastructure; do
             dotnet test "tests/Mindweave.$project.Tests" --no-build -c Release --filter "Category!=Quarantine" \
+              --blame-hang-timeout 5m --blame-hang-dump-type none \
               --logger trx --results-directory test-results || failed=1
           done
           exit $failed
+      # A test that runs longer than 5 minutes ends its shard and is named ("HUNG: …"; tests-7).
       - name: Test (desktop shard)
         if: matrix.part != 'rest'
         shell: bash
@@ -122,13 +129,13 @@ jobs:
           part="${{ matrix.part }}"
           py="$(command -v python3 || command -v python)"
           "$py" -I scripts/test-shards.py run tests/Mindweave.Desktop.Tests/bin/Release/net10.0/Mindweave.Desktop.Tests.dll \
-            --shards "$DESKTOP_SHARDS" --only "${part#desktop-}" \
+            --shards "$DESKTOP_SHARDS" --only "${part#desktop-}" --hang 300 \
             --timings tests/Mindweave.Desktop.Tests/shard-timings.json --results test-results \
             -- -trait- Category=Quarantine
       - name: Quarantined tests (do not block)
         if: always() && matrix.part == 'rest'
         continue-on-error: true
-        run: dotnet test Mindweave.slnx --no-build -c Release --filter "Category=Quarantine"
+        run: dotnet test Mindweave.slnx --no-build -c Release --filter "Category=Quarantine" --blame-hang-timeout 5m --blame-hang-dump-type none
       # Where the time went; tests over the budget become warnings, never failures (timings vary by runner).
       - name: Test timings
         if: always()
