@@ -46,6 +46,8 @@ E1 and E2 are designed in the same period as the reading position, selection anc
 
 **Key questions:** Who owns the reading position and the draft when both panes show the same conversation; in which pane the branch source opens when returning to it; the fallback layout when the window is too narrow; whether the slot layout is restored with the conversation.
 
+**Collapsing branches in the sidebar** (the user, 2026-11-27; for the next optimization round). A conversation with branches folds and unfolds like a folder in VS Code, so older, heavily branched conversations that are not archived take one row. The interaction needs careful polish, settled with the user on screenshots or a build before it is built. Questions: where the toggle sits next to the light status marks; whether a folded row shows how many branches it holds; what a new-answer mark or a failure inside a folded branch shows on its parent; keyboard and multi-select; whether opening a branch from elsewhere (the summary network, a return to the branch source, a notice) unfolds its parents; whether the folded state survives a restart. It extends the sidebar rules of requirements §6.1.
+
 ### D2 Security and diagnostics
 
 **Goal:** Prevent leaks of API keys and of the content the user sends and receives, and defend against injection attacks; provide detailed logs and error information the user can view.
