@@ -51,10 +51,13 @@ public sealed class ConversationJoinTests
         var questions = line.Where(id => all[id].Role == MessageRole.User).Select(id => all[id]).ToList();
         Assert.Equal(questions.OrderBy(q => q.At).ThenBy(q => q.Id.Value), questions);
 
-        // Within a question, the latest attempt is last, so it is the one that stands (scenario 10).
+        // Within a question, the attempt that stands is the last one of one side's own attempts (scenario 10).
         foreach (var group in line.Where(id => all[id].Role == MessageRole.Assistant).GroupBy(id => question[id]))
         {
-            Assert.Equal(group.Max(id => (all[id].At, all[id].Id.Value)), (all[group.Last()].At, all[group.Last()].Id.Value));
+            var sidesLast = new[] { a, b }
+                .Select(side => side.Where(m => m.Role == MessageRole.Assistant && question[m.Id] == group.Key).Select(m => (MessageId?)m.Id).LastOrDefault())
+                .OfType<MessageId>();
+            Assert.Contains(group.Last(), sidesLast);
         }
 
         // Importing again, either way, changes nothing and numbers nothing anew.
@@ -124,6 +127,22 @@ public sealed class ConversationJoinTests
         Assert.Equal([q0.Id, x0.Id, retryThere.Id, retryHere.Id, later.Id], joined.Messages.Select(m => m.Id));
     }
 
+    /// <summary>A retry on each side, one of them stamped by a clock that is behind: both orders still hold, on both sides (review 2026-11-27).</summary>
+    [Fact]
+    public void Retries_stamped_by_a_clock_that_is_behind_keep_both_sides_order()
+    {
+        var q = Entry(MessageRole.User, 0, 0);
+        var shared = Entry(MessageRole.Assistant, 1, 10);
+        var here = Entry(MessageRole.Assistant, 2, 50);
+        var behind = Entry(MessageRole.Assistant, 2, 5);
+
+        var onA = ConversationJoin.Join([q, shared, here], [q, shared, behind]);
+        var onB = ConversationJoin.Join([q, shared, behind], [q, shared, here]);
+
+        Assert.Equal(onA.Messages, onB.Messages);
+        Assert.Equal([q.Id, shared.Id, behind.Id, here.Id], onA.Messages.Select(m => m.Id));
+    }
+
     [Fact]
     public void Both_asking_in_an_empty_conversation_go_by_time()
     {
@@ -181,7 +200,9 @@ public sealed class ConversationJoinTests
             var same = random.Next(6) == 0;
             if (side.Count > 0 && side[^1].Role == MessageRole.Assistant && random.Next(4) == 0)
             {
-                side.Add(new LineEntry(MessageId.New(), MessageRole.Assistant, side.Count, Tick()));
+                // Sometimes stamped by a clock that is behind: each side's own order must still hold.
+                var at = Tick();
+                side.Add(new LineEntry(MessageId.New(), MessageRole.Assistant, side.Count, random.Next(5) == 0 ? at.AddSeconds(-30) : at));
             }
             else
             {

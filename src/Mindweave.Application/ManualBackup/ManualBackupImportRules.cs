@@ -39,6 +39,7 @@ public static class ManualBackupImportRules
 
             var parents = document.Conversations.ToDictionary(c => c.Id, c => c.Parent);
             var material = document.Resources.ToDictionary(r => r.Id);
+            var said = document.Conversations.ToDictionary(c => c.Id, c => (c.Content?.Messages ?? []).Select(m => m.Id).ToHashSet());
             foreach (var conversation in document.Conversations)
             {
                 var depth = 1;
@@ -53,7 +54,7 @@ public static class ManualBackupImportRules
                 if (conversation.Content is not { } content || !content.Messages.All(m => messages.Add(m.Id) && m.Stored is not null)
                     || !Numbered(content.Messages)
                     || !content.Messages.SelectMany(ManualBackupDocument.Referred).All(r => material.TryGetValue(r, out var of) && (of.Conversation is null || of.Conversation == conversation.Id))
-                    || (content.Source is { } source && (conversation.Parent is not { } from || !document.Conversations.Single(c => c.Id == from).Content!.Messages.Any(m => m.Id == source.Message)))
+                    || (content.Source is { } source && (conversation.Parent is not { } from || !said.TryGetValue(from, out var there) || !there.Contains(source.Message)))
                     || (content.History is { } history && (!nodes.Add(history.Node) || !history.Versions.All(v => versions.Add(v.Id))
                         || history.Versions.All(v => v.Id != history.Current) || history.Versions.Select(v => v.Seq).Distinct().Count() != history.Versions.Count)))
                 {
@@ -94,14 +95,15 @@ public static class ManualBackupImportRules
         foreach (var conversation in ParentsFirst(document))
         {
             var plan = stored.Conversations.TryGetValue(conversation.Id, out var held)
-                ? Compare(conversation, held, workspace, stored)
+                ? Compare(conversation, held, workspace, stored, conversation.Parent is { } up ? plans.GetValueOrDefault(up) : null)
                 : Arrive(conversation, workspace, stored, conversation.Parent is { } parent ? plans[parent] : null);
             plans[conversation.Id] = plan;
             ordered.Add(plan);
         }
 
         // A link joins two summaries; it is added where both are here after the import, in one workspace, and not yet linked.
-        var nodes = ordered.Where(p => p.Fit != ManualBackupFit.Unfit || stored.Conversations.ContainsKey(p.Conversation.Id))
+        // Only where the writing goes: an unfit conversation is passed over whole, its summary as a link's end too.
+        var nodes = ordered.Where(p => p.Fit != ManualBackupFit.Unfit)
             .Select(p => (p.Conversation.Id, Node: stored.Conversations.GetValueOrDefault(p.Conversation.Id)?.Node ?? (p.NewSummary ? p.Conversation.Content!.History!.Node : (SummaryNodeId?)null), p.Workspace))
             .Where(n => n.Node is not null)
             .ToDictionary(n => n.Id, n => (Node: n.Node!.Value, n.Workspace));
@@ -146,7 +148,7 @@ public static class ManualBackupImportRules
     }
 
     /// <summary>A conversation that is here: it keeps everything it has and gains what it lacks.</summary>
-    private static ManualBackupConversationPlan Compare(ExchangeConversation conversation, ManualBackupStoredConversation held, WorkspaceId workspace, ManualBackupStored stored)
+    private static ManualBackupConversationPlan Compare(ExchangeConversation conversation, ManualBackupStoredConversation held, WorkspaceId workspace, ManualBackupStored stored, ManualBackupConversationPlan? parent)
     {
         var content = conversation.Content!;
         var elsewhere = held.Workspace != workspace;
@@ -180,9 +182,9 @@ public static class ManualBackupImportRules
             line,
             versions,
             held.Node is null && content.History is not null,
-            GainsSource: !held.HasSource && content.Source is not null,
+            GainsSource: !held.HasSource && content.Source is { } source && parent is not null && CanLeaveFrom(source, parent, stored),
             elsewhere,
-            Running: fit != ManualBackupFit.Same && held.HasUnfinished);
+            Running: (fit != ManualBackupFit.Same && held.HasUnfinished) || (fit == ManualBackupFit.Joins && held.IsSummarizing));
     }
 
     /// <summary>
@@ -198,6 +200,12 @@ public static class ManualBackupImportRules
             && merged.Zip(merged.Skip(1)).All(p => !p.First.IsNew || p.First.Seq > last || (p.First.Role == MessageRole.Assistant && p.Second.Role == MessageRole.Assistant));
         return fits ? (ManualBackupFit.Appends, new JoinedLine([.. merged.Select(m => (m.Id, m.Seq))], Renumbered: false)) : (ManualBackupFit.Unfit, null);
     }
+
+    /// <summary>The parent holds the message after the import, here already or arriving, and a sentence is an answer's.</summary>
+    private static bool CanLeaveFrom(ExchangeBranchSource source, ManualBackupConversationPlan parent, ManualBackupStored stored) =>
+        parent.Fit != ManualBackupFit.Unfit
+        && (stored.Messages.TryGetValue(source.Message, out var of) ? of == parent.Conversation.Id : parent.Arriving.Any(m => m.Id == source.Message))
+        && (source.Quote is null || parent.Conversation.Content!.Messages.FirstOrDefault(m => m.Id == source.Message)?.Role == MessageRole.Assistant);
 
     /// <summary>The material the messages refer to is not another conversation's here.</summary>
     private static bool MaterialFits(ConversationId conversation, IEnumerable<ExchangeMessage> messages, ManualBackupStored stored) =>

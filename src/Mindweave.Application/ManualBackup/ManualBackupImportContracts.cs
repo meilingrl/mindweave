@@ -46,7 +46,11 @@ public sealed record ManualBackupStoredConversation(
     IReadOnlyList<LineEntry> Messages,
     bool HasUnfinished,
     bool HasSource,
-    SummaryNodeId? Node);
+    SummaryNodeId? Node)
+{
+    /// <summary>A summary of it is being written: it was asked for up to a number, which joining would move under it.</summary>
+    public bool IsSummarizing { get; init; }
+}
 
 /// <summary>
 /// What the store has of a package, by identity: what its parts are compared with (docs/design/sharing-backup.md §2). No
@@ -103,7 +107,7 @@ public enum ManualBackupFit
 /// <param name="NewSummary">It has no summary here and gains the package's, with its name and its current version.</param>
 /// <param name="GainsSource">It is a branch here without the message it left from, which the package names.</param>
 /// <param name="Elsewhere">It is here in another workspace than the package says; it stays there.</param>
-/// <param name="Running">An answer is being written in it, and it would gain messages.</param>
+/// <param name="Running">An answer is being written in it and it would gain messages, or a summary of it is being written and it would be joined.</param>
 public sealed record ManualBackupConversationPlan(
     ExchangeConversation Conversation,
     WorkspaceId Workspace,
@@ -155,7 +159,7 @@ public sealed record ManualBackupPlan(IReadOnlyList<ManualBackupWorkspacePlan> W
     /// <summary>Nothing would be written.</summary>
     public bool IsEmpty => !Workspaces.Any(w => w.Writes);
 
-    /// <summary>An answer is being written in a conversation that would gain messages: the import waits until it ends.</summary>
+    /// <summary>An answer is being written in a conversation that would gain messages, or a summary in one that would be joined: the import waits until it ends.</summary>
     public bool IsBlocked => Workspaces.Any(w => w.Running > 0);
 
     /// <summary>The stored material the messages that arrive refer to, which is not here yet.</summary>
@@ -183,7 +187,7 @@ public enum ManualBackupImportStatus
     /// <summary>Everything in the package is here; nothing was written.</summary>
     NothingNew,
 
-    /// <summary>An answer began meanwhile in a conversation that would gain messages; nothing was written.</summary>
+    /// <summary>An answer or a summary began meanwhile where the import would change the line; nothing was written.</summary>
     AnswerRunning,
 }
 

@@ -46,8 +46,8 @@ public static partial class UiText
     public static string ImportBackupAllHere => T("Everything in this backup is already here. Nothing to import.", "这份备份中的内容都已在这里，没有可导入的内容。");
 
     public static string ImportBackupRunning => T(
-        "An answer is being written in a conversation this backup adds to. Let it finish or stop it, then import.",
-        "有个回答正在生成，而这份备份会给那个会话增加内容。请等它完成或停止后再导入。");
+        "An answer or a summary is being written in a conversation this backup adds to. Let it finish or stop it, then import.",
+        "有个回答或总结正在生成，而这份备份会给那个会话增加内容。请等它完成或停止后再导入。");
 
     /// <summary>After the import, the heading of what was done.</summary>
     public static string ImportBackupDoneHeading => T("Imported", "已导入");

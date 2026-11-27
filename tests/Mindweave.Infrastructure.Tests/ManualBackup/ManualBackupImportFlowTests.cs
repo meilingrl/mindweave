@@ -296,15 +296,43 @@ public sealed class ManualBackupImportFlowTests : IDisposable
         var held = b.Client.Hold("Being written");
         var asked = await b.Conversations.AskAsync(made.Root, "A question here?", Ct);
         await held.Started.Task.WaitAsync(Ct);
-        var before = await StateAsync(b, "message", "conversation");
+        var before = await ReadRowsAsync(b, "SELECT id, conversation_id, seq, supersedes_id FROM message ORDER BY 1;");
 
         Assert.True((await Importer(b).PlanAsync(newer, Ct)).IsBlocked);
         Assert.Equal(ManualBackupImportStatus.AnswerRunning, (await Importer(b).ImportAsync(newer, Ct)).Status);
-        Assert.Equal(before, await StateAsync(b, "message", "conversation"));
+        Assert.Equal(before, await ReadRowsAsync(b, "SELECT id, conversation_id, seq, supersedes_id FROM message ORDER BY 1;"));
 
         held.Release.SetResult();
         await b.WaitForAnswerAsync(asked.Answer!.Value);
         Assert.False((await Importer(b).PlanAsync(newer, Ct)).IsBlocked);
+    }
+
+    /// <summary>
+    /// A summary being written in a conversation that would be joined was asked for up to a number the joining would move
+    /// (review 2026-11-27): the import waits for it; nothing is written.
+    /// </summary>
+    [Fact]
+    public async Task A_summary_being_written_where_the_line_would_be_joined_holds_the_import()
+    {
+        await using var a = await ChatHarness.StartAsync(model: ToolModel);
+        var made = await MakeAsync(a);
+        await using var b = await ChatHarness.StartAsync(model: ToolModel);
+        await Importer(b).ImportAsync(await ReadAsync(b, await SaveAsync(a, "a")), Ct);
+        await AskAsync(a, made.Root, "Asked there?", "Answered there.");
+        b.Client.Reply("Answered here.");
+        await b.WaitForAnswerAsync((await b.Conversations.AskAsync(made.Root, "Asked here?", Ct)).Answer!.Value);
+        var newer = await ReadAsync(b, await SaveAsync(a, "a2"));
+        var gate = b.Client.Knowledge.Hold();
+        Assert.True((await b.SummaryService.SummarizeAsync(made.Root, Ct)).Accepted);
+        var before = await ReadRowsAsync(b, "SELECT id, conversation_id, seq, supersedes_id FROM message ORDER BY 1;");
+
+        Assert.True((await Importer(b).PlanAsync(newer, Ct)).IsBlocked);
+        Assert.Equal(ManualBackupImportStatus.AnswerRunning, (await Importer(b).ImportAsync(newer, Ct)).Status);
+        Assert.Equal(before, await ReadRowsAsync(b, "SELECT id, conversation_id, seq, supersedes_id FROM message ORDER BY 1;"));
+
+        gate.TrySetResult();
+        await ChatHarness.UntilAsync(async () => await b.SummaryService.LatestTaskAsync(made.Root, Ct) is { State: GenerationTaskState.Completed });
+        Assert.Equal(ManualBackupImportStatus.Imported, (await Importer(b).ImportAsync(newer, Ct)).Status);
     }
 
     /// <summary>What <see cref="MakeAsync"/> made in a folder.</summary>

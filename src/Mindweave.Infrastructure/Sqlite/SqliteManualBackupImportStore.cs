@@ -112,7 +112,9 @@ internal sealed class SqliteManualBackupImportStore(SqliteDatabase database) : I
             unfinished |= row.GetString(4) is "pending" or "streaming";
         }
 
-        return new ManualBackupStoredConversation(workspace, received, line, unfinished, source, node);
+        var summarizing = connection.Scalar<long>(transaction,
+            "SELECT EXISTS (SELECT 1 FROM generation_task WHERE conversation_id = $id AND kind = 'summary' AND state IN ('queued', 'running'));", ("$id", id.ToString())) != 0;
+        return new ManualBackupStoredConversation(workspace, received, line, unfinished, source, node) { IsSummarizing = summarizing };
     }
 
     private static List<string> Column(SqliteConnection connection, SqliteTransaction? transaction, string sql)

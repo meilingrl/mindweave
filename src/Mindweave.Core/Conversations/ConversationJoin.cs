@@ -105,9 +105,18 @@ public static class ConversationJoin
         var mine = Groups(here);
         var theirs = Groups(other);
 
-        // A message belongs to the group this side puts it in; the other side's copy of it is passed over.
-        var placed = mine.SelectMany(g => g.Members).Select(m => m.Id).ToHashSet();
-        theirs = [.. theirs.Select(g => g with { Members = [.. g.Members.Where(m => g.Key == m.Id || !placed.Contains(m.Id))] })];
+        // A message belongs to the group this side puts it in; the other side's copy of it under another question is passed
+        // over. Under the same question it stays, so that side's order of the attempts still holds.
+        var placed = new Dictionary<MessageId, MessageId>();
+        foreach (var group in mine)
+        {
+            foreach (var member in group.Members)
+            {
+                placed[member.Id] = group.Key;
+            }
+        }
+
+        theirs = [.. theirs.Select(g => g with { Members = [.. g.Members.Where(m => g.Key == m.Id || !placed.TryGetValue(m.Id, out var key) || key == g.Key)] })];
         var answers = new Dictionary<MessageId, List<IReadOnlyList<LineEntry>>>();
         foreach (var group in mine.Concat(theirs))
         {
