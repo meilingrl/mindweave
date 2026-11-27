@@ -12,7 +12,8 @@
 #                                             report (docs/design/reply-quality.md Q10): twice the requests of eval.
 #                                             MINDWEAVE_RUN_EVAL_JUDGE=1 adds the judge's hints (about 55 more requests);
 #                                             MINDWEAVE_RUN_EVAL_PRICES=in,out (per million tokens, here or in the profile
-#                                             file) adds the cost
+#                                             file) adds the cost; MINDWEAVE_RUN_EVAL_BUDGET=<USD> with prices stops
+#                                             before a step that could pass that cost
 #   scripts/real-api.sh list                  show configured profiles (never the key)
 #   scripts/real-api.sh remove [profile]      delete a profile and its key
 #
@@ -77,5 +78,5 @@ case "${1:-}" in
     rm -f "$CONFIG_DIR/$PROFILE.env"
     echo "Removed profile '$PROFILE'."
     ;;
-  *) sed -n '2,22p' "$0"; exit 64 ;;
+  *) sed -n '2,23p' "$0"; exit 64 ;;
 esac

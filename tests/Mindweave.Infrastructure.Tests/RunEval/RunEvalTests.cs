@@ -278,6 +278,22 @@ public class RunEvalTests
     }
 
     [Fact]
+    public void A_budget_stops_before_a_step_as_costly_as_the_costliest_so_far_would_pass_it()
+    {
+        var spending = new EvalSpending(0.01, new EvalPrices(1, 1));
+        Assert.False(spending.Stops);
+        spending.Add((3_000, 1_000));
+        Assert.False(spending.Stops);
+        spending.Add((3_000, 1_000));
+        Assert.True(spending.Stops);
+        Assert.Equal(0.008, spending.Spent, 6);
+
+        var unlimited = new EvalSpending(null, new EvalPrices(1, 1));
+        unlimited.Add((1_000_000, 1_000_000));
+        Assert.False(unlimited.Stops);
+    }
+
+    [Fact]
     public void Prices_are_read_from_one_setting()
     {
         Assert.Equal(new EvalPrices(1.5, 6), EvalPrices.Parse("1.5, 6"));
@@ -320,7 +336,9 @@ public class RunEvalTests
 /// Q10), with the fake web: no search credits. Settings, all optional:
 /// <c>MINDWEAVE_RUN_EVAL_ONLY</c> (scenario ids), <c>MINDWEAVE_RUN_EVAL_EDITIONS</c> ("current", or "previous,current"),
 /// <c>MINDWEAVE_RUN_EVAL_JUDGE=1</c> (the judge's hints, with the same model; a comparison only),
-/// <c>MINDWEAVE_RUN_EVAL_PRICES=in,out</c> (per million tokens), <c>MINDWEAVE_RUN_EVAL_REPORT</c> (the report file).
+/// <c>MINDWEAVE_RUN_EVAL_PRICES=in,out</c> (per million tokens), <c>MINDWEAVE_RUN_EVAL_REPORT</c> (the report file),
+/// <c>MINDWEAVE_RUN_EVAL_BUDGET</c> (a cost cap with the prices: no scenario or judgement starts that the costliest one so far
+/// would carry past it; the report then holds what ran).
 /// </summary>
 [Trait("Category", "RealApi")]
 public class RunEvalRealTests
@@ -340,6 +358,9 @@ public class RunEvalRealTests
         var prices = EvalPrices.Parse(Setting("MINDWEAVE_RUN_EVAL_PRICES"));
         var label = $"{Model} @ {new Uri(Url!).Host}";
         var path = Setting("MINDWEAVE_RUN_EVAL_REPORT") ?? Path.Combine(Path.GetTempPath(), $"mindweave-run-eval-{DateTime.UtcNow:yyyyMMdd-HHmmss}.md");
+        var budget = Setting("MINDWEAVE_RUN_EVAL_BUDGET") is { } cap ? double.Parse(cap, System.Globalization.CultureInfo.InvariantCulture) : (double?)null;
+        Assert.False(budget is not null && prices is null, "A budget needs MINDWEAVE_RUN_EVAL_PRICES.");
+        var spending = new EvalSpending(budget, prices);
 
         var runs = new List<EvalRun>();
         foreach (var edition in editions)
@@ -347,9 +368,15 @@ public class RunEvalRealTests
             var results = new List<EvalResult>();
             foreach (var scenario in EvalScenarios.Everything.Where(s => only is null || only.Contains(s.Id)))
             {
+                if (spending.Stops)
+                {
+                    break;
+                }
+
                 var result = await EvalRunner.RunAsync(scenario, StartReal, TimeSpan.FromMinutes(6), scripted: false, Ct, edition);
                 results.Add(result);
-                TestContext.Current.SendDiagnosticMessage($"{edition.Name} {scenario.Id}: {result.Failure ?? $"{result.Passed}/{result.Checks.Count} checks, {result.Metrics!.ModelRequests} requests, {result.Metrics.ToolCalls} tool calls"}");
+                spending.Add(result.Metrics is { } m ? (m.ScenarioPromptTokens ?? m.InputTokens, m.ScenarioCompletionTokens ?? m.CompletionTokens ?? 0) : (0, 0));
+                TestContext.Current.SendDiagnosticMessage($"{edition.Name} {scenario.Id}: {result.Failure ?? $"{result.Passed}/{result.Checks.Count} checks, {result.Metrics!.ModelRequests} requests, {result.Metrics.ToolCalls} tool calls"}; spent {spending.Spent:0.0000}");
             }
 
             runs.Add(new EvalRun(edition, results));
@@ -366,10 +393,15 @@ public class RunEvalRealTests
             EvalJudgeCost? cost = null;
             if (Setting("MINDWEAVE_RUN_EVAL_JUDGE") == "1")
             {
-                (judged, cost) = await JudgeAsync(first, second);
+                (judged, cost) = await JudgeAsync(first, second, spending);
             }
 
             await EvalComparison.WriteAsync(first, second, label, path, prices, judged, cost, Ct);
+        }
+
+        if (spending.Stopped)
+        {
+            TestContext.Current.SendDiagnosticMessage($"Stopped at the budget: spent {spending.Spent:0.0000} of {budget:0.00}; the report holds what ran.");
         }
 
         TestContext.Current.SendDiagnosticMessage($"Report: {path}");
@@ -377,15 +409,22 @@ public class RunEvalRealTests
     }
 
     /// <summary>The judge's hints for every scenario both editions ran: which answer is clearer, and how well each one's citations hold.</summary>
-    private static async Task<(Dictionary<string, EvalJudgement>, EvalJudgeCost)> JudgeAsync(EvalRun first, EvalRun second)
+    private static async Task<(Dictionary<string, EvalJudgement>, EvalJudgeCost)> JudgeAsync(EvalRun first, EvalRun second, EvalSpending spending)
     {
         using var http = new HttpClient(Infrastructure.Ai.ChatCompletionsClient.CreateHandler()) { Timeout = TimeSpan.FromMinutes(3) };
         var client = new Infrastructure.Ai.ChatCompletionsClient(http, new Infrastructure.Ai.ChatClientOptions());
         var model = new Core.Models.ModelSnapshot("judge", Url!, ChatProtocol.ChatCompletions, Model!, "judge", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
         var judge = new EvalJudge(client, model, Key!);
         var judged = new Dictionary<string, EvalJudgement>(StringComparer.Ordinal);
+        spending.NextPhase();
         foreach (var a in first.Results)
         {
+            if (spending.Stops)
+            {
+                break;
+            }
+
+            var (prompt, completion) = (judge.PromptTokens, judge.CompletionTokens);
             if (second.Results.FirstOrDefault(r => r.Scenario.Id == a.Scenario.Id) is not { Observation: { } y } b || a.Observation is not { } x)
             {
                 continue;
@@ -395,7 +434,8 @@ public class RunEvalRealTests
                 ? await judge.ClarityAsync(a.Scenario.Turns[^1].Question, y.Quote ?? x.Quote, x.Text, y.Text, Ct)
                 : (EvalClarity?)null;
             judged[a.Scenario.Id] = new EvalJudgement(clarity, await judge.SupportAsync(x.Cited, Ct), await judge.SupportAsync(y.Cited, Ct));
-            TestContext.Current.SendDiagnosticMessage($"judge {a.Scenario.Id}: {clarity}");
+            spending.Add((judge.PromptTokens - prompt, judge.CompletionTokens - completion));
+            TestContext.Current.SendDiagnosticMessage($"judge {a.Scenario.Id}: {clarity}; spent {spending.Spent:0.0000}");
         }
 
         return (judged, new EvalJudgeCost(judge.Requests, judge.PromptTokens, judge.CompletionTokens));
@@ -413,4 +453,36 @@ public class RunEvalRealTests
             "real", Url!, Model!, Key!, window,
             ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions) with { ToolCalls = true }));
     }
+}
+
+/// <summary>
+/// What a real evaluation has cost so far against an optional cap. Nothing starts that the costliest step of the same kind so
+/// far would carry past the cap; without a cap or prices it never stops.
+/// </summary>
+internal sealed class EvalSpending(double? budget, EvalPrices? prices)
+{
+    private double largest;
+
+    public double Spent { get; private set; }
+
+    public bool Stopped { get; private set; }
+
+    public bool Stops
+    {
+        get
+        {
+            Stopped |= budget is { } cap && Spent + largest > cap;
+            return Stopped;
+        }
+    }
+
+    public void Add((int Input, int Output) tokens)
+    {
+        var cost = prices?.Of(tokens.Input, tokens.Output) ?? 0;
+        Spent += cost;
+        largest = Math.Max(largest, cost);
+    }
+
+    /// <summary>A step of another kind starts (the judge after the answers): its own costliest step is not known yet.</summary>
+    public void NextPhase() => largest = 0;
 }
