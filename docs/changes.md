@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.32 · 2026-11-28
+
+- Added 新建分支 (New branch) on the conversation page and in a sidebar row's menu: a branch that continues the conversation from its end, with all of it so far as context and nothing added later (requirements v0.37 §6.2)
+- Added renaming by double click on a sidebar row; the first click opens it as before (requirements v0.37 §10.6)
+- Try: `scripts/daily.sh trial`, then double-click a conversation in the sidebar, and press 新建分支 on a conversation page and ask a follow-up
+- Not verified: a real window; Windows; a real model answering in the new branch
+
 ## 0.6.31 · 2026-11-28
 
 - Fixed text boxes where an input method (pinyin, say) started composing over selected text: the selection stayed and the composing text was drawn in front of it, with the highlight shifted. The selection is now replaced, as typing does, in every text box (Avalonia 12.1.4 skipped this in most boxes)

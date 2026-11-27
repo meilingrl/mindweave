@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.36  
+**Version:** v0.37  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -150,6 +150,7 @@ Root conversations and branch conversations use the same chat interface. The sid
 3. After entering the child conversation, the user keeps asking questions without pasting the original text again as background.
 4. The child conversation uses the selected text and the necessary ancestor context up to the branch point. It does not automatically mix in unrelated sibling branches or content added to the parent conversation later.
 5. A child conversation can create further branches, and the user can always tell the current position and the way back.
+6. A branch can also be made without selecting a passage (v0.37): “新建分支” (New branch), on the conversation page or in the conversation's sidebar menu, creates a branch that continues from the end of the conversation. It uses all of the conversation so far, with its own ancestor context, as its context, and nothing added to the parent later. Its entry sits at the parent's last message, and “返回来源” (Back to source) goes back to the end of the parent. It is refused while an answer in the conversation is still growing.
 
 When the context is too long, it may be replaced by context summaries, but it must not silently claim that all the original text was kept. Context summaries should not break the original conversation or the locating of anchors.
 
@@ -621,6 +622,7 @@ Built after the first release, by the user's decisions of 2026-11-10 to 2026-11-
 - **Workspace name suggestions.** When a workspace is renamed, the AI can suggest names from the titles of its conversations (a conversation without one by the start of its first question), the names of its summaries and its current name. Suggestions may also be prepared in the background (on by default; it can be turned off); such a request gives way to questions, summaries, titles and names.
 - **Appearance** (v0.31). The app is light or dark, or follows the system (the default); the choice takes effect at once.
 - **Right-click menu** (v0.31). A right-click on a conversation in the sidebar opens a menu of the actions for it.
+- **Renaming in the sidebar** (v0.37). A double click on a conversation in the sidebar renames it in place, as “改名” (Rename) in its menu does; the first click opens it as usual. Not while conversations are selected.
 
 ### 10.7 Sharing, import and the manual backup (v0.29)
 
@@ -1204,4 +1206,5 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.33 · 2026-11-27:** Following the user's decisions of 2026-11-25 and 2026-11-26 (return and review), added §10.10: a recap for a conversation that has rested and carries weight, written automatically under a rest rule, a weight rule and daily limits; the recap at a branch entry; questions left open in new exploration; the dashed ring and the recap in the summary network's details; “延伸” (Extend) on a dot with a summary or a recap; a summary of a conversation with its branches; answers that build on recaps. §4 adds the recap; §4.2, §6.3, §7.1, §10.2 and §10.3.2 point to it. Relations across workspaces and automatic categorization stay vision with nothing planned. Does not change the first-release scope and acceptance; needs migrations (recaps, a recommendation's basis, a summary version's covered branches).
 - **v0.34 · 2026-11-27:** Following the user's decisions of 2026-11-25 to 2026-11-27 ([ask-anywhere.md](design/ask-anywhere.md); D-045), added §10.11: quoting (a numbered quote list with notes, fed by passages of the conversation, by text selected in another application and by a rectangle of the screen; the app keeps running after its main window is closed); several model connections with one current model, a model for background work, a local server entry and the Messages and Responses protocols; search by meaning with an embedding model on a saved connection, for the user and for the tools; recording cached tokens, a stable order of each request, and cache points with a one-hour default on Messages connections. §4 adds the quote; §9.2, §9.4, §9.6 and §10.1 point to §10.11; §11 adds its acceptance. Does not change the first-release scope and acceptance; two migrations and new stored preferences come with the increments.
 - **v0.35 · 2026-11-26:** Following the user's decisions of 2026-11-26 on device copies (D-046; [device copies note](design/sharing-backup.md)), §10.7: a device copy is a backup, not a sync. It holds all workspaces by default; importing it only adds, and what differs keeps this device's value; questions asked on both sides in one conversation join into one line by time; deletions do not travel, and what was deleted comes back from a copy. This replaces v0.29 and v0.30's "the newer value wins", the offer of deletions, and the separate conversation for another continuation. §4 and §11 follow. Does not change the first-release scope and acceptance.
+- **v0.37 · 2026-11-28:** Following the user's requests of 2026-11-28 after using the app: a branch can be made without selecting a passage, continuing from the end of the conversation with all of it as context (§6.2, point 6); a double click on a conversation in the sidebar renames it (§10.6).
 - **v0.36 · 2026-11-27:** Following the user's clarification of 2026-11-27 (D-047): sharing and backup are one operation, export to and import from a file, differing in scope and in what import may do; "device copy" is now called the manual backup (§4, §10.7, §11); it is told apart from the app's automatic backups, which live inside the app's data, and from sync, which is networked and needs a server; §10.1 states sync between devices as a later vision that the manual backup does not stand in for and that is not ruled out. No behavior of v0.35 changes.

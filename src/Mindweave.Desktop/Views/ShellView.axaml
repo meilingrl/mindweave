@@ -141,6 +141,12 @@
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconSummarize}" />
                         </MenuItem.Icon>
                       </MenuItem>
+                      <MenuItem Name="RowMenuContinue" Header="{x:Static t:UiText.ContinueInBranch}" Command="{Binding Owner.ContinueInBranchRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                                IsEnabled="{Binding CanContinue}" ToolTip.Tip="{Binding ContinueBlockedReason}" ToolTip.ShowOnDisabled="True">
+                        <MenuItem.Icon>
+                          <PathIcon Width="13" Height="13" Data="{StaticResource IconBranch}" />
+                        </MenuItem.Icon>
+                      </MenuItem>
                       <MenuItem Name="RowMenuShare" Header="{x:Static t:UiText.ShareEntry}" Command="{Binding Owner.ShareRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconShare}" />
@@ -184,7 +190,7 @@
                     <TextBlock Name="RowTitle" Classes="row-title" Classes.unexplored="{Binding IsUnexplored}" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   </DockPanel>
                 </Button>
-                <!-- 改名 from the menu edits the title where it is, as file lists do: Enter or leaving the box saves, Esc cancels. -->
+                <!-- 改名 from the menu, or a double click on the row, edits the title where it is, as file lists do: Enter or leaving the box saves, Esc cancels. -->
                 <TextBox Name="RowRenameBox" Classes="row-rename" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" IsVisible="{Binding IsRenaming}"
                          Text="{Binding RenameText}" AutomationProperties.Name="{x:Static t:UiText.RowRenameBox}"
                          KeyDown="OnRenameBoxKeyDown" LostFocus="OnRenameBoxLostFocus" />

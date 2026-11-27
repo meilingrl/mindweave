@@ -30,6 +30,13 @@ public static partial class UiText
     /// <summary>Creating a branch from the selection by keyboard (2026-11-13; ⌘/Ctrl+B stays the sidebar's).</summary>
     public static string BranchShortcut => OperatingSystem.IsMacOS() ? "⌘⇧B" : "Ctrl+Shift+B";
 
+    /// <summary>A branch without a selected passage: it continues from the conversation's end, with all of it as context.</summary>
+    public static string ContinueInBranch => T("New branch", "新建分支");
+
+    public static string ContinueInBranchTip => T(
+        "Continue this conversation in a new branch, with everything so far as its context",
+        "在新的分支里接着这个会话往下问，此前的全部内容都作为上下文");
+
     public static string CreateBranchTip => T(CreateBranch + " (" + BranchShortcut + ")", CreateBranch + "（" + BranchShortcut + "）");
     public static string ReturnToSource => T("Back to source answer", "返回来源");
     public static string ReturnToSourceHint => T("Go back to the source answer and select this passage", "回到来源回答，并选中这段原文");

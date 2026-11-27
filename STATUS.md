@@ -58,6 +58,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
 - Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration; a title made very long can do the same (rare: 1 of 660 tried). Keeping it out needs a migration.
+- New branch and renaming by double click (0.6.32): in a real window; on Windows; a real model answering in a branch made with 新建分支.
 - The network's molecule layout: on Windows, and an exploration with hundreds of direct branches in two or more explorations (about 4.5 s for two of 500). The title of a root with many branches can lie over one of its branch lines.
 
 ## Needs you
@@ -78,7 +79,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | upkeep for build, CI and tests, 0.6.30 | 2026-11-27 | passed: Core 943, Architecture 39, Infrastructure 1390 + 22 skipped, Desktop 4 shards 0 failed |
+| macOS full run | new branch and double-click rename, 0.6.32 | 2026-11-28 | passed: Core 943, Architecture 39, Infrastructure 1393 + 23 skipped, Desktop 994 + 103 skipped, 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | 3e90875 (0.6.29) | 2026-11-27 | passed: 3329 passed, 0 failed, 128 skipped of 3457; Credential Manager test ran |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

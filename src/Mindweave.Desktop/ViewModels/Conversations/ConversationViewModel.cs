@@ -308,6 +308,18 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         }
     }
 
+    /// <summary>新建分支: a branch that continues from the end of this conversation; it opens unless the reader went elsewhere meanwhile.</summary>
+    [RelayCommand]
+    private async Task ContinueInBranchAsync()
+    {
+        var outcome = await _conversations.ContinueInBranchAsync(Id, CancellationToken.None);
+        BranchNotice = outcome.Rejection is { } rejection ? UiText.BranchRejected(rejection) : null;
+        if (outcome.Accepted)
+        {
+            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Child)) { From = this });
+        }
+    }
+
     /// <summary>A question in a received conversation starts the user's own (decision I4), which opens unless the reader went elsewhere meanwhile.</summary>
     private async Task<SendOutcome> AskAsync(string text, IReadOnlyList<Core.Resources.ResourceId> attachments)
     {

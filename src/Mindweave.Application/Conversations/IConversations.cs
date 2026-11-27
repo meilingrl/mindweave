@@ -80,6 +80,9 @@ public interface IConversations
 
     Task<BranchOutcome> CreateBranchAsync(ConversationId parent, BranchSelection selection, CancellationToken cancellationToken);
 
+    /// <summary>A branch that continues <paramref name="parent"/> from its end, with all of it as context; nothing is asked yet.</summary>
+    Task<BranchOutcome> ContinueInBranchAsync(ConversationId parent, CancellationToken cancellationToken);
+
     Task<BranchSource?> GetSourceAsync(ConversationId child, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<BranchSource>> ListBranchesAsync(ConversationId parent, CancellationToken cancellationToken);
