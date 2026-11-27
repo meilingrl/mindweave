@@ -1,6 +1,6 @@
 # Security, diagnostics and upkeep
 
-**Status:** agreed with the owner on 2026-11-27, as written: the D2 design (§2) and the upkeep decisions (§3). Not built. The requirement and architecture text is a separate commit the owner confirms. Last discussed: 2026-11-27.
+**Status:** agreed with the owner on 2026-11-27, as written: the D2 design (§2) and the upkeep decisions (§3). Not built. The requirement and architecture text (requirements v0.31, architecture §17) is confirmed by the owner, 2026-11-27. Last discussed: 2026-11-27.
 
 This draft covers evolution D2 (security and diagnostics) and the upkeep decisions left open by the health check of 2026-11-12. It does not cover sharing, import, the exchange format or device copies (the sharing draft, on its own branch), several connections and protocols, or look, colours and accessibility.
 
@@ -261,6 +261,7 @@ No increment needs a migration.
 | 2026-11-25 | §1.1 to §1.3 stand as sorted. Of the six rows of §1.4, two are left and four are fixed now. Performance is fixed early when the fix is easy; a known architectural problem is not left |
 | 2026-11-27 | The D2 design of §2 is approved as written: the failure block and the request list, the diagnostic package, the keys (with the automatic removal of items nothing refers to), erasing all deleted content at once, the renderer guard, and the five increments |
 | 2026-11-27 | The 15 upkeep rows of §3 are decided as written. Among them: the schema version is the only gate for stored formats; "Quit without saving" after a failed retry; an old dangling row does not stop an upgrade; no lock files before 1.0.0; performance budgets run in CI without blocking; no coverage figure |
+| 2026-11-27 | The requirement and architecture text for §2 and §3 is confirmed: requirements v0.31 (§9.3, §10.6, new §10.8) and architecture (§2, §7.3, §12.2, §12.3, new §17) |
 
 ## 5. To check when building
 
