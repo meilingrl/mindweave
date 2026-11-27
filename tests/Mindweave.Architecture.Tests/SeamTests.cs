@@ -42,6 +42,23 @@ public partial class SeamTests
         Assert.Empty(offenders);
     }
 
+    /// <summary>
+    /// A file panel is opened in one place, which keeps it app-modal on macOS: as a sheet it can stop taking clicks
+    /// (found 2026-11-25, see FilePanels). A new one that calls the picker itself would bring that back.
+    /// </summary>
+    [Fact]
+    public void File_panels_are_opened_in_one_place()
+    {
+        var offenders = SourceFiles("src")
+            .Where(f => Path.GetFileName(f) != "FilePanels.cs" && FilePicker().IsMatch(File.ReadAllText(f)))
+            .Select(Path.GetFileName);
+
+        Assert.Empty(offenders);
+    }
+
+    [GeneratedRegex(@"\b(Save|Open)(File|Folder)PickerAsync\b|\bStorageProvider\b")]
+    private static partial Regex FilePicker();
+
     private static IEnumerable<string> SourceFiles(string relative) =>
         Directory.EnumerateFiles(Path.Combine(LayeringTests.RepositoryRoot(), relative), "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)

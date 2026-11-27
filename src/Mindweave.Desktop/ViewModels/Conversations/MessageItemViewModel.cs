@@ -10,9 +10,13 @@ namespace Mindweave.Desktop.ViewModels.Conversations;
 /// An entry under an answer leading to a branch made from it; re-entering is navigation, not a new branch. An archived
 /// branch keeps its entry, marked (D-021).
 /// </summary>
-public sealed record BranchEntry(ConversationId Child, string Quote, bool Archived = false)
+/// <param name="Text">The sentence it left from; the title of a continuation, which left from none.</param>
+public sealed record BranchEntry(ConversationId Child, string Text, bool Archived = false, bool IsContinuation = false)
 {
-    public string Label => UiText.Quoted(Quote) + (Archived ? " · " + UiText.ArchivedMarker : string.Empty);
+    /// <summary>A sentence in quotation marks, a title without.</summary>
+    public string Named => IsContinuation ? Text : UiText.Quoted(Text);
+
+    public string Label => Named + (Archived ? " · " + UiText.ArchivedMarker : string.Empty);
 }
 
 /// <summary>
@@ -30,9 +34,12 @@ public sealed record CitationItem(CitationBlock Block, CommunityToolkit.Mvvm.Inp
     public string Title => UiText.CitationLabel(Block.Kind, Block.Title);
 
     /// <summary>The real address; for local material, where it is (the row's tooltip either way).</summary>
-    public string Address => Block.Url?.AbsoluteUri ?? UiText.CitationPlace(Block.Kind);
+    public string Address => Block.Url?.AbsoluteUri ?? Meta;
 
-    public string Meta => Block.Url is { } url ? UiText.CitationMeta(url, Block.FetchedAt) : UiText.CitationPlace(Block.Kind);
+    public string Meta => Block.Url is { } url ? UiText.CitationMeta(url, Block.FetchedAt) : Block.Resource is null && Block.Title.Length == 0 ? UiText.NotIncluded : UiText.CitationPlace(Block.Kind);
+
+    /// <summary>A received citation of the sharer's own material is plain text (docs/design/sharing-import.md §3).</summary>
+    public bool CanOpen => Block.CanBeOpened;
 
     /// <summary>A web source: its address line and host with the time; local material shows only where it is.</summary>
     public bool HasAddress => Block.Url is not null;
@@ -47,6 +54,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     private readonly Action<Core.Summaries.SummaryNodeId>? _openSummary;
     private readonly Action<CitationBlock>? _openCitation;
     private readonly Func<MessageId, string, bool, bool>? _decide;
+    private readonly ActivityCountBlock? _received;
 
     public MessageItemViewModel(
         Message message,
@@ -65,6 +73,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         _openToolResult = openToolResult;
         _openSummary = openSummary;
         ToolBlocks = [.. ContentBlocks.ToolBlocksOf(message.Blocks)];
+        _received = message.Blocks.OfType<ActivityCountBlock>().FirstOrDefault();
         ArgumentNullException.ThrowIfNull(message);
         _time = time ?? TimeProvider.System;
         Id = message.Id;
@@ -75,7 +84,12 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         IsRetryAttempt = message.Supersedes is not null;
 
         // A question shows its attachments as chips above the text it was typed with (requirements §10.4.3).
-        Attachments = [.. ContentBlocks.AttachmentsOf(message.Blocks).Select(a => AttachmentChip.ForBlock(a, openAttachment))];
+        Attachments = [.. message.Blocks.Select(b => b switch
+        {
+            AttachmentBlock attachment => AttachmentChip.ForBlock(attachment, openAttachment),
+            AbsentAttachmentBlock absent => AttachmentChip.ForAbsent(absent),
+            _ => null,
+        }).OfType<AttachmentChip>()];
         Body = message.Role == MessageRole.User ? ContentBlocks.TypedTextOf(message.Blocks) : message.Text;
         State = message.State;
         ErrorKind = message.ErrorKind;
@@ -89,6 +103,11 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
             ApplyLive();
         }
     }
+
+    /// <summary>It arrived by import: someone else's model wrote it, and neither which one nor how long it took is known.</summary>
+    public bool IsReceived { get; init; }
+
+    public bool IsReceivedAnswer => IsReceived && IsAnswer;
 
     public MessageId Id { get; }
 
@@ -145,6 +164,11 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LimitNote), nameof(HasLimitNote))]
     public partial Core.Runs.RunLimit? LiveLimit { get; private set; }
+
+    /// <summary>A received answer used tools: the same line, with no steps behind it (docs/design/sharing-import.md §3).</summary>
+    public bool HasActivityCount => IsAnswer && _received is not null;
+
+    public string ActivityCountText => _received is { } counts ? UiText.ActivityCount(counts) : string.Empty;
 
     /// <summary>The answer called tools (or is calling one): the quiet activity line shows above its text.</summary>
     public bool HasActivity => IsAnswer && (ToolBlocks.Count > 0 || ActiveTool is not null);
@@ -206,14 +230,14 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private void ToggleCitations() => IsCitationsExpanded = !IsCitationsExpanded;
 
-    /// <summary>The numbers the text may show as links: only those with a 出处 (a number naming nothing stays text).</summary>
-    public IReadOnlySet<int> CitationNumbers => CitationBlocks.Select(c => c.Number).ToHashSet();
+    /// <summary>The numbers the text may show as links: only those with a 出处 that opens (a number naming nothing stays text).</summary>
+    public IReadOnlySet<int> CitationNumbers => CitationBlocks.Where(c => c.CanBeOpened).Select(c => c.Number).ToHashSet();
 
     /// <summary>Opens the viewer at 出处 <paramref name="number"/>; false when the answer has none of that number.</summary>
     public bool OpenCitation(int number)
     {
         var citation = CitationBlocks.FirstOrDefault(c => c.Number == number);
-        if (citation is null || _openCitation is null)
+        if (citation is not { CanBeOpened: true } || _openCitation is null)
         {
             return false;
         }
@@ -376,7 +400,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// A finished answer's total time ("用时 14 秒"), beside its time in the quiet row. Only for an answer that completed
     /// or was stopped and whose end is recorded; failed, interrupted and older answers show none.
     /// </summary>
-    public string? DurationText => IsAnswer && State is MessageState.Complete or MessageState.Stopped && CompletedAt is { } end
+    public string? DurationText => !IsReceived && IsAnswer && State is MessageState.Complete or MessageState.Stopped && CompletedAt is { } end
         ? UiText.AnswerDuration(end - StartedAt)
         : null;
 

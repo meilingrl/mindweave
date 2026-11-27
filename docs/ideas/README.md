@@ -19,7 +19,7 @@ Each file starts with its status and the date of its last discussion.
 | [More directions](more-directions.md) | Seven further directions, and the technical pieces worth publishing | First draft, 2026-11-22 |
 | [Return and review](return-and-review.md) | Coming back after some days, unresolved questions, returning from a branch, and summaries across conversations | Agreed by the owner 2026-11-26; not built |
 
-Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9).
+Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9); [sharing a thinking path](../design/sharing.md) (2026-11-25, evolution D8), with its note for [import](../design/sharing-import.md); [security, diagnostics and upkeep](../design/diagnostics-and-upkeep.md) (2026-11-27, evolution D2).
 
 ## Where these came from
 

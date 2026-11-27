@@ -166,14 +166,14 @@ public sealed partial class AnswerView : UserControl
     internal double? RevealSource(BranchSource source, Visual relativeTo)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source.AnchorFormatVersion != SourceAnchors.FormatVersion || !SourceAnchors.CompatibleProfiles.Contains(source.RenderProfile) || source.SourceBlock != 0)
+        if (source is not { AnchorFormatVersion: SourceAnchors.FormatVersion, RenderProfile: { } profile, SourceBlock: 0 or null, AnchorJson: { } anchor } || !SourceAnchors.CompatibleProfiles.Contains(profile))
         {
             return null;
         }
 
         try
         {
-            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(source.AnchorJson), _shown, _renderer, HighlightPaint());
+            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(anchor), _shown, _renderer, HighlightPaint());
             return SourceAnchors.TopOf(resolved[0], relativeTo);
         }
         catch (Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException or ArgumentException)
@@ -360,7 +360,7 @@ public sealed partial class AnswerView : UserControl
     /// <summary>A finished answer's document: its cited [n] made clickable when it has 出处.</summary>
     private Markdig.Syntax.MarkdownDocument Parse(string markdown)
     {
-        var document = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline);
+        var document = AnswerMarkdown.Parse(markdown);
         if (_item is { HasCitations: true } item)
         {
             CitationLinks.Apply(document, item.CitationNumbers);

@@ -4,12 +4,22 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Sharing (evolution D8), the theme of 0.6.x towards 0.7: the requirements discussion is open with you; nothing is decided or built.
+- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); step 2 is built: importing a structure-only share (0.6.18, migration v19) and a share with content (0.6.19). Next are device copies (step 3), after a short note.
+- Security, diagnostics and upkeep (evolution D2, [diagnostics-and-upkeep.md](docs/design/diagnostics-and-upkeep.md)): adopted (D-042). The code fixes performance-5 and -9 are built (0.6.21); architecture-4 and -5 follow once the manual-backup branches of sharing are in.
+- Design discussions on task branches: reply quality (agreed; its requirement text waits for you); return and review (agreed and confirmed; to be renumbered before merging); ask from anywhere and local AI (open).
 
 ## Next steps
 
+- Next optimization round, opened as its own task: collapsing branches in the sidebar (you, 2026-11-27); the questions to settle with you first are in [evolution D1](docs/evolution.md).
 - Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
-- Free trial (evolution D9): adopted, done later, no schedule. The design is [free-trial.md](docs/design/free-trial.md).
+- Later directions, no schedule ([evolution.md](docs/evolution.md) §3):
+  - D1 two-pane side-by-side reading;
+  - D2 a diagnostics view and a redacted diagnostic package;
+  - D4 measured performance work;
+  - D5 phase 5, generated charts and audio (requirements §10.4.7);
+  - D6 map-based exploration (prototype first);
+  - D7 asking with multiple quotes;
+  - D9 the free trial, adopted ([free-trial.md](docs/design/free-trial.md)).
 - `node_layout` (the positions of the earlier summary-only view) is dropped in a later migration, once you have used a daily build of 0.6.0 or later and are satisfied (D-038).
 - Verify in daily use:
   - agent platform phases 2–4;
@@ -37,10 +47,12 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - reasoning and run status (with a reasoning model);
   - the answer output limit;
   - the English prompts.
-- The application icon (0.6.11): on Windows; in your Dock; the small sizes in daily use.
+- The application icon (0.6.11): on Windows; the small sizes in daily use.
+- Sharing (0.6.13, 0.6.15): on Windows; the page in Safari and Firefox; on 1,000 conversations the dialog took about 1.2 s to open in a debug build, and its speed with content was not measured; the dialog's new list in a real window. The foot of the page says the file can be opened in Mindweave, which is true since 0.6.19.
+- Import (0.6.18, 0.6.19): in a real window (a file dropped from Finder, the open panel); on Windows; with a real model; the shared page with a continuation in a browser; a very large file. A summary's coverage taken from a file is not bounded, so a crafted file can hide that a summary has later content.
+- macOS file panels (0.6.13): picking real attachments; quitting from the Dock while a panel is open; an Intel Mac.
 - 0.6.10: a real model reading the rest of a long result; a real MCP server stopped during a call. On Windows: all of it.
 - The UI points of 0.5.11 to 0.5.14, 0.6.2, 0.6.4, 0.6.6 and 0.6.7 (D-037): on Windows; a real model's tool steps while the page stays.
-- Nothing of 0.6.x in daily use: the daily build is 0.5.14.
 - Many new-answer hints at once in a very small window, which can lie over the page.
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
@@ -51,11 +63,10 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
-| The application icon: say where the picture you chose came from, and whether it may be used, before a release | The icon is traced from it (`prototypes/app-icon/README.md`) | A release for others |
+| Publish a daily build with migration v19 (0.6.18 or later), when you want it | It upgrades your real data; a build before v19 cannot open it afterwards | Importing in daily use |
 | The application icon: the tile colour (black nearly disappears on a dark taskbar), and whether the open state with nodes is used | Look and feel is yours to judge | Nothing |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
-| Pin `~/Applications/Mindweave.app` in the Dock (once) | The old icon is gone from the Dock (checked 2026-11-24) | Opening the daily build from the Dock |
 | Set the GitHub noreply address for commits (D-025) | The repository is public, and every commit so far has your personal address; it changes only new commits | Nothing |
 
 ## Open decisions
@@ -66,10 +77,10 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the application icon, 0.6.11 | 2026-11-24 | passed: Core 137, Architecture 35, Infrastructure 1037 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | performance-5 and -9, 0.6.21 | 2026-11-27 | passed: Core 138, Architecture 39, Infrastructure 1297 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
-| Daily build | 797b8bd (0.5.14, schema v18) | 2026-11-23 | published by you; the backup taken before it is `mindweave-v18-20261123T124924Z-before-publish-797b8bd.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
+| Daily build | f9edc39 (0.6.11, schema v18) | 2026-11-24 | published by you; the backup taken before it is `mindweave-v18-20261124T143852Z-before-publish-f9edc39.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
 
 First command: `scripts/test.sh full`.

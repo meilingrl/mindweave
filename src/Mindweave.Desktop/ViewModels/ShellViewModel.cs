@@ -18,6 +18,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     private readonly SummaryNetwork.SummaryNetworkSessions? _summaryNetworks;
     private readonly ISidebarLayout? _sidebarLayout;
     private readonly WorkspaceSwitchRequests? _switches;
+    private readonly ImportViewModel? _import;
     private PageViewModel? _observedPage;
     private double _sidebarWidth = SidebarLayout.DefaultWidth;
 
@@ -28,8 +29,10 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         SummaryNetwork.SummaryNetworkSessions? summaryNetworks = null,
         ISidebarLayout? sidebarLayout = null,
         WorkspaceNewsViewModel? workspaceNews = null,
-        WorkspaceSwitchRequests? switches = null)
+        WorkspaceSwitchRequests? switches = null,
+        ImportViewModel? import = null)
     {
+        _import = import;
         WorkspaceNews = workspaceNews;
         _summaryNetworks = summaryNetworks;
         _sidebarLayout = sidebarLayout;
@@ -274,6 +277,14 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     {
         IsWorkspaceMenuOpen = false;
         IsCreatingWorkspace = true;
+    }
+
+    /// <summary>The menu's "Import…" (docs/design/sharing-import.md §5): asks for a shared file and shows what it would bring.</summary>
+    [RelayCommand]
+    private void Import()
+    {
+        IsWorkspaceMenuOpen = false;
+        _import?.Pick();
     }
 
     /// <summary>Esc or 取消 in the form: it closes and forgets what was typed.</summary>

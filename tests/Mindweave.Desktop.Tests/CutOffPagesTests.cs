@@ -5,6 +5,8 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Export;
+using Mindweave.Application.Import;
 using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Preferences;
@@ -20,6 +22,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
+using Mindweave.Infrastructure.Share;
 using Mindweave.Testing;
 using static Mindweave.Desktop.Tests.UiTree;
 using TextBlock = Avalonia.Controls.TextBlock;
@@ -107,6 +110,80 @@ public class CutOffPagesTests
         await whole("network-recommended");
         network.IsListView = !network.IsListView;
         await whole("network-list");
+    });
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Languages))]
+    public Task Share(UiLanguage language) => InAsync(language, async (app, window, whole) =>
+    {
+        var seed = await GalleryTests.SeedAsync(app, summaries: true);
+        await GalleryTests.LinkGalleryAsync(app, seed);
+        app.Services.GetRequiredService<ISharePrompt>().Open(app.Workbench.CurrentWorkspace!.Id, seed.Gauge);
+        await app.Root.Share.Loading;
+        await whole("share");
+        app.Root.Share.Dots.First(d => d.Id == seed.Rainhill).IsTicked = false;
+        app.Shell.NextShare = _ => new ExportDestination("x.html", Path.Combine(app.Paths.DataDirectory, "none", "x.html"), null);
+        await app.Root.Share.SaveCommand.ExecuteAsync(null);
+        Assert.True(app.Root.Share.NoticeIsError);
+        await whole("share-failed");
+        app.Root.Share.CloseCommand.Execute(null);
+
+        await app.Services.GetRequiredService<ConversationService>().RenameAsync(seed.Cable, LongName(ConversationRules.MaxTitleLength), CancellationToken.None);
+        app.Client.Hold("…");
+        await app.Services.GetRequiredService<ConversationService>().AskAsync(seed.Cable, "为什么？", CancellationToken.None);
+        app.Services.GetRequiredService<ISharePrompt>().Open(app.Workbench.CurrentWorkspace!.Id, seed.Cable);
+        await app.Root.Share.Loading;
+        Assert.NotNull(app.Root.Share.AnsweringNote);
+        await whole("longest-share");
+    });
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Languages))]
+    public Task Import(UiLanguage language) => InAsync(language, async (app, window, whole) =>
+    {
+        await app.StartWithWorkspaceAsync("火车");
+        var file = Path.Combine(app.Paths.DataDirectory, "share.html");
+        async Task OpenAsync(byte[] bytes)
+        {
+            await File.WriteAllBytesAsync(file, bytes, CancellationToken.None);
+            await app.Root.Import.OpenAsync(file);
+        }
+
+        app.ShellPage.IsWorkspaceMenuOpen = true;
+        await whole("import-menu");
+        app.ShellPage.IsWorkspaceMenuOpen = false;
+        await OpenAsync(SharePage.Encode(ImportUiTests.Share));
+        await whole("import");
+        app.Root.Import.CloseCommand.Execute(null);
+        await OpenAsync("not a share"u8.ToArray());
+        await whole("import-refused");
+        app.Root.Import.CloseCommand.Execute(null);
+
+        // The longest names: the share's title is typed by someone else and has no limit of its own.
+        var longest = ImportUiTests.Share with
+        {
+            Title = LongName(ImportLimits.MaxNameLength),
+            Conversations = [.. ImportUiTests.Share.Conversations.Select(c => c with { Name = LongName(ConversationRules.MaxTitleLength) })],
+        };
+        await OpenAsync(SharePage.Encode(longest));
+        await whole("longest-import");
+        await app.Root.Import.ImportCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 3);
+        await whole("longest-received");
+        app.Workbench.SwitchWorkspace(app.Workbench.Workspaces[0].Id);
+        var more = longest with { Conversations = [.. longest.Conversations, new(ConversationId.New(), ImportUiTests.Root, null, longest.MadeAt, 0, false), new(ConversationId.New(), null, null, longest.MadeAt, 0, false)] };
+        await OpenAsync(SharePage.Encode(more));
+        app.Root.Import.Targets[1].IsChosen = true;
+        await whole("longest-import-skipped");
+        app.Root.Import.CloseCommand.Execute(null);
+        await OpenAsync(SharePage.Encode(longest));
+        Assert.True(app.Root.Import.IsAllHere);
+        await whole("longest-import-all-here");
+        app.Root.Import.CloseCommand.Execute(null);
+        app.Workbench.SwitchWorkspace(app.Workbench.Workspaces[1].Id);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        network.Select(network.Nodes.Single(n => n.IsRoot).Id);
+        await whole("longest-received-details");
     });
 
     [AvaloniaTheory]

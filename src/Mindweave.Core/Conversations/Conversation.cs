@@ -18,4 +18,11 @@ public sealed record Conversation(
     string? Title,
     TitleSource TitleSource,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    /// <summary>
+    /// It arrived by import of a shared file, so it is read-only: no message is ever added to it, and a question asked in it
+    /// starts a conversation of the user's own (requirements §10.7, decision I4).
+    /// </summary>
+    public bool IsImported { get; init; }
+}

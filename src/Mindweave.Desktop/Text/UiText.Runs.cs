@@ -73,25 +73,29 @@ public static partial class UiText
     public static string RunActivity(IEnumerable<(string Tool, string? Summary)> calls)
     {
         ArgumentNullException.ThrowIfNull(calls);
-        return string.Join(" · ", calls.Select(c => (c.Tool, Label: ToolLabel(c.Tool, c.Summary))).GroupBy(c => c.Label, StringComparer.Ordinal).Select(g => g.First().Tool switch
-        {
-            "search_attachments" => T(
-                Plural(g.Count(), "attachment search", "attachment searches"),
-                string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次附件", g.Count())),
-            "search_summaries" => T(
-                Plural(g.Count(), "summary search", "summary searches"),
-                string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次总结", g.Count())),
-            "web_search" => T(
-                Plural(g.Count(), "web search", "web searches"),
-                string.Format(CultureInfo.InvariantCulture, "搜索了 {0} 次", g.Count())),
-            "fetch_page" => T(
-                Plural(g.Count(), "web page read", "web pages read"),
-                string.Format(CultureInfo.InvariantCulture, "读了 {0} 个网页", g.Count())),
-            _ => T(
-                Plural(g.Count(), "call", "calls") + " to " + g.Key,
-                string.Format(CultureInfo.InvariantCulture, "调用了 {0} 次 {1}", g.Count(), g.Key)),
-        }));
+        return string.Join(" · ", calls.Select(c => (c.Tool, Label: ToolLabel(c.Tool, c.Summary))).GroupBy(c => c.Label, StringComparer.Ordinal)
+            .Select(g => ToolCalls(g.First().Tool, g.Key, g.Count())));
     }
+
+    /// <summary>One part of the activity line: how often <paramref name="tool"/> was called.</summary>
+    private static string ToolCalls(string tool, string label, int count) => tool switch
+    {
+        "search_attachments" => T(
+            Plural(count, "attachment search", "attachment searches"),
+            string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次附件", count)),
+        "search_summaries" => T(
+            Plural(count, "summary search", "summary searches"),
+            string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次总结", count)),
+        "web_search" => T(
+            Plural(count, "web search", "web searches"),
+            string.Format(CultureInfo.InvariantCulture, "搜索了 {0} 次", count)),
+        "fetch_page" => T(
+            Plural(count, "web page read", "web pages read"),
+            string.Format(CultureInfo.InvariantCulture, "读了 {0} 个网页", count)),
+        _ => T(
+            Plural(count, "call", "calls") + " to " + label,
+            string.Format(CultureInfo.InvariantCulture, "调用了 {0} 次 {1}", count, label)),
+    };
 
     /// <summary>
     /// The status line of a running answer (docs/design/reasoning-and-status.md §2). <paramref name="tool"/> and its step

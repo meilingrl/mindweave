@@ -43,6 +43,10 @@ public sealed partial class Composer : ViewModelBase
     [NotifyPropertyChangedFor(nameof(Notice), nameof(ShowNotice))]
     public partial bool IsStoragePaused { get; set; }
 
+    /// <summary>What the empty input says.</summary>
+    [ObservableProperty]
+    public partial string Placeholder { get; set; } = UiText.AskPlaceholder;
+
     /// <summary>An answer is being written: the composer offers stop where send is (the conversation page sets it).</summary>
     [ObservableProperty]
     public partial bool IsAnswerRunning { get; set; }

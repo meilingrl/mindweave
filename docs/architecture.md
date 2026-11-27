@@ -32,7 +32,7 @@ Dependency direction: Application → Core; Infrastructure → Application, Core
 
 The Desktop startup entry composes the infrastructure, and ViewModels work through use cases and service interfaces. Selection hit-testing, text geometry, highlighting and scrolling belong to the View / adaptation layer; they are not forced into ViewModels just to look like MVVM.
 
-Abstractions exist only at real replacement boundaries such as storage, AI and navigation; no general command bus, per-class interfaces or complex repository framework is introduced. Prototypes are not extended directly into the formal product.
+Abstractions exist only at real replacement boundaries such as storage, AI and navigation; no general command bus or complex repository framework is introduced. The Desktop reaches each Application service through one interface, which is where tests put a stand-in; a class used only inside its own project gets no interface of its own. Prototypes are not extended directly into the formal product.
 
 ### 2.1 Course requirements
 
@@ -111,8 +111,13 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | the summary network's views: spatial view (空间), timeline view (时间线) (requirements v0.25 §7.3) | `SummaryNetworkViewMode.Spatial` (laid out by `SpatialLayout`), `SummaryNetworkViewMode.Timeline` (laid out by `TimelineLayout`) |
 | time thread (时间先后) (requirements v0.25) | `TimeThread` |
 | a dot's weight: how much was asked in a conversation and its branches (requirements v0.25 §7.3) | `Weight` (computed by `ConversationWeights`) |
-| recap (回顾): the short text kept for a rested conversation, and its questions left open (未解决的问题) (requirements v0.29 §10.7) | `Recap` (a conversation's is `ConversationRecap`); a question left open is `OpenQuestion`; the rule that says when one is due is `RecapSchedule` |
-| sharing (分享) (evolution D8 idea, not yet in the requirements) | `Share` |
+| recap (回顾): the short text kept for a rested conversation, and its questions left open (未解决的问题) (requirements v0.33 §10.10) | `Recap` (a conversation's is `ConversationRecap`); a question left open is `OpenQuestion`; the rule that says when one is due is `RecapSchedule` |
+| share (分享) (requirements v0.29 §10.7): the selection, the share dialog and the shared page | `Share` |
+| exchange document (交换文档): the one outward form of conversations, which a share and a device copy both carry (seam E5) | `Exchange` (the document `ExchangeDocument`) |
+| import (导入) of a shared file or a device copy (requirements v0.29 §10.7) | `Import` |
+| device copy (设备副本) (requirements v0.29 §10.7) | `DeviceCopy` |
+| continuation (接续): the user's own conversation that continues a received one, a branch of it with no quoted sentence (requirements v0.30 §10.7) | `BranchSource.IsContinuation` |
+| stand-in (替身): what shows that an attachment or the tool steps did not travel in a share (requirements v0.30 §10.7) | `AbsentAttachmentBlock`, `ActivityCountBlock`; a citation without stored material is a `CitationBlock` without a resource |
 
 Reserved words are used only with these meanings: `Network` means a network connection (such as a connection failure, `NetworkRead`), and `Graph` means the general graph structure in layout algorithms. `Web` is used only for web search and web pages; `Source` is already used for branch sources (`BranchSource`), citations always use `Citation`, and the provenance of a resource uses `Provenance`.
 
@@ -205,14 +210,14 @@ The following is a logical model with constraints, not final SQL or existing tab
 | GenerationTask | Task ID / type / target, status, frozen configuration and input identity, output, error and times; does not store execution threads or API keys |
 | ContextSummary | Context summary: the conversation and message range it covers, generation configuration identity, body, invalidation flag; belongs to the conversation of the covered messages, not to the child conversation that made the request [review completion · MW-C02] |
 | SummaryNode | Unique per summarized conversation; current version, version pending adoption, automatic / manual display name and hand-edit flag; its identity is stable through version updates and renames. Summarizing again after the last version is deleted counts as a new node [review suggestion · MW-C17] |
-| SummaryVersion | Full title and body, covered range, origin (generated / hand-edited), baseline, task identity; a version that covers the conversation's branches (requirements §10.7.6) also records each covered branch conversation and the range fixed in it |
+| SummaryVersion | Full title and body, covered range, origin (generated / hand-edited), baseline, task identity; a version that covers the conversation's branches (requirements §10.10.6) also records each covered branch conversation and the range fixed in it |
 | SummaryReadState | Read state, reading position and the maximum reading progress reached, saved per version [user confirmed · U2], and how it became read (progress / manual / saving a hand edit) |
 | SummaryEditDraft | Owning node, base version of the edit, draft title and body; auto-saved separately, not a version |
-| ConversationRecap (requirements v0.29 §10.7) | At most one per conversation: key points, questions left open (each with its own identity and state: open / asked / dismissed), the last message it covers, the language it was written in, generating task identity and time. Replaced as a whole by a newer recap; a dismissed question is remembered so it does not return unchanged. Deleted with its conversation or workspace; kept through archiving. It is not a SummaryNode and takes no part in versions, read state or summary links |
+| ConversationRecap (requirements v0.33 §10.10) | At most one per conversation: key points, questions left open (each with its own identity and state: open / asked / dismissed), the last message it covers, the language it was written in, generating task identity and time. Replaced as a whole by a newer recap; a dismissed question is remembered so it does not return unchanged. Deleted with its conversation or workspace; kept through archiving. It is not a SummaryNode and takes no part in versions, read state or summary links |
 | ServiceConnection / ModelConfig | See "Configuration and extension boundaries"; the business database stores only credential references |
 | ExplorationPlace | One per exploration (key: its root conversation): workspace, X, Y, the direction of its oldest branch, size; see §11.2; deleted with its root conversation or workspace |
 | Conversation archive flag | Records only explicit archiving; being hidden because an ancestor is archived is derived and does not rewrite descendants; see "Archiving and restoring" |
-| Recommendation (after the first release) | Workspace, type (question / summary network node), question, reason, the summary node it is based on (required for summary network nodes; must also be recorded for questions that show “延伸自” (Extends from)), generating task identity and time, status (unused / used / dismissed); deleted in the same transaction when its base summary is deleted, including dismissed records; for dismissed ones, only the normalized question needed for deduplication is kept. A node asked for with “延伸” (Extend, requirements §10.7.5) records the dot it was asked for, and its basis may be a conversation with a recap in place of a summary node |
+| Recommendation (after the first release) | Workspace, type (question / summary network node), question, reason, the summary node it is based on (required for summary network nodes; must also be recorded for questions that show “延伸自” (Extends from)), generating task identity and time, status (unused / used / dismissed); deleted in the same transaction when its base summary is deleted, including dismissed records; for dismissed ones, only the normalized question needed for deduplication is kept. A node asked for with “延伸” (Extend, requirements §10.10.5) records the dot it was asked for, and its basis may be a conversation with a recap in place of a summary node |
 | SummaryLink (after the first release) | Workspace, two summary nodes (saved in normalized order; unique per pair; cannot be the same node), note, origin (created by the user / AI suggestion confirmed / from a recommendation, v0.14), creation time; deleted in the same transaction when either node is deleted |
 | StartingRecommendation (v0.14) | At most one per conversation: identity and type of the recommendation it came from, base summary node (nullable), whether it was handled when the first summary node was created, creation time. Written in the same transaction as the conversation and deleted with the conversation; set to null when the base summary is deleted (the record is not deleted); deleting the recommendation itself has no effect (only its identity is recorded, with no foreign key). In the same transaction in which the conversation first creates its summary node, if the base summary is still in the same workspace, a SummaryLink with the origin "from a recommendation" and the note “来自推荐” (“Recommendation” in English; the interface language at creation, v0.24) is created, and the record is marked handled; later summaries or rebuilt nodes are never handled again (requirements §10.3.5) |
 | LinkSuggestion (after the first release) | Workspace, two summary nodes, note and reason, status (pending confirmation / dismissed), generating task identity; becomes a SummaryLink when accepted; deleted in the same transaction when a node is deleted |
@@ -331,7 +336,7 @@ Ordinary configuration is stored in SQLite, API keys in macOS Keychain / Windows
 
 The user enters the address and API key, explicitly fetches the models and then chooses one; on failure the manual entry is kept. Fetching models is separate from test requests that may be billed. The first release has one active configuration; a stable connection identity keeps the boundary for multiple connections in the future.
 
-When a task is accepted, it binds the configuration and credential version, and new settings affect only new tasks; when an old credential becomes invalid, the task fails explicitly and never secretly switches key or vendor. Updating an API key writes a new credential item and updates the connection's reference; the old credential item is cleaned up once no unfinished task references it [review suggestion · MW-C15]. Concrete version saving, reading and cleanup are handled by implementation design; there is no credential version management interface for users. Project export does not carry API keys; after moving to another machine, they are entered again.
+When a task is accepted, it binds the configuration and credential version, and new settings affect only new tasks; when an old credential becomes invalid, the task fails explicitly and never secretly switches key or vendor. Updating an API key writes a new credential item and updates the connection's reference; the old credential item is cleaned up once no unfinished task references it [review suggestion · MW-C15]. Concrete version saving, reading and cleanup are handled by implementation design; there is no credential version management interface for users. Project export does not carry API keys; after moving to another machine, they are entered again. Clean-up of old credential items runs when settings are saved, when a task ends and at start-up. The credential service can list the items of its own channel; at start-up, items that no connection, search setting, MCP server or unfinished task refers to are deleted, and only their number is logged. A read from the system's store waits a bounded time and then fails the request as credential unavailable (requirements §10.8).
 
 ### 7.4 Long-term vision: built-in free AI experience with limits
 
@@ -365,7 +370,7 @@ Summaries are saved in local SQLite, with the body in Markdown. An externally ed
 
 The user chooses the location and handles overwriting a file of the same name. An export is an independent copy: it does not watch for external changes, does not sync back to the database and does not manage file versions. Exporting does not create a summary version or change the adoption pointer. The internal version mechanism stays.
 
-The final goal is full project import/export, including conversations, messages, branch sources, summaries and version relationships. The first release keeps stable identities and clear associations, and does not yet implement project packages, conflict merging or importing arbitrary Markdown. The package format and versioning rules are not yet decided.
+Import and export of whole conversations, with messages, branch sources, summaries and version relationships, are in §16 (requirements §10.7). Importing arbitrary Markdown is not included.
 
 ### 8.2 Confirmed version operations and delegated implementation details
 
@@ -444,11 +449,11 @@ The summary network has two views (requirements §7.3): the spatial view, laid o
 | Pan/zoom | The wheel and two-finger scroll zoom; with “鼠标滚轮直接缩放” (Zoom with the mouse wheel) off they pan, and ⌘/Ctrl plus scroll zooms. Buttons zoom; dragging empty space pans |
 | Title search / show all | Focuses the matching node / fits the whole graph in the viewport |
 
-Each conversation is a dot with a title, a selection outline, a summary ring when it has a summary, and an unread mark for that summary; a conversation whose recap has questions left open also wears a dashed ring (requirements §10.7.4), drawn so that it reads apart from the summary ring and from a recommended node; states are not distinguished by color alone. The candidate update notice is separate from the unread mark, and later unsummarized messages are shown as metadata. A dot's size shows how much was asked in its conversation and its branches (its weight), never the degree of understanding.
+Each conversation is a dot with a title, a selection outline, a summary ring when it has a summary, and an unread mark for that summary; a conversation whose recap has questions left open also wears a dashed ring (requirements §10.10.4), drawn so that it reads apart from the summary ring and from a recommended node; states are not distinguished by color alone. The candidate update notice is separate from the unread mark, and later unsummarized messages are shown as metadata. A dot's size shows how much was asked in its conversation and its branches (its weight), never the degree of understanding.
 
 The summary network delivers automatic layout and basic browsing. There is no explicit layout saving, no “整理布局” (Arrange layout) and no manual dragging (requirements v0.25 §7.4). The viewport is not persisted.
 
-Recaps (requirements §10.7) add no structure to the summary network: the projection carries, for each dot, whether its conversation has a recap and how many of its questions are still open, and the details read the recap itself. A recap changes no coordinate and no exploration place. When a recap is due is decided in Application by a pure rule over stored times and weights (`RecapSchedule`: rest, weight against the workspace average, the limits per check and per day); it is checked at start and hourly, makes no model call itself, and queues recap requests through the generation coordinator below user questions, automatic titles and summaries. Nothing is requested again automatically after a restart: the next check finds the conversation due again.
+Recaps (requirements §10.10) add no structure to the summary network: the projection carries, for each dot, whether its conversation has a recap and how many of its questions are still open, and the details read the recap itself. A recap changes no coordinate and no exploration place. When a recap is due is decided in Application by a pure rule over stored times and weights (`RecapSchedule`: rest, weight against the workspace average, the limits per check and per day); it is checked at start and hourly, makes no model call itself, and queues recap requests through the generation coordinator below user questions, automatic titles and summaries. Nothing is requested again automatically after a restart: the next check finds the conversation due again.
 
 ### 11.1 Four projects and drawing responsibilities
 
@@ -492,12 +497,12 @@ The user message and the request record are committed before sending. The text, 
 
 ### 12.2 Migration and backup
 
-- The database schema version is independent of the software version. Migrations run forward in sequence, and downgrade migrations are not supported. Old software that meets a newer schema refuses to write.
-- After acquiring single-instance ownership, the version is checked before entering the workbench and before starting AI. When a migration is needed, a consistent backup is created first; if that fails, the migration does not start.
-- First-version migration steps are limited to operations that can be completed within the migration transaction. Schema changes, necessary data conversions and the schema version number are committed together; if a necessary relationship check fails, everything rolls back.
+- The database schema version is independent of the software version. Migrations run forward in sequence, and downgrade migrations are not supported. Old software that meets a newer schema refuses to write. The schema version is the only gate for what is stored: a build that starts writing a value an older build cannot read (a new block kind, a new stored name, a required field inside stored JSON) raises it, with a migration that may be empty.
+- After acquiring single-instance ownership, the version is checked before entering the workbench and before starting AI. When a migration is needed, a consistent backup is created first; if that fails, the migration does not start. No such backup is made of a database that was just restored from a backup file that still exists.
+- First-version migration steps are limited to operations that can be completed within the migration transaction. Schema changes, necessary data conversions and the schema version number are committed together; if the migration itself breaks a necessary relationship, everything rolls back. A broken relationship that was already there before the migration does not stop it; it is logged and counted in the diagnostic summary (§17), and nothing is deleted automatically.
 - Do not simply copy an active database file that may have unmerged logs. Backups are made with `VACUUM INTO`. Writes go through one connection and reads through short-lived read-only connections; single-instance ownership is acquired first, then the version is checked and migrated [review suggestion · MW-C19].
 - A failed migration does not automatically overwrite the original database with a backup, and does not automatically create an empty database to fake success. It offers the error, retry, opening the data location, and quit. When a usable backup exists, the user explicitly chooses whether to restore it.
-- Before restoring, stop tasks, close connections and keep the current file; then restore the backup and check again. Explain clearly the point in time restored to and the possible losses. A migration backup is not the same as a routine backup. Besides migrations, a backup is made before deleting a conversation with a cascade, deleting a workspace, and restoring; only migration backups are pruned (5 kept). A backup can also be restored inside the running app, through the exit prompts of §12.3.
+- Before restoring, stop tasks, close connections and keep the current file; then restore the backup and check again. Explain clearly the point in time restored to and the possible losses. A migration backup is not the same as a routine backup. Besides migrations, a backup is made before deleting a conversation with a cascade, deleting a workspace, and restoring; only migration backups are pruned (5 kept). A backup can also be restored inside the running app, through the exit prompts of §12.3. The database a restore replaced is kept and can be restored in the same way, also when it was replaced because its schema was newer than the software.
 
 Infrastructure performs opening, backup, migration and restore; Application coordinates the startup result; Desktop shows the workbench or the recovery page through Root; Core does not handle SQL upgrades. Transaction failure, process interruption, backup failure, incompatibility between old and new versions, and relationship integrity after restore all need verification on a temporary database.
 
@@ -509,7 +514,7 @@ Infrastructure performs opening, backup, migration and restore; Application coor
 2. Quit only: when answers or summaries the user started are running or queued, prompt. On cancel, go back. When the system logs out or shuts down, nothing is asked unless such work is running, and everything is saved.
 3. After confirmation, close the entry points for new operations and scheduling, and take no more items from the queue. Stop running tasks, and mark queued tasks that have not started as canceled.
 4. Save the final drafts, reading positions, summary edit drafts and the terminal state of partial answers, and wait for the unified write queue to drain.
-5. Save failure: keep memory and the error; the user can retry quitting or return to the workspace. Returning only accepts new operations and does not revive canceled tasks (D6).
+5. Save failure: keep memory and the error; the user can retry quitting or return to the workspace. After a failed retry there is a third choice, to quit without saving; it lists what is lost and then goes to step 6. Returning only accepts new operations and does not revive canceled tasks (D6).
 6. Release single-instance ownership, then quit.
 
 ## 13. Verification status and asset entry points
@@ -555,7 +560,7 @@ Specific interactions for request timeouts, retries and answer attempts were onc
 
 ### 14.3 Later scope
 
-The design of the agent platform (requirements §10.4) is in §15, and it is implemented on schedule; a code execution sandbox and long-running background agents are not planned. Full project import/export, a full multi-provider management UI, cross-workspace semantic associations and automatic classification, free-quota services, Linux and 3D are not current prerequisites. The first batch of recommendations and summary links is written into requirements §10.3 as increments after the first release, not as first-release gates. Manual dragging and decorative animation keep their recorded phasing; explicit saving of automatic layout coordinates is already the current plan and is not postponed as a whole.
+The design of the agent platform (requirements §10.4) is in §15, and it is implemented on schedule; a code execution sandbox and long-running background agents are not planned. Automatic cross-device sync, a full multi-provider management UI, cross-workspace semantic associations and automatic classification, free-quota services, Linux and 3D are not current prerequisites. The first batch of recommendations and summary links is written into requirements §10.3 as increments after the first release, not as first-release gates. Manual dragging and decorative animation keep their recorded phasing; explicit saving of automatic layout coordinates is already the current plan and is not postponed as a whole.
 
 ### 14.4 Notes on adopting the review
 
@@ -776,3 +781,77 @@ Product basis: requirements §10.4.6 (v0.19). This section fills in the details 
 - **Processes and connections.** `McpServerManager` (Application, singleton) holds connections and status per server. It connects on demand (start, handshake and listing tools complete within 30 seconds), and connects to one server only once at a time. When a connection ends (process exit, URL disconnect), the status becomes error and the exit time is recorded; backoff decides when the next reconnect may happen; after 5 times within 10 minutes, automatic reconnection stops. On application exit the host releases it, closing connections one by one. Infrastructure's `SdkMcpConnector`: a local command uses `StdioClientTransport` (no inherited environment; only the SDK's basic variable set minus `MINDWEAVE_*`, plus the variables the user filled in; working directory `<数据目录>/mcp/<编号>/` (data directory, number); standard error is logged line by line with keys removed, and the last 20 lines are kept); a URL uses `HttpClientTransport` (Streamable HTTP, falling back to SSE when that is not supported; no redirects followed, no cookies, no OAuth configured; no proxy when the address is loopback). The client declares no capabilities (no sampling, elicitation or roots).
 - **Tools.** `McpToolSource` gives the enabled tools when a question is accepted (`McpTool : ITool`, using the definition snapshot taken at enabling, without starting the server for this); the registry places them after the built-in tools; name conflicts are resolved at enabling time (requirements §10.4.6). `McpTool.ExecuteAsync` connects through the manager (starting on demand). It first compares the definition the server currently gives with the snapshot; if they differ, it disables the tool and reports an error; then it calls. The content items of the result are converted to Markdown text (text, image placeholders, resource links, embedded text resources); images are also saved as resources (`origin = 'mcp'`, `provenance = 'external'`). A call with risk "side effect" returns the approval card content (server, tool, formatted arguments) through `ITool.ApprovalFor`. Before the card is shown, `ITool.PrepareAsync` starts the server and compares the definitions; a call that cannot be executed errors directly, without asking the user for approval. Approval and waiting reuse phase 3's mechanism (`IRunSlots`, `run_step.approval`); the result text for a denial is given by the tool (`ITool.DeniedResult`). `run_step.target` is the server name, and statistics group by it and the tool name.
 - **Unknown outcome.** When a call with side effects times out or the server exits during the call, the tool throws `ToolOutcomeUnknownException`. The step is recorded as `unknown`, the result block is an error that says “结果未知，请自行核对”, the error is given back to the model, and the run continues.
+
+## 16. Sharing, import and device copies (after the first release)
+
+Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered and the increments are in [sharing.md](design/sharing.md).
+
+### 16.1 Layers
+
+- **Application** builds the exchange document from the stores, applies the selection and the filter, and holds the import rules. It has no Markdown library and writes no HTML.
+- **Infrastructure** writes and reads the files: the shared HTML file, the device copy package, and the atomic file write already used by the summary export (§8.1).
+- **Desktop** holds the share dialog and the import entry points.
+- Core gains no dependency. The existing summary export (§8) is unchanged.
+
+### 16.2 The exchange document
+
+- It is the only outward form of conversations (seam E5): a model of its own, never a stored record. It has a format name, a format version, the time it was made, the app version and a kind: structure, content or device.
+- It carries stored identities unchanged; import depends on them. A reader refuses a higher major format version; within one major version only optional fields are added.
+- **Filtering happens once, when the document is built.** Writers and the page never receive what requirements §10.7 keeps home, so no later step can leak it.
+- For a share with content it carries, per conversation, the messages in order with their Markdown, attachment names, the tool count line and the citations §10.7 allows; the branch source as the source message's identity, the quoted text when it left from one (a continuation left from none) and, when known, the position in the answer's Markdown; and the current summary version. It carries which answer replaced which, so that an import never shows two standing answers.
+- Times are instants, with no time zone.
+
+### 16.3 The shared file
+
+- One HTML file holding the exchange document as a data block, and the page's style and script inline. The page draws from the data block, so the file has one source and the data holds exactly what the page shows.
+- Nothing is fetched: no remote script, font or image. Links in answers and citations are ordinary links.
+- Answers must read as they do in the app (§5): emphasis next to Chinese punctuation, tables, and the four formula delimiters. HTML inside an answer is escaped. Formulas are drawn by a library carried in the file.
+- The timeline in the page follows the rules of §11.2's timeline layout.
+- A device copy is a package holding the same page, the exchange document and the attachment originals by content hash (§15.2).
+
+### 16.4 Import
+
+- The app reads only the data block and never runs the page. Imported text is drawn like any answer (§5): no image is loaded.
+- One import is one transaction.
+- Rules, by identity: present → left as it is; unknown → added; a received conversation gains the messages it lacks, each at its stored number; a conversation present in another workspace is reported, not moved, and its branches in the file are skipped with it.
+- **A received conversation is read-only** (requirements §10.7): the conversation records that it was received, and no use case adds a message to it. The user's question at its end creates a branch whose source is its last message, with no quoted sentence. So a shared file only ever extends a received conversation, and a number held by a different message means the file does not fit: that conversation is skipped.
+- **Two continuations** exist only with device copies. When the copy and the store each hold messages the other lacks after their last common message, the stored conversation is not changed, and the incoming one is written as a separate conversation whose identities are derived from the incoming ones, so that a second import finds it already there.
+- Import never deletes.
+- A structure-only share is stored as conversations without messages. A branch may have a parent and no source message (an empty received branch), or a source message and no quoted sentence (a continuation). Its context rows exist for every ancestor and may say that nothing of the ancestor is used, so that the tree reads of §11, archiving (§9.2) and the deletion checks (§4.2) see it as a branch. The context of received branches is set from the file's sources, also when a source arrives later; the context of the user's own conversations is never rewritten.
+- A branch source from a file carries the source message, the quoted sentence, the position in the answer's Markdown and, when the file has it, the stored anchor. The anchor is used only when its version and render profile match (§5); otherwise returning goes to the source answer.
+- For the web fetch approval (§15.7), URLs in received conversations do not count as the user's own, along the whole context chain.
+- A shared file never changes single-valued fields (title, current summary version, archived state). With a device copy the newer value wins; this needs the time of the last title change to be stored.
+- A device copy carries the identities of deleted conversations, which the app records from the release that adds device copies. Import only offers them for deletion, through the deletion flow of §9.1.
+
+### 16.5 Migrations
+
+The share itself needs none. Import rebuilds `branch_source` and `branch_context_range` for branches without a source sentence, and adds the record of imports and of which conversations were received. Device copies add the time of the last title change and the record of deleted identities. Each is tried on a copy of real data first (§12.2).
+
+## 17. Diagnostics and erasing (after the first release)
+
+Product basis: requirements §10.8 (v0.31). Reasons, failure cases and the increments are in [Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md).
+
+### 17.1 Layers
+
+- **Application** holds what a failure's details are, the request list (read from `ai_request`), the content of the diagnostic package, and the erase steps and their order.
+- **Infrastructure** writes the package with the atomic file write, lists and deletes credential items, rewrites the database file and deletes backup files.
+- **Desktop** holds the one failure block used by every page, the “诊断” page and the dialogs.
+
+### 17.2 The diagnostic package
+
+- It is built from a list of allowed fields. No storage record is serialized as it is (the E5 rule, [evolution-seams.md](design/evolution-seams.md)).
+- The log is its only free text. At export it is scrubbed again with every stored key, and the home folder is written as `~`. The file log also receives the stored keys while the app runs, so a key without a known shape is scrubbed.
+- When the key store is locked, the log is scrubbed by shape only, and the summary says so.
+- From the recovery page the package is built without opening the database.
+
+### 17.3 Erasing
+
+- The order is fixed: rewrite the database file (including the search index, and with the write-ahead log emptied), make one fresh backup, then delete the old copies. If the fresh backup fails, nothing is deleted.
+- A backup or replaced database "still holds deleted content" when it has a conversation, a summary version or a resource whose ID is not in the current data. It is opened read-only to find out.
+- The rewrite needs the single writer: running work is asked about and stopped first, as for a restore (§12.3). It is refused before it starts when free space is short.
+- Every step is safe alone, so an interrupted erase is finished by running it again. Nothing is recorded about what was erased.
+- `secure_delete` stays off; the rewrite does that work once, when the user asks.
+
+### 17.4 Migrations
+
+None.

@@ -9,6 +9,7 @@ internal sealed class SummaryNetworkPalette
 {
     private readonly Dictionary<EdgeState, IPen> _edges = [];
     private readonly Dictionary<IBrush, IPen> _summaryRings = [];
+    private readonly Dictionary<IBrush, IPen> _hollow = [];
     private readonly Dictionary<(EdgeState, bool), IPen> _timeline = [];
     private IPen? _recommendationRing;
     private IPen? _recommendationRingActive;
@@ -220,6 +221,20 @@ internal sealed class SummaryNetworkPalette
             };
             pen = new Pen(brush, Math.Max(rest, width));
             _timeline[(state, mainLine)] = pen;
+        }
+
+        return pen;
+    }
+
+    /// <summary>The outline of a dot that is not explored yet.</summary>
+    public const double HollowStroke = 1.5;
+
+    public IPen HollowPen(IBrush brush)
+    {
+        if (!_hollow.TryGetValue(brush, out var pen))
+        {
+            pen = new Pen(brush, HollowStroke);
+            _hollow[brush] = pen;
         }
 
         return pen;

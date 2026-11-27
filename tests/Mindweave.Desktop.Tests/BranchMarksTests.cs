@@ -46,7 +46,7 @@ public class BranchMarksTests
         var marks = Marks(window).Marks;
         Assert.Same(page.Messages[1], marks[0].Answer);
         Assert.Same(page.Messages[5], marks[1].Answer);
-        Assert.Equal(UiText.BranchMark(2, "第一个分支"), ToolTip.GetTip(marks[0].Mark));
+        Assert.Equal(UiText.BranchMark(2, UiText.Quoted("第一个分支")), ToolTip.GetTip(marks[0].Mark));
         Assert.Equal("2 个分支 · 「第一个分支」", AutomationProperties.GetName(marks[0].Mark));
         Assert.Equal("1 个分支 · 「第三个分支」", AutomationProperties.GetName(marks[1].Mark));
         AssertPlaced(window);
