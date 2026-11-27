@@ -4,9 +4,15 @@
 #   scripts/real-api.sh configure [profile]   enter address, model and key once (key goes to the login keychain)
 #   scripts/real-api.sh test [profile] [name] run the opt-in real-service tests against that profile; with a name,
 #                                             only the tests whose full name contains it (e.g. Workspace_names)
-#   scripts/real-api.sh eval [profile] [ids]  run the agent evaluation (docs/design/agent-loop.md §4): about 12 answers
-#                                             against a fake web; optional comma-separated scenario ids; writes a Markdown
-#                                             and a JSON report (MINDWEAVE_RUN_EVAL_REPORT names the file)
+#   scripts/real-api.sh eval [profile] [ids]  run the agent evaluation (docs/design/agent-loop.md §4): 20 scenarios against
+#                                             a fake web, with the prompts as built; optional comma-separated scenario ids;
+#                                             writes a Markdown and a JSON report (MINDWEAVE_RUN_EVAL_REPORT names the file)
+#   scripts/real-api.sh compare [profile] [ids]
+#                                             the same with the previous prompts and the current ones, and a side-by-side
+#                                             report (docs/design/reply-quality.md Q10): twice the requests of eval.
+#                                             MINDWEAVE_RUN_EVAL_JUDGE=1 adds the judge's hints (about 30 more requests);
+#                                             MINDWEAVE_RUN_EVAL_PRICES=in,out (per million tokens, here or in the profile
+#                                             file) adds the cost
 #   scripts/real-api.sh list                  show configured profiles (never the key)
 #   scripts/real-api.sh remove [profile]      delete a profile and its key
 #
@@ -50,13 +56,17 @@ case "${1:-}" in
     [[ -f "$CONFIG_DIR/$PROFILE.env" ]] || { echo "No profile '$PROFILE'. Run: scripts/real-api.sh configure $PROFILE" >&2; exit 1; }
     # shellcheck disable=SC1090
     source "$CONFIG_DIR/$PROFILE.env"
+    # Evaluation prices may live in the profile file too; the test reads them from its environment.
+    if [[ -n "${MINDWEAVE_RUN_EVAL_PRICES:-}" ]]; then export MINDWEAVE_RUN_EVAL_PRICES; fi
     key="$(security find-generic-password -s "$SERVICE" -a "$PROFILE" -w)" || { echo "Key for '$PROFILE' not found in the keychain." >&2; exit 1; }
     MINDWEAVE_REAL_API_URL="$MINDWEAVE_REAL_API_URL" MINDWEAVE_REAL_API_MODEL="$MINDWEAVE_REAL_API_MODEL" MINDWEAVE_REAL_API_KEY="$key" \
       dotnet test "$ROOT/tests/Mindweave.Infrastructure.Tests" --filter "Category=RealApi${3:+&FullyQualifiedName~$3}" --logger "console;verbosity=normal"
     ;;
-  eval)
-    report="${MINDWEAVE_RUN_EVAL_REPORT:-${TMPDIR:-/tmp}/mindweave-run-eval-$(date +%Y%m%d-%H%M%S)-$PROFILE.md}"
-    MINDWEAVE_RUN_EVAL_REPORT="$report" MINDWEAVE_RUN_EVAL_ONLY="${3:-}" "$0" test "$PROFILE" RunEval
+  eval|compare)
+    editions=current
+    [[ "$1" == compare ]] && editions=previous,current
+    report="${MINDWEAVE_RUN_EVAL_REPORT:-${TMPDIR:-/tmp}/mindweave-run-$1-$(date +%Y%m%d-%H%M%S)-$PROFILE.md}"
+    MINDWEAVE_RUN_EVAL_REPORT="$report" MINDWEAVE_RUN_EVAL_ONLY="${3:-}" MINDWEAVE_RUN_EVAL_EDITIONS="$editions" "$0" test "$PROFILE" RunEval
     echo "Report: $report (and ${report%.md}.json)"
     ;;
   list)
@@ -67,5 +77,5 @@ case "${1:-}" in
     rm -f "$CONFIG_DIR/$PROFILE.env"
     echo "Removed profile '$PROFILE'."
     ;;
-  *) sed -n '2,16p' "$0"; exit 64 ;;
+  *) sed -n '2,22p' "$0"; exit 64 ;;
 esac

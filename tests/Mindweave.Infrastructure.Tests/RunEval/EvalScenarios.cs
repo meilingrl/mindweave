@@ -16,6 +16,9 @@ internal static class EvalScenarios
     private const string Summaries = SearchSummariesTool.ToolName;
 
     /// <summary>Words a model uses to say it found nothing.</summary>
+    /// <summary>What a pasted attachment is called (the name the run instructions ask the model to write).</summary>
+    private const string PastedName = "粘贴的文字";
+
     private static readonly string[] NotFound = ["没有找到", "未找到", "找不到", "无法找到", "没有查到", "未查到", "没有相关", "暂无", "无法确定", "不清楚", "无法提供", "没有公开", "未公开", "未能找到"];
 
     public static IReadOnlyList<EvalScenario> All { get; } =
@@ -32,15 +35,21 @@ internal static class EvalScenarios
             Script = c => c.Reply("该产品使用体验良好，特此向大家推荐。"),
         },
 
-        new("attachment-short", "附件", "整体发送的短附件：直接回答，不上网", [new("附件里说大水车是谁在哪一年主持修建的？", WithAttachments: true)],
-            new EvalExpectation { Contains = [["林守义"], ["1873"]], AvoidsTools = [Search, Fetch] })
+        new("attachment-short", "附件", "整体发送的短附件：直接回答，不上网，写出附件名称而不写编号", [new("附件里说大水车是谁在哪一年主持修建的？", WithAttachments: true)],
+            new EvalExpectation
+            {
+                Contains = [["林守义"], ["1873"]],
+                AvoidsTools = [Search, Fetch],
+                NoStrayNumbers = true,
+                Extra = [o => new EvalCheck("写出附件名称", o.Answer.Text.Contains(PastedName, StringComparison.Ordinal), string.Empty)],
+            })
         {
             Arrange = async h => new EvalSetup([await PasteAsync(h, WaterwheelNote)]),
-            Script = c => c.Reply("附件说，大水车由木匠林守义于 1873 年主持修建。"),
+            Script = c => c.Reply("附件《粘贴的文字》说，大水车由木匠林守义于 1873 年主持修建。"),
         },
 
         new("attachment-long", "附件", "放不下的长附件：找到中间一节的细节", [new("附件中白鹭村的石桥有几个桥孔，是谁主持修建的？", WithAttachments: true)],
-            new EvalExpectation { Contains = [["九", "9"], ["邓远山"]], AvoidsTools = [Search, Fetch] })
+            new EvalExpectation { Contains = [["九", "9"], ["邓远山"]], AvoidsTools = [Search, Fetch], NoStrayNumbers = true })
         {
             ContextWindow = 16_000,
             Arrange = async h => new EvalSetup([await PasteAsync(h, VillageNotes)]),
@@ -148,5 +157,144 @@ internal static class EvalScenarios
         },
     ];
 
-    public static EvalScenario Find(string id) => All.Single(s => s.Id == id);
+    /// <summary>The scenarios of reply quality, increment 1 (docs/design/reply-quality.md Q10): explanations and summaries.</summary>
+    public static IReadOnlyList<EvalScenario> Explanations { get; } =
+    [
+        new("branch-term", "讲解", "分支于一个术语：结合原文讲这个词，不重答上一级的问题",
+            [new("附件里的大水车是怎么造起来的？", WithAttachments: true), new("这个词是什么意思？", BranchOn: Term("榫卯", "辐条", "石磨"))],
+            new EvalExpectation
+            {
+                NotRestating = true,
+                NoStrayNumbers = true,
+                Extra = [o => new EvalCheck("讲到所选的词", o.Quote is not { Length: <= 8 } q || o.Answer.Text.Contains(q, StringComparison.Ordinal), o.Quote ?? string.Empty)],
+            })
+        {
+            Arrange = async h => new EvalSetup([await PasteAsync(h, WaterwheelNote)]),
+            Script = c =>
+            {
+                c.Reply("大水车由木匠林守义于 1873 年主持修建，用的是上游的杉木，辐条全部用榫卯连接，没有用一根铁钉。");
+                c.Reply("榫卯是木工里不用钉子把两块木头连起来的办法：一块削出凸起的“榫”，另一块凿出凹槽“卯”，插进去就咬紧了。水车转动时木头会受力变形，榫卯能随之微微活动，比铁钉更耐用。");
+            },
+        },
+
+        new("branch-paragraph", "讲解", "分支于一整段：展开这段，不复述上一级回答",
+            [new("附件里的大水车后来怎么样了？", WithAttachments: true), new("展开讲讲这一段。", BranchOn: LongestParagraph)],
+            new EvalExpectation { NotRestating = true, NoStrayNumbers = true })
+        {
+            Arrange = async h => new EvalSetup([await PasteAsync(h, WaterwheelNote)]),
+            Script = c =>
+            {
+                c.Reply("1958 年镇上建起电力磨坊，大水车随之停用。\n\n1996 年，镇政府请林守义的后人照原样修复了它，如今只在每年丰收节那天转动一次。");
+                c.Reply("这段讲的是水车停用近四十年后又被修好：修复的人正是当年造它的木匠的后代，用的是原来的做法。现在它不再磨面，只在丰收节转一天，更像镇上的纪念物。");
+            },
+        },
+
+        new("simpler", "讲解", "“说简单点”：换个浅显的讲法，不上网", [new("什么是潮汐锁定？"), new("说得简单一点，我是初中生。")],
+            new EvalExpectation { NoTools = true })
+        {
+            Script = c =>
+            {
+                c.Reply("潮汐锁定是指一个天体的自转周期与它绕另一个天体公转的周期相同，因此总以同一面朝向对方。月球就被地球潮汐锁定。");
+                c.Reply("想象你绕着一张桌子走，脸一直对着桌子：走一圈，你自己也正好转了一圈。月球绕地球就是这样，所以我们总看到它的同一面。");
+            },
+        },
+
+        new("two-readings", "讲解", "有两种理解的问题：说明取哪一种，并点出另一种", [new("水星上的一天有多长？")],
+            new EvalExpectation { Contains = [["59", "五十九"], ["176", "一百七十六"]] })
+        {
+            Script = c => c.Reply("这要看“一天”指什么：按自转一周算，约 59 个地球日；按太阳两次升到最高点之间算，约 176 个地球日。下面按后一种来讲：水星自转慢、公转快，两者叠加，太阳日就比自转周期长得多。"),
+        },
+
+        new("summary-topic", "讲解", "问到已有总结的主题：在总结之上讲，不从头讲起", [new("船闸是怎么让船一级一级升高的？")],
+            new EvalExpectation
+            {
+                AvoidsTools = [Search, Fetch],
+                Extra = [o => new EvalCheck("用上已有的总结", o.Answer.Text.Contains("司马恒", StringComparison.Ordinal) || o.Answer.Text.Contains("五级", StringComparison.Ordinal), string.Empty)],
+            })
+        {
+            Arrange = async h =>
+            {
+                await ArrangeSummariesAsync(h);
+                return EvalSetup.None;
+            },
+            Script = c =>
+            {
+                c.CallTool(Summaries, Query("船闸"));
+                c.Reply("你之前的总结《运河船闸的原理》讲过：船闸用两道闸门围出闸室，灌水让船升起来[1]。阶梯式船闸把几个闸室接成台阶，书中那座由司马恒设计，共五级，可让船爬升 23 米[1]。");
+            },
+        },
+
+        new("follow-up-on", "追问", "“开”档的追问：预搜索带上主题，回答有出处",
+            [new("星河-3 探测器是哪个机构发射的？", WebSearchMode.On), new("那它的着陆点在哪？", WebSearchMode.On)],
+            new EvalExpectation
+            {
+                Contains = [["玉衡-7"]],
+                Cites = true,
+                Extra = [o => new EvalCheck("预搜索带上主题", o.Searches.Count > 0 && o.Searches[0].Contains("星河", StringComparison.Ordinal), o.Searches.Count == 0 ? "没有搜索" : o.Searches[0])],
+            })
+        {
+            Script = c =>
+            {
+                c.Titles.Replies.Enqueue("星河-3 的发射机构");
+                c.Reply("星河-3 由南溟航天研究院发射[1]。");
+                c.CallTool(Fetch, Url(LandingUrl));
+                c.Reply("星河-3 着陆在月球背面的“玉衡-7”区域，那是一片相对平坦的撞击坑底部[1]。");
+            },
+        },
+
+        new("long-page", "网络", "长网页深处的细节：读到它，标出处", [new("南溟航天研究院的 2025 年度报告里，青鸾-7 卫星的设计寿命是几年？", WebSearchMode.On)],
+            new EvalExpectation { Contains = [["9 年", "9年", "九年"]], UsesTools = [Fetch], Cites = true })
+        {
+            Script = c =>
+            {
+                c.CallTool(Fetch, Url(ReportUrl));
+                c.CallTool(Attachments, Query("青鸾-7 设计寿命"));
+                c.Reply("年度报告说，青鸾-7 气象卫星的设计寿命为 9 年[1]。");
+            },
+        },
+
+        new("summary-jumps", "总结", "在几个话题间跳转的对话：总结先给要点，按概念组织，列出术语",
+            [new("什么是潮汐锁定？"), new("顺便问一下，为什么月球背面的陨石坑比正面多？"), new("回到潮汐：潮汐锁定和月球离地球越来越远有关系吗？")],
+            new EvalExpectation { Gist = true, Terms = true })
+        {
+            Summarize = true,
+            Script = c =>
+            {
+                c.Reply("潮汐锁定是指天体的自转周期等于公转周期，所以总以同一面朝向对方。");
+                c.Reply("月球正面有大片月海，熔岩填平了许多陨石坑；背面月壳更厚，熔岩少，坑就保留了下来。");
+                c.Reply("两者都来自潮汐：地球的潮汐隆起拉着月球向前，使它慢慢远离；同样的力在更早的时候让月球的自转慢下来，最终被锁定。");
+                c.Knowledge.Replies.Enqueue("""
+                    标题：潮汐锁定与月球的两面
+                    短名：潮汐锁定
+
+                    月球总以同一面朝向地球，是潮汐锁定的结果；同一种潮汐作用也让月球慢慢远离地球。
+
+                    ## 潮汐的作用
+                    - 潮汐让月球自转变慢，直到与公转同步。
+                    - 地球的潮汐隆起拉着月球，使它每年远离一点。
+
+                    ## 月球的两面
+                    - 正面月海多，熔岩填平了陨石坑；背面月壳厚，坑多。
+
+                    ## 关键术语
+                    - 潮汐锁定：自转周期等于公转周期，总以同一面朝向对方。
+                    - 月海：月面上由熔岩填平的低地。
+                    """);
+            },
+        },
+    ];
+
+    /// <summary>Every scenario: the run loop's, then the explanations'.</summary>
+    public static IReadOnlyList<EvalScenario> Everything { get; } = [.. All, .. Explanations];
+
+    public static EvalScenario Find(string id) => Everything.Single(s => s.Id == id);
+
+    /// <summary>The first of <paramref name="terms"/> that the answer uses, else its first sentence.</summary>
+    private static Func<string, string?> Term(params string[] terms) => text =>
+        terms.FirstOrDefault(t => text.Contains(t, StringComparison.Ordinal)) ?? EvalText.Sentences(text).FirstOrDefault(s => s.Length >= 4);
+
+    /// <summary>The answer's longest paragraph (Markdown headings and list marks left as they are).</summary>
+    private static string? LongestParagraph(string text) =>
+        text.ReplaceLineEndings("\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(p => !p.StartsWith('#')).OrderByDescending(p => p.Length).FirstOrDefault();
 }

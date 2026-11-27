@@ -100,9 +100,24 @@ Purpose: compare runs before and after a change, across models and across prompt
 | `limit-two` | Limits | Only 2 model requests allowed | Completes the answer with the results it has |
 | `tight-context` | Long context | A long attachment fills the context, and the web is also needed | Both parts answered correctly; searches (no longer a known gap after L8) |
 
+**Explanation scenarios (8, reply quality increment 1, [reply-quality.md](reply-quality.md) Q10, 2026-11-27).** They measure how answers and summaries are written. A branch question picks its passage from the answer the model actually gave (a term from a list, or the longest paragraph); when none fits, the scenario is reported as not run.
+
+| ID | Category | Content | Main checks |
+| --- | --- | --- | --- |
+| `branch-term` | Explanation | A branch on a term of an answer about the short attachment | Does not restate the parent answer; mentions the term; no number without a source |
+| `branch-paragraph` | Explanation | A branch on the longest paragraph of an answer | Does not restate the parent answer; no number without a source |
+| `simpler` | Explanation | "Simpler please, I am in middle school" after an explanation | No tool calls |
+| `two-readings` | Explanation | A question with two readings (a day on Mercury) | Names both readings (59 and 176 days) |
+| `summary-topic` | Explanation | A question on a topic that has a summary | Builds on it (its facts appear); no web |
+| `follow-up-on` | Follow-up | A follow-up that refers back, in the "开" setting | The pre-search carries the topic; correct answer; valid citations |
+| `long-page` | Web | A detail in paragraph 37 of 40 of a long page | Reads the page; correct answer; valid citations |
+| `summary-jumps` | Summary | A conversation that jumps between ideas, then a summary | The summary opens with a gist of one or two sentences and lists key terms |
+
+`attachment-short` and `attachment-long` also check that no [n] is written without a source, and `attachment-short` that the attachment is named. "Does not restate" compares runs of 12 letters: a share of 20% or more taken from the parent answer, apart from the selected passage itself, fails.
+
 ### 4.3 Metrics
 
-All computed from the existing `ai_request`, `run_step` and the answer's blocks, with no migration: answer status, model request count, tool call count (by tool), repeated call count (same tool name and normalized arguments; rejected calls do not count), calls that errored, approval cards, limits reached, [n] markers written and how many of them are valid, estimated input tokens, input and output tokens reported by the service, the time taken by the answer under test, and the total model request count of the whole scenario (including titles, attachment digests and earlier questions, used to estimate cost). “Whether the answer is correct” gets only a rough check (expected keywords, expected tools used); quality is judged by the user reading the answers in the report.
+All computed from the existing `ai_request`, `run_step` and the answer's blocks, with no migration (since reply quality increment 1 also seconds to the first text, measured from the question to the first text on screen, and the tokens the service reported for the whole scenario): answer status, model request count, tool call count (by tool), repeated call count (same tool name and normalized arguments; rejected calls do not count), calls that errored, approval cards, limits reached, [n] markers written and how many of them are valid, estimated input tokens, input and output tokens reported by the service, the time taken by the answer under test, and the total model request count of the whole scenario (including titles, attachment digests and earlier questions, used to estimate cost). “Whether the answer is correct” gets only a rough check (expected keywords, expected tools used); quality is judged by the user reading the answers in the report.
 
 ### 4.4 How to run
 
@@ -110,7 +125,13 @@ All computed from the existing `ai_request`, `run_step` and the answer's blocks,
 scripts/real-api.sh eval [config] [scenario-id,…]
 ```
 
-Real requests are sent only when the user explicitly runs it, and costs stay within the quota the user gives: the 12 scenarios are about 12 answers under test, plus titles, the first question of `follow-up`, and the attachment digests of the two long-attachment scenarios (about 12,000 characters of input each). The model is declared as “able to call tools”. The report is written to a temporary directory (`MINDWEAVE_RUN_EVAL_REPORT` may point elsewhere): one Markdown file (summary, one row per scenario, each scenario's checks, tool calls and answer) and one JSON file with the same name (for comparing two runs); comparison results worth keeping are written up in `docs/reviews/`. Without a real service, these scenarios run as ordinary tests (`RunEvalTests`, about 1 second).
+Real requests are sent only when the user explicitly runs it, and costs stay within the quota the user gives: the 20 scenarios are about 20 answers or summaries under test, plus titles, the earlier questions of the follow-up, branch and summary scenarios, and the attachment digests of the two long-attachment scenarios (about 12,000 characters of input each).
+
+```
+scripts/real-api.sh compare [config] [scenario-id,…]
+```
+
+Runs every scenario twice, with the prompts before reply quality increment 1 (no answer instructions, run instructions 3, summary prompt 1; kept in `EvalEditions.cs`) and with the prompts as built, and writes a side-by-side report: per scenario and in total, each version's checks, input and output tokens, model requests, tool calls, seconds to the first text and in all, with the difference, then both answers. `MINDWEAVE_RUN_EVAL_PRICES=in,out` (per million tokens, in the environment or the profile file) adds the cost. `MINDWEAVE_RUN_EVAL_JUDGE=1` adds two hints from the same model: which answer is clearer (asked twice, the answers' places swapped; when the two disagree the hint says so), and how many cited sentences their passages support. The judge's own requests and tokens are reported apart; its verdict is never a pass or a fail. The model is declared as “able to call tools”. The report is written to a temporary directory (`MINDWEAVE_RUN_EVAL_REPORT` may point elsewhere): one Markdown file (summary, one row per scenario, each scenario's checks, tool calls and answer) and one JSON file with the same name (for comparing two runs); comparison results worth keeping are written up in `docs/reviews/`. Without a real service, these scenarios run as ordinary tests (`RunEvalTests`, about 1 second).
 
 ### 4.5 The first real run (2026-11-19, deepseek-flash, before the evaluation was corrected)
 
@@ -180,7 +201,7 @@ Done in four steps in the order of section 5, one commit per item; the five item
 
 **Not triggered on a real service, covered only by fake-model tests:** L4 (the model made no repeated calls this time), L5 (no retryable error occurred), L6 (no middle truncation), L7 (space never ran out), the actual concurrency of L3 (the report does not record which calls came from the same reply), L9 (the “开” questions in the evaluation are the first question in a new conversation).
 
-**To do (not in this scope):**
+**To do (not in this scope):** both items were done in reply quality increment 1 (2026-11-27), and wait for a real evaluation:
 
-- Attachment digest requests may be truncated by the output limit on reasoning models (step 4 `tight-context`); to be looked at together with the same kind of problem in context compression.
-- Run prompt version 3 dropped “依据附件时写出名称” (name the attachment when relying on it); attachment parts sent directly with the question have no numbers, so the model may still write [n] (step 4 `attachment-long`). After adding a sentence back, another evaluation is needed.
+- Attachment digest requests were truncated by the output limit on reasoning models (step 4 `tight-context`): a long attachment was digested in segments as large as the input space allowed, which left the first request too little output. Every digest request now leaves the whole digest allowance (8,192 tokens) for output (`AttachmentDigestOutputTests`).
+- Run prompt version 3 dropped “依据附件时写出名称” (name the attachment when relying on it); version 4 has it again (step 4 `attachment-long`).

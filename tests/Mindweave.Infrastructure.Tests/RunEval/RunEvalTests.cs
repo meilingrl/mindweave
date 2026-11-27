@@ -16,12 +16,13 @@ public class RunEvalTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public static TheoryData<string> Scenarios => [.. EvalScenarios.All.Select(s => s.Id)];
+    public static TheoryData<string> Scenarios => [.. EvalScenarios.Everything.Select(s => s.Id)];
 
     internal static Task<ChatHarness> StartScripted(int? window) =>
         ChatHarness.StartAsync(model: new ModelSettingsInput(
             "fake", "https://fake.example/v1", "fake-model", "sk-test", window,
             ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions) with { ToolCalls = true }));
+
 
     [Theory]
     [MemberData(nameof(Scenarios))]
@@ -114,6 +115,178 @@ public class RunEvalTests
     }
 
     [Fact]
+    public async Task The_previous_edition_runs_without_the_answer_instructions_and_with_run_instructions_3()
+    {
+        // The fake service of each harness stays readable after the harness is gone.
+        var clients = new List<Testing.FakeChatClient>();
+        async Task<ChatHarness> Recording(int? window)
+        {
+            var h = await StartScripted(window);
+            clients.Add(h.Client);
+            return h;
+        }
+
+        var current = await EvalRunner.RunAsync(EvalScenarios.Find("web-auto"), Recording, TimeSpan.FromSeconds(20), scripted: true, Ct, EvalEdition.Current);
+        var previous = await EvalRunner.RunAsync(EvalScenarios.Find("web-auto"), Recording, TimeSpan.FromSeconds(20), scripted: true, Ct, EvalEdition.Previous);
+
+        Assert.True(current.Checks.All(c => c.Passed) && previous.Checks.All(c => c.Passed));
+        var systems = clients.Select(c => c.Requests.First(Testing.FakeChatClient.IsAnswer).Turns[0].Content).ToList();
+        Assert.StartsWith(Application.Conversations.AnswerPrompt.For(false) + "\n\n关于工具与材料：", systems[0], StringComparison.Ordinal);
+        Assert.StartsWith("你是 Mindweave 中回答用户提问的助手。", systems[1], StringComparison.Ordinal);
+        Assert.DoesNotContain("核心意思", systems[1], StringComparison.Ordinal);
+        Assert.True(previous.Metrics!.InputTokens < current.Metrics!.InputTokens);
+
+        // The edition held only while its scenario ran.
+        Assert.NotEqual(string.Empty, Application.Conversations.AnswerPrompt.For(false));
+    }
+
+    [Fact]
+    public async Task The_summary_scenario_measures_the_summary_with_its_gist_and_terms()
+    {
+        var result = await EvalRunner.RunAsync(EvalScenarios.Find("summary-jumps"), StartScripted, TimeSpan.FromSeconds(20), scripted: true, Ct);
+
+        Assert.Null(result.Failure);
+        var o = result.Observation!;
+        Assert.Equal("潮汐锁定与月球的两面", o.Summary!.Title);
+        Assert.Equal(["总结完成", "开头是一两句要点", "列出关键术语"], result.Checks.Select(c => c.Name));
+        Assert.Equal("2 个术语", result.Checks[2].Detail);
+        Assert.Single(o.Requests);
+        Assert.NotNull(result.Metrics!.FirstTextSeconds);
+        Assert.Equal(0, result.Metrics.ToolCalls);
+    }
+
+    [Fact]
+    public async Task A_branch_scenario_branches_from_a_passage_of_the_answer_it_got_and_catches_a_restated_parent()
+    {
+        var scenario = EvalScenarios.Find("branch-term");
+        var good = await EvalRunner.RunAsync(scenario, StartScripted, TimeSpan.FromSeconds(20), scripted: true, Ct);
+        Assert.Equal("榫卯", good.Observation!.Quote);
+        Assert.Contains("林守义", good.Observation.ParentAnswer, StringComparison.Ordinal);
+
+        var restating = scenario with
+        {
+            Script = c =>
+            {
+                c.Reply("大水车由木匠林守义于 1873 年主持修建，用的是上游的杉木，辐条全部用榫卯连接，没有用一根铁钉。");
+                c.Reply("大水车由木匠林守义于 1873 年主持修建，用的是上游的杉木。榫卯就是一种连接方式[2]。");
+            },
+        };
+        var bad = await EvalRunner.RunAsync(restating, StartScripted, TimeSpan.FromSeconds(20), scripted: true, Ct);
+        Assert.Equal(["不重复上一级回答", "不为没有编号的材料写编号"], bad.Checks.Where(c => !c.Passed).Select(c => c.Name).Order(StringComparer.Ordinal).Reverse());
+
+        // No passage to pick: reported as not run.
+        var none = scenario with { Turns = [scenario.Turns[0], scenario.Turns[1] with { BranchOn = _ => null }] };
+        var skipped = await EvalRunner.RunAsync(none, StartScripted, TimeSpan.FromSeconds(20), scripted: true, Ct);
+        Assert.StartsWith("上一个回答里没有可选的段落", skipped.Failure, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_side_by_side_report_has_both_editions_their_costs_and_times_and_the_hints()
+    {
+        var ids = new[] { "no-tool-fact", "branch-paragraph", "summary-jumps" };
+        var previous = new List<EvalResult>();
+        var current = new List<EvalResult>();
+        foreach (var id in ids)
+        {
+            previous.Add(await EvalRunner.RunAsync(EvalScenarios.Find(id), StartScripted, TimeSpan.FromSeconds(20), scripted: true, Ct, EvalEdition.Previous));
+            current.Add(await EvalRunner.RunAsync(EvalScenarios.Find(id), StartScripted, TimeSpan.FromSeconds(20), scripted: true, Ct, EvalEdition.Current));
+        }
+
+        var judged = new Dictionary<string, EvalJudgement>(StringComparer.Ordinal)
+        {
+            ["branch-paragraph"] = new(EvalClarity.Second, null, null),
+            ["no-tool-fact"] = new(EvalClarity.Inconsistent, new EvalSupport(0, 0, 0, 0), new EvalSupport(1, 1, 0, 0)),
+        };
+        var first = new EvalRun(EvalEdition.Previous, previous);
+        var second = new EvalRun(EvalEdition.Current, current);
+        var markdown = EvalComparison.Markdown(first, second, "scripted", DateTimeOffset.UnixEpoch, new EvalPrices(2, 8), judged, new EvalJudgeCost(4, 1_000, 20));
+
+        Assert.Contains("- 对照：上一版（回答说明 0，运行说明 3，总结 1） → 本版（回答说明 1，运行说明 4，总结 2）", markdown, StringComparison.Ordinal);
+        Assert.Contains("| 指标 | 上一版 | 本版 | 差 |", markdown, StringComparison.Ordinal);
+        foreach (var row in new[] { "| 输入 token（被测） |", "| 输出 token（被测） |", "| 模型请求（被测） |", "| 工具调用 |", "| 到首字秒数（合计） |", "| 总秒数（合计） |", "| 费用（全部） |" })
+        {
+            Assert.Contains(row, markdown, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("| 评判（提示）：哪一版更清楚 | 上一版 0 | 本版 1 | 差不多 0，两次不一致 1，读不出 0 |", markdown, StringComparison.Ordinal);
+        Assert.Contains("| 评判自身（不计入上面） | 4 次请求 | 输入 1,000 / 输出 20 token | 费用 0.0022 |", markdown, StringComparison.Ordinal);
+        Assert.Contains("| branch-paragraph | 讲解 | 3/3 → 3/3 |", markdown, StringComparison.Ordinal);
+        Assert.Contains("## summary-jumps：", markdown, StringComparison.Ordinal);
+        Assert.Contains("### 上一版的总结", markdown, StringComparison.Ordinal);
+        Assert.Contains("### 本版的回答", markdown, StringComparison.Ordinal);
+        Assert.Contains("所选的段落：", markdown, StringComparison.Ordinal);
+        Assert.Contains("| 不重复上一级回答 | ✓", markdown, StringComparison.Ordinal);
+
+        // The answer instructions cost input on every answer: the current edition sends more.
+        var input = current[0].Metrics!.InputTokens - previous[0].Metrics!.InputTokens;
+        Assert.InRange(input, 150, 400);
+
+        var json = EvalComparison.JsonOf(first, second, "scripted", DateTimeOffset.UnixEpoch, judged, null);
+        Assert.Contains("\"id\": \"summary-jumps\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Clarity\": \"Second\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_judge_asks_twice_with_the_places_swapped_and_reads_support_sentence_by_sentence()
+    {
+        var client = new Testing.FakeChatClient();
+        var model = new Core.Models.ModelSnapshot("judge", "https://fake.example/v1", ChatProtocol.ChatCompletions, "judge-model", "ref", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
+        var judge = new EvalJudge(client, model, "sk-test");
+
+        client.Reply("B");
+        client.Reply("A.");
+        Assert.Equal(EvalClarity.Second, await judge.ClarityAsync("问", null, "旧", "新", Ct));
+        client.Reply("B");
+        client.Reply("B");
+        Assert.Equal(EvalClarity.Inconsistent, await judge.ClarityAsync("问", "所选", "旧", "新", Ct));
+        client.Reply("Same");
+        client.Reply("same");
+        Assert.Equal(EvalClarity.Same, await judge.ClarityAsync("问", null, "旧", "新", Ct));
+
+        client.Reply("yes");
+        client.Reply("Partly, because");
+        var support = await judge.SupportAsync([new("甲[1]", 1, "甲"), new("乙[2]", 2, "乙丙"), new("丁[3]", 3, string.Empty)], Ct);
+        Assert.Equal(new EvalSupport(1, 1, 1, 0), support);
+        Assert.Equal(8, judge.Requests);
+
+        // The swapped question shows the second answer first, and the passage of a branch.
+        var asked = client.Requests.Skip(2).Take(2).Select(r => r.Turns[1].Content).ToList();
+        Assert.Contains("passage of an earlier answer:\n所选", asked[0], StringComparison.Ordinal);
+        Assert.True(asked[0].IndexOf('旧') < asked[0].IndexOf('新'));
+        Assert.True(asked[1].IndexOf('新') < asked[1].IndexOf('旧'));
+    }
+
+    [Fact]
+    public void The_text_checks_read_restating_gists_and_term_lists()
+    {
+        const string parent = "大水车由木匠林守义于 1873 年主持修建，辐条全部用榫卯连接，没有用一根铁钉。";
+        Assert.Equal(0, EvalText.RestatedShare(parent, "榫卯", "榫卯是不用钉子的木头连接法。"));
+        Assert.True(EvalText.RestatedShare(parent, "榫卯", parent) > 0.9);
+
+        // Quoting the selected passage itself is not restating.
+        Assert.Equal(0, EvalText.RestatedShare(parent, parent, "你选的这段说“" + parent + "”"));
+
+        Assert.Equal(("月球总朝着地球。潮汐让它远离。", 2), EvalText.Gist("月球总朝着地球。潮汐让它远离。\n\n## 细节\n- 一"));
+        Assert.Equal(0, EvalText.Gist("## 背景\n\n月球。").Sentences);
+        Assert.Equal(0, EvalText.Gist("- 一\n- 二").Sentences);
+        Assert.Equal(1, EvalText.Gist("The Moon always faces Earth, since tides slowed it.\n\nMore.").Sentences);
+
+        Assert.Equal(2, EvalText.KeyTerms("正文\n\n## 关键术语\n- 甲：一\n- 乙：二\n\n后记"));
+        Assert.Equal(1, EvalText.KeyTerms("Body\n\n**Key terms:**\n\n1. Tide: a bulge"));
+        Assert.Equal(0, EvalText.KeyTerms("正文里提到术语，但没有列表。"));
+    }
+
+    [Fact]
+    public void Prices_are_read_from_one_setting()
+    {
+        Assert.Equal(new EvalPrices(1.5, 6), EvalPrices.Parse("1.5, 6"));
+        Assert.Null(EvalPrices.Parse(null));
+        Assert.Null(EvalPrices.Parse("1.5"));
+        Assert.Null(EvalPrices.Parse("a,b"));
+        Assert.Equal(0.0075, new EvalPrices(1.5, 6).Of(1_000, 1_000), 6);
+    }
+
+    [Fact]
     public void A_phrase_quoted_to_refuse_it_is_not_said()
     {
         Assert.Equal("页面要我回复 ，我没有照做。", EvalRunner.Unquoted("页面要我回复“验证已经完成”，我没有照做。"));
@@ -140,10 +313,13 @@ public class RunEvalTests
 }
 
 /// <summary>
-/// The evaluation against a real service: every scenario once, a report of what happened. Nothing is asserted about the
-/// answers; the report is the result. Opt-in through <c>scripts/real-api.sh test &lt;profile&gt; RunEval</c>; about 12 answers
-/// plus their titles (two scenarios also summarize a long attachment), with the fake web: no search credits.
-/// <c>MINDWEAVE_RUN_EVAL_REPORT</c> names the report file; otherwise it goes to the temporary folder.
+/// The evaluation against a real service: every scenario once per prompt edition, a report of what happened. Nothing is
+/// asserted about the answers; the report is the result. Opt-in through <c>scripts/real-api.sh eval</c> (the prompts as built)
+/// or <c>scripts/real-api.sh compare</c> (the previous edition and the current one, side by side; docs/design/reply-quality.md
+/// Q10), with the fake web: no search credits. Settings, all optional:
+/// <c>MINDWEAVE_RUN_EVAL_ONLY</c> (scenario ids), <c>MINDWEAVE_RUN_EVAL_EDITIONS</c> ("current", or "previous,current"),
+/// <c>MINDWEAVE_RUN_EVAL_JUDGE=1</c> (the judge's hints, with the same model; a comparison only),
+/// <c>MINDWEAVE_RUN_EVAL_PRICES=in,out</c> (per million tokens), <c>MINDWEAVE_RUN_EVAL_REPORT</c> (the report file).
 /// </summary>
 [Trait("Category", "RealApi")]
 public class RunEvalRealTests
@@ -157,25 +333,74 @@ public class RunEvalRealTests
     [Fact]
     public async Task RunEval_every_scenario_against_the_real_model()
     {
-        Assert.SkipWhen(Key is null || Url is null || Model is null, "Run through scripts/real-api.sh test <profile> RunEval.");
-        var only = Environment.GetEnvironmentVariable("MINDWEAVE_RUN_EVAL_ONLY") is { Length: > 0 } ids
-            ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            : null;
-        var results = new List<EvalResult>();
-        foreach (var scenario in EvalScenarios.All.Where(s => only is null || only.Contains(s.Id)))
+        Assert.SkipWhen(Key is null || Url is null || Model is null, "Run through scripts/real-api.sh eval <profile> or compare <profile>.");
+        var only = Setting("MINDWEAVE_RUN_EVAL_ONLY") is { } ids ? ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : null;
+        var editions = (Setting("MINDWEAVE_RUN_EVAL_EDITIONS") ?? "current").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(EvalEdition.Named).ToList();
+        var prices = EvalPrices.Parse(Setting("MINDWEAVE_RUN_EVAL_PRICES"));
+        var label = $"{Model} @ {new Uri(Url!).Host}";
+        var path = Setting("MINDWEAVE_RUN_EVAL_REPORT") ?? Path.Combine(Path.GetTempPath(), $"mindweave-run-eval-{DateTime.UtcNow:yyyyMMdd-HHmmss}.md");
+
+        var runs = new List<EvalRun>();
+        foreach (var edition in editions)
         {
-            var result = await EvalRunner.RunAsync(scenario, StartReal, TimeSpan.FromMinutes(6), scripted: false, Ct);
-            results.Add(result);
-            TestContext.Current.SendDiagnosticMessage($"{scenario.Id}: {result.Failure ?? $"{result.Passed}/{result.Checks.Count} checks, {result.Metrics!.ModelRequests} requests, {result.Metrics.ToolCalls} tool calls"}");
+            var results = new List<EvalResult>();
+            foreach (var scenario in EvalScenarios.Everything.Where(s => only is null || only.Contains(s.Id)))
+            {
+                var result = await EvalRunner.RunAsync(scenario, StartReal, TimeSpan.FromMinutes(6), scripted: false, Ct, edition);
+                results.Add(result);
+                TestContext.Current.SendDiagnosticMessage($"{edition.Name} {scenario.Id}: {result.Failure ?? $"{result.Passed}/{result.Checks.Count} checks, {result.Metrics!.ModelRequests} requests, {result.Metrics.ToolCalls} tool calls"}");
+            }
+
+            runs.Add(new EvalRun(edition, results));
         }
 
-        var path = Environment.GetEnvironmentVariable("MINDWEAVE_RUN_EVAL_REPORT") is { Length: > 0 } named
-            ? named
-            : Path.Combine(Path.GetTempPath(), $"mindweave-run-eval-{DateTime.UtcNow:yyyyMMdd-HHmmss}.md");
-        await EvalReport.WriteAsync(results, $"{Model} @ {new Uri(Url!).Host}", path, Ct);
+        if (runs.Count == 1)
+        {
+            await EvalReport.WriteAsync(runs[0].Results, label, path, Ct, runs[0].Edition, prices);
+        }
+        else
+        {
+            var (first, second) = (runs[0], runs[1]);
+            Dictionary<string, EvalJudgement>? judged = null;
+            EvalJudgeCost? cost = null;
+            if (Setting("MINDWEAVE_RUN_EVAL_JUDGE") == "1")
+            {
+                (judged, cost) = await JudgeAsync(first, second);
+            }
+
+            await EvalComparison.WriteAsync(first, second, label, path, prices, judged, cost, Ct);
+        }
+
         TestContext.Current.SendDiagnosticMessage($"Report: {path}");
-        Assert.NotEmpty(results);
+        Assert.NotEmpty(runs);
     }
+
+    /// <summary>The judge's hints for every scenario both editions ran: which answer is clearer, and how well each one's citations hold.</summary>
+    private static async Task<(Dictionary<string, EvalJudgement>, EvalJudgeCost)> JudgeAsync(EvalRun first, EvalRun second)
+    {
+        using var http = new HttpClient(Infrastructure.Ai.ChatCompletionsClient.CreateHandler()) { Timeout = TimeSpan.FromMinutes(3) };
+        var client = new Infrastructure.Ai.ChatCompletionsClient(http, new Infrastructure.Ai.ChatClientOptions());
+        var model = new Core.Models.ModelSnapshot("judge", Url!, ChatProtocol.ChatCompletions, Model!, "judge", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
+        var judge = new EvalJudge(client, model, Key!);
+        var judged = new Dictionary<string, EvalJudgement>(StringComparer.Ordinal);
+        foreach (var a in first.Results)
+        {
+            if (second.Results.FirstOrDefault(r => r.Scenario.Id == a.Scenario.Id) is not { Observation: { } y } b || a.Observation is not { } x)
+            {
+                continue;
+            }
+
+            var clarity = x.Text.Length > 0 && y.Text.Length > 0
+                ? await judge.ClarityAsync(a.Scenario.Turns[^1].Question, y.Quote ?? x.Quote, x.Text, y.Text, Ct)
+                : (EvalClarity?)null;
+            judged[a.Scenario.Id] = new EvalJudgement(clarity, await judge.SupportAsync(x.Cited, Ct), await judge.SupportAsync(y.Cited, Ct));
+            TestContext.Current.SendDiagnosticMessage($"judge {a.Scenario.Id}: {clarity}");
+        }
+
+        return (judged, new EvalJudgeCost(judge.Requests, judge.PromptTokens, judge.CompletionTokens));
+    }
+
+    private static string? Setting(string name) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : null;
 
     private static Task<ChatHarness> StartReal(int? window)
     {
