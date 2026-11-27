@@ -1,6 +1,7 @@
 using Mindweave.Application.Ai;
 using Mindweave.Application.Models;
 using Mindweave.Application.Tools;
+using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Runs;
 using Mindweave.Infrastructure.Tests.Chat;
@@ -294,6 +295,46 @@ public class RunEvalTests
     }
 
     [Fact]
+    public async Task A_budgeted_service_counts_each_request_and_refuses_the_one_that_could_pass_the_cap()
+    {
+        var spending = new EvalSpending(0.01, new EvalPrices(1, 1));
+        var client = new EvalBudgetedClient(new UsageOnly(3_000, 1_000), spending);
+        var request = new ChatRequest(new ModelSnapshot("m", "https://fake.example/v1", ChatProtocol.ChatCompletions, "fake", "fake", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions)), [new ChatTurn(ChatRole.User, "问")]);
+
+        await foreach (var _ in client.StreamAsync(request, "sk-test", Ct))
+        {
+        }
+
+        await foreach (var _ in client.StreamAsync(request, "sk-test", Ct))
+        {
+        }
+
+        Assert.Equal(0.008, spending.Spent, 6);
+        var refused = await Assert.ThrowsAsync<ChatClientException>(async () =>
+        {
+            await foreach (var _ in client.StreamAsync(request, "sk-test", Ct))
+            {
+            }
+        });
+        Assert.Equal(GenerationErrorKind.QuotaOrRateLimited, refused.Kind);
+        Assert.Equal(0.008, spending.Spent, 6);
+    }
+
+    /// <summary>A service that answers every request with one usage report.</summary>
+    private sealed class UsageOnly(int prompt, int completion) : IChatClient
+    {
+        public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            yield return new ChatStreamEvent.TextDelta("答");
+            yield return new ChatStreamEvent.Usage(prompt, completion);
+            yield return new ChatStreamEvent.Completed(false);
+        }
+
+        public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([]);
+    }
+
+    [Fact]
     public void Prices_are_read_from_one_setting()
     {
         Assert.Equal(new EvalPrices(1.5, 6), EvalPrices.Parse("1.5, 6"));
@@ -337,8 +378,8 @@ public class RunEvalTests
 /// <c>MINDWEAVE_RUN_EVAL_ONLY</c> (scenario ids), <c>MINDWEAVE_RUN_EVAL_EDITIONS</c> ("current", or "previous,current"),
 /// <c>MINDWEAVE_RUN_EVAL_JUDGE=1</c> (the judge's hints, with the same model; a comparison only),
 /// <c>MINDWEAVE_RUN_EVAL_PRICES=in,out</c> (per million tokens), <c>MINDWEAVE_RUN_EVAL_REPORT</c> (the report file),
-/// <c>MINDWEAVE_RUN_EVAL_BUDGET</c> (a cost cap with the prices: no scenario or judgement starts that the costliest one so far
-/// would carry past it; the report then holds what ran).
+/// <c>MINDWEAVE_RUN_EVAL_BUDGET</c> (a cost cap with the prices: no request starts that the costliest one so far would carry
+/// past it, and no scenario after that; the report then holds what ran).
 /// </summary>
 [Trait("Category", "RealApi")]
 public class RunEvalRealTests
@@ -373,9 +414,8 @@ public class RunEvalRealTests
                     break;
                 }
 
-                var result = await EvalRunner.RunAsync(scenario, StartReal, TimeSpan.FromMinutes(6), scripted: false, Ct, edition);
+                var result = await EvalRunner.RunAsync(scenario, w => StartReal(w, spending), TimeSpan.FromMinutes(6), scripted: false, Ct, edition);
                 results.Add(result);
-                spending.Add(result.Metrics is { } m ? (m.ScenarioPromptTokens ?? m.InputTokens, m.ScenarioCompletionTokens ?? m.CompletionTokens ?? 0) : (0, 0));
                 TestContext.Current.SendDiagnosticMessage($"{edition.Name} {scenario.Id}: {result.Failure ?? $"{result.Passed}/{result.Checks.Count} checks, {result.Metrics!.ModelRequests} requests, {result.Metrics.ToolCalls} tool calls"}; spent {spending.Spent:0.0000}");
             }
 
@@ -412,11 +452,10 @@ public class RunEvalRealTests
     private static async Task<(Dictionary<string, EvalJudgement>, EvalJudgeCost)> JudgeAsync(EvalRun first, EvalRun second, EvalSpending spending)
     {
         using var http = new HttpClient(Infrastructure.Ai.ChatCompletionsClient.CreateHandler()) { Timeout = TimeSpan.FromMinutes(3) };
-        var client = new Infrastructure.Ai.ChatCompletionsClient(http, new Infrastructure.Ai.ChatClientOptions());
+        var client = new EvalBudgetedClient(new Infrastructure.Ai.ChatCompletionsClient(http, new Infrastructure.Ai.ChatClientOptions()), spending);
         var model = new Core.Models.ModelSnapshot("judge", Url!, ChatProtocol.ChatCompletions, Model!, "judge", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
         var judge = new EvalJudge(client, model, Key!);
         var judged = new Dictionary<string, EvalJudgement>(StringComparer.Ordinal);
-        spending.NextPhase();
         foreach (var a in first.Results)
         {
             if (spending.Stops)
@@ -424,7 +463,6 @@ public class RunEvalRealTests
                 break;
             }
 
-            var (prompt, completion) = (judge.PromptTokens, judge.CompletionTokens);
             if (second.Results.FirstOrDefault(r => r.Scenario.Id == a.Scenario.Id) is not { Observation: { } y } b || a.Observation is not { } x)
             {
                 continue;
@@ -434,7 +472,6 @@ public class RunEvalRealTests
                 ? await judge.ClarityAsync(a.Scenario.Turns[^1].Question, y.Quote ?? x.Quote, x.Text, y.Text, Ct)
                 : (EvalClarity?)null;
             judged[a.Scenario.Id] = new EvalJudgement(clarity, await judge.SupportAsync(x.Cited, Ct), await judge.SupportAsync(y.Cited, Ct));
-            spending.Add((judge.PromptTokens - prompt, judge.CompletionTokens - completion));
             TestContext.Current.SendDiagnosticMessage($"judge {a.Scenario.Id}: {clarity}; spent {spending.Spent:0.0000}");
         }
 
@@ -443,10 +480,10 @@ public class RunEvalRealTests
 
     private static string? Setting(string name) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : null;
 
-    private static Task<ChatHarness> StartReal(int? window)
+    private static Task<ChatHarness> StartReal(int? window, EvalSpending spending)
     {
         var http = new HttpClient(Infrastructure.Ai.ChatCompletionsClient.CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan };
-        IChatClient client = new Infrastructure.Ai.ChatCompletionsClient(http, new Infrastructure.Ai.ChatClientOptions());
+        IChatClient client = new EvalBudgetedClient(new Infrastructure.Ai.ChatCompletionsClient(http, new Infrastructure.Ai.ChatClientOptions()), spending);
 
         // The evaluation measures runs: the model is declared able to call tools (a model that cannot fails every request).
         return ChatHarness.StartAsync(client: client, model: new ModelSettingsInput(
@@ -456,8 +493,8 @@ public class RunEvalRealTests
 }
 
 /// <summary>
-/// What a real evaluation has cost so far against an optional cap. Nothing starts that the costliest step of the same kind so
-/// far would carry past the cap; without a cap or prices it never stops.
+/// What a real evaluation has cost so far against an optional cap, request by request. Nothing starts that the costliest
+/// request so far would carry past the cap; without a cap or prices it never stops.
 /// </summary>
 internal sealed class EvalSpending(double? budget, EvalPrices? prices)
 {
@@ -482,7 +519,33 @@ internal sealed class EvalSpending(double? budget, EvalPrices? prices)
         Spent += cost;
         largest = Math.Max(largest, cost);
     }
+}
 
-    /// <summary>A step of another kind starts (the judge after the answers): its own costliest step is not known yet.</summary>
-    public void NextPhase() => largest = 0;
+/// <summary>
+/// A real service whose requests count against <see cref="EvalSpending"/>: each one's reported usage is added, and once the
+/// cap is near, a request is refused before it is sent, as a failing service would refuse it.
+/// </summary>
+internal sealed class EvalBudgetedClient(IChatClient inner, EvalSpending spending) : IChatClient
+{
+    public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(
+        ChatRequest request, string apiKey, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (spending.Stops)
+        {
+            throw new ChatClientException(GenerationErrorKind.QuotaOrRateLimited, $"The evaluation's budget is reached (spent {spending.Spent:0.0000}).");
+        }
+
+        await foreach (var item in inner.StreamAsync(request, apiKey, cancellationToken).ConfigureAwait(false))
+        {
+            if (item is ChatStreamEvent.Usage usage)
+            {
+                spending.Add((usage.PromptTokens ?? 0, usage.CompletionTokens ?? 0));
+            }
+
+            yield return item;
+        }
+    }
+
+    public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
+        inner.ListModelsAsync(baseUrl, apiKey, cancellationToken);
 }
