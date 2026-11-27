@@ -71,7 +71,7 @@ Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep
 
 **Where it lands in the architecture, and prerequisites:**
 
-- **Models and protocols:** Keep the protocol adapter boundary (§7.2) and declare capabilities with E4. Adapters such as Responses and Messages are added as new implementations without changing the business model.
+- **Models and protocols:** Keep the protocol adapter boundary (§7.2) and declare capabilities with E4. Adapters such as Responses and Messages are added as new implementations without changing the business model. Adopted by the user on 2026-11-27 (D-045): several connections, a local server entry, Messages and Responses; the design is [ask-anywhere.md](design/ask-anywhere.md).
 - **Import and export:** E5 is the only external format; import from external tools is implemented as a mapping to that format.
 - **Platforms:** Linux relies on Avalonia; the cost is mainly verification and packaging. Mobile is a different interaction design that reuses Core and Application; it is a separate product decision and is not handled as a compatibility item.
 
@@ -81,7 +81,7 @@ Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep
 
 **Method:** Measure first with E6, then optimize; benchmarks go into CI with budgets. The main costs are expected to be, in order: rendering and re-layout of very long Markdown (needs virtualization), context assembly for deep branch trees, and database access (WAL and suitable indexes are usually enough).
 
-**Coupling with existing design:** Provider prompt caching depends on a **stable prefix**. Context assembly should put frozen material first (the ancestors' frozen ranges, reusable context summaries), then recent questions and answers and the current question. This interacts with the compression and context-summary reuse rules of §6 and should be designed together with them, not treated as later tuning.
+**Coupling with existing design:** Provider prompt caching depends on a **stable prefix**. Context assembly should put frozen material first (the ancestors' frozen ranges, reusable context summaries), then recent questions and answers and the current question. This interacts with the compression and context-summary reuse rules of §6 and should be designed together with them, not treated as later tuning. Adopted by the user on 2026-11-27 (D-045): cached tokens are recorded, the order of a request is fixed, and Messages connections get cache points ([ask-anywhere.md](design/ask-anywhere.md); requirements §10.11.4).
 
 ### D5 Agent capabilities
 
@@ -104,7 +104,7 @@ Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep
 
 How answers are written, with and without tools, is [reply quality](design/reply-quality.md) (requirements §10.9; D-043, approved 2026-11-26).
 
-Written as [requirements](requirements.md) §10.4 and [architecture](architecture.md) §15. Phases 1 to 4 are built: resources and attachments, the run loop and local tools, web search and citations, MCP. Phase 5, generated charts and audio, is ahead (§10.4.7). Two questions stay open for later: an embedding service for retrieval by meaning (Q13: not now; look again when local keyword retrieval is not good enough) and the chart format of phase 5 (Q16: Markdown tables and Mermaid first). The other answers are in [the questions of that time](history/design/agent-platform-questions.md) (Q14, confirmed later: [web search](design/web-search.md)). Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
+Written as [requirements](requirements.md) §10.4 and [architecture](architecture.md) §15. Phases 1 to 4 are built: resources and attachments, the run loop and local tools, web search and citations, MCP. Phase 5, generated charts and audio, is ahead (§10.4.7). Two questions stay open for later: retrieval by meaning (Q13: answered on 2026-11-27, D-045: an embedding model on a saved connection, empty by default; requirements §10.11.3) and the chart format of phase 5 (Q16: Markdown tables and Mermaid first). The other answers are in [the questions of that time](history/design/agent-platform-questions.md) (Q14, confirmed later: [web search](design/web-search.md)). Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
 
 ### D6 Long-term vision: map-based exploration
 
@@ -118,7 +118,7 @@ Written as [requirements](requirements.md) §10.4 and [architecture](architectur
 
 ### D7 Asking with multiple quotes
 
-Proposed by the user on 2026-11-05 and added after discussion with Claude.
+Proposed by the user on 2026-11-05 and added after discussion with Claude. The third use below, several quotes asked about inside the current conversation, was adopted on 2026-11-27 (D-045) together with quotes taken from outside the app; the design is [ask-anywhere.md](design/ask-anywhere.md) and the text is requirements §10.11.1. A branch from several quotes and revising a summary with quotes are not adopted yet.
 
 **Goal:** The user can select several passages in the original text one by one; each passage becomes a numbered quote ([1], [2], [3] …), and the user then writes one prompt that refers to these quotes. It solves three things: asking about several points at once, pointing exactly at "which place", and not having to select a large block of unrelated text or paste the rest of the original text by hand in a branch (the burden in requirements §2.2 item 1).
 

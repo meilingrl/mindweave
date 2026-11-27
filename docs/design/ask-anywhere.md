@@ -1,8 +1,8 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** agreed by the owner on 2026-11-27 for the four topics discussed (quoting, several connections and local models, search by meaning, prompt caching). Not yet in the requirements or the architecture: that text follows as separate commits the owner confirms. Discussed 2026-11-25 to 2026-11-27.
+**Status:** approved by the owner on 2026-11-27 (D-045), after the discussion of 2026-11-25 to 2026-11-27, for four topics: quoting, several connections and local models, search by meaning, prompt caching. Not built. The requirement and architecture text (requirements v0.34 §10.11; architecture §2.3, §7.5, §15.5 and §18) is a separate commit that waits for the owner's confirmation. Where this note and that text differ, the text holds.
 
-This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
+This draft takes over directions 1, 3 and 7 of [more directions](../ideas/more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
 ## 1. Topics
 
@@ -24,8 +24,8 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 
 - **One protocol.** `ChatProtocol` has one value, `ChatCompletions`; the only adapter is `ChatCompletionsClient`.
 - **One active configuration.** The data separate service connection and model configuration and allow several rows (architecture §7.2). The interface manages one, and every task uses it.
-- **Local models already answer, by hand.** A local server that speaks Chat Completions (for example Ollama at `http://localhost:11434/v1`) works as a typed address. Its capability presets are all off ([model capabilities](../design/model-capabilities.md) §3.9).
-- **MCP client only.** The package is `ModelContextProtocol.Core`, which has no server hosting ([third-party tools](../design/mcp.md) M1).
+- **Local models already answer, by hand.** A local server that speaks Chat Completions (for example Ollama at `http://localhost:11434/v1`) works as a typed address. Its capability presets are all off ([model capabilities](model-capabilities.md) §3.9).
+- **MCP client only.** The package is `ModelContextProtocol.Core`, which has no server hosting ([third-party tools](mcp.md) M1).
 - **Keyword search only.** Attachments and summaries are searched with SQLite FTS5 (`SearchSummariesTool`, the search over attachments). There are no embeddings.
 - **No way in from outside the window.** There is no global hotkey, no tray or menu-bar item, and no command-line argument that carries a question. A second launch sends one byte over a named pipe, which brings the running window to the front (`SingleInstance`). That pipe is the natural place for a quick-ask or command-line request to arrive.
 - **Caching is not measured.** `ModelCapabilities.PromptCaching` exists and the presets fill it; no feature reads it. `ai_request` stores prompt and completion tokens, not cached tokens.
@@ -379,6 +379,8 @@ Rules that keep it so:
 
 This step helps with every provider that caches on its own, at no extra price.
 
+**Found while writing the architecture text (2026-11-27).** The answer instructions adopted with reply quality (requirements §10.9, architecture §15.5) put two more parts at the start of a request that differ from request to request: the branch part, which names the selection, and the titles of matching summaries. Left there, they would break the shared start between sibling branches and between two questions. The order in architecture §15.5 therefore moves them to the end as well, beside the counting line. Their wording is unchanged. Instructions that stand at the end of a request instead of its start may be followed differently by a model, so this step is checked with the run evaluation before it merges, within the owner's budget.
+
 **Step 3: cache points for Messages.** On a Messages connection, the request marks up to three places: the end of the instructions and tools, the end of the ancestors (the part siblings share), and the end of the conversation so far. Long runs get a further mark where the protocol needs one. Marks are sent only for a model that declares prompt caching, which the presets fill in.
 
 **The lifetime.** A setting in the connection's advanced settings: off, 5 minutes, or 1 hour. The default is 1 hour (owner). Mindweave sends no requests on its own to keep a cache alive.
@@ -396,7 +398,7 @@ This step helps with every provider that caches on its own, at no extra price.
 - Requests that only keep a cache alive, or that fill it before a question.
 - A lifetime per conversation.
 - What the instructions and prompts say. That belongs to the reply quality discussion (§4); this topic only fixes the order.
-- Publishing the measured numbers as a write-up ([more directions](more-directions.md), technical pieces). It can follow once there are numbers, as an outward-facing step the owner decides.
+- Publishing the measured numbers as a write-up ([more directions](../ideas/more-directions.md), technical pieces). It can follow once there are numbers, as an outward-facing step the owner decides.
 
 #### Failure cases
 
