@@ -274,7 +274,7 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **The 15 upkeep rows are decided.** Among them: the schema version is the only gate for stored formats; "Quit without saving" after a failed retry; a broken relationship from before a migration does not stop it; no lock files before 1.0.0; performance budgets run in CI without blocking; no coverage figure.
 - The note is [diagnostics-and-upkeep.md](diagnostics-and-upkeep.md); the text is requirements v0.31 (§10.8) and architecture §17. Nothing is built.
 
-## D-043 Device copies are a backup, not a sync (you, 2026-11-26)
+## D-045 Device copies are a backup, not a sync (you, 2026-11-26)
 
 - **Your question** settled it: why solve consistency at all, when this is a backup and not a sync? The note had been written for two devices that both change and must end up alike.
 - **Importing a device copy only adds.** A title, a current summary or an archived state that differs keeps this device's value. "The newer one wins" (D-039, D-041) is dropped.
@@ -283,11 +283,11 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **A copy holds all workspaces by default**, and every copy is complete.
 - **No migration.** Two increments: save a copy, import a copy. The note is [sharing-backup.md](sharing-backup.md).
 
-## D-044 Sharing and the manual backup are one operation; sync is a vision (you, 2026-11-27)
+## D-046 Sharing and the manual backup are one operation; sync is a vision (you, 2026-11-27)
 
 - **One operation.** Sharing and backup are both export to a file and import from a file. Only the scope and what import may do differ.
 - **Two kinds of backup.** The backups the app makes by itself are versions of its own data inside its data folder: if that data is lost, they are lost with it. The manual backup is a file you keep, largely independent of the app.
 - **Not sync.** Practical sync is networked. A file-based backup can be made to act like sync by a careful user who accepts the conflicts, but the product does not ask that of the user and does not call it sync. It is called the manual backup.
 - **Sync is a vision, not ruled out.** It needs a shared cloud, server or repository, with a server side and a client side: another architecture. The manual backup is not declared to have achieved it, and Mindweave does not commit to never offering a server and real sync (evolution D10).
-- **Names.** "Device copy" (D-039, D-041, D-043) becomes manual backup (手动备份) in the documents; the stored kind word `device` stays.
+- **Names.** "Device copy" (D-039, D-041, D-045) becomes manual backup (手动备份) in the documents; the stored kind word `device` stays.
 

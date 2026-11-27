@@ -193,7 +193,7 @@ Adopted by the user on 2026-11-22 (D-034). The work comes later; no schedule is 
 
 ### D10 Sync between devices (vision)
 
-Stated by the user on 2026-11-27 (D-044). It is a vision; nothing of it is scheduled.
+Stated by the user on 2026-11-27 (D-046). It is a vision; nothing of it is scheduled.
 
 **What it is.** The user's work is the same on all their devices without their doing anything: a change on one device reaches the others.
 
