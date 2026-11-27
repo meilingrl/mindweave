@@ -34,8 +34,8 @@ public sealed partial class ManualBackupImportService(
     StorageHealth health,
     IClock clock,
     ILogger<ManualBackupImportService> logger,
-    Summaries.SummaryService? summaries = null,
-    SummaryLinks.SummaryLinkService? links = null) : IManualBackupImports
+    Summaries.SummaryService summaries,
+    SummaryLinks.SummaryLinkService links) : IManualBackupImports
 {
     public string Extension => reader.Extension;
 
@@ -112,10 +112,10 @@ public sealed partial class ManualBackupImportService(
                 var gained = workspace.Conversations.Where(c => c.Fit != ManualBackupFit.New && c.Writes).Select(c => c.Conversation.Id).ToList();
                 reading.Forget(created);
                 conversations.NotifyImported(new ImportResult(ImportStatus.Imported, created, [], created.Count > 0 ? created[0] : null) { Gained = gained });
-                summaries?.NotifyImported([.. workspace.Conversations.Where(c => c.Versions.Count > 0).Select(c => c.Conversation.Id)]);
+                summaries.NotifyImported([.. workspace.Conversations.Where(c => c.Versions.Count > 0).Select(c => c.Conversation.Id)]);
                 if (workspace.Links.Count > 0)
                 {
-                    links?.RaiseChanged(workspace.Conversations.First(c => c.Conversation.Id == workspace.Links[0].A).Workspace);
+                    links.RaiseChanged(workspace.Conversations.First(c => c.Conversation.Id == workspace.Links[0].A).Workspace);
                 }
             }
 

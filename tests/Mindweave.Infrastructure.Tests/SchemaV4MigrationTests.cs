@@ -1,5 +1,9 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Mindweave.Application;
+using Mindweave.Application.Ai;
+using Mindweave.Application.Credentials;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
 using Mindweave.Application.Reading;
@@ -47,19 +51,18 @@ public sealed class SchemaV4MigrationTests : IDisposable
                 """);
         }
 
-        await using var database = _dir.Database();
+        // The application's own services over the upgraded file, with no network and no keychain.
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<IChatClient>(new FakeChatClient());
+        services.AddSingleton<ICredentialStore>(new MemoryCredentialStore());
+        services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown());
+        services.AddMindweaveInfrastructure(_dir.Paths);
+        services.AddMindweaveApplication();
+        await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        var database = provider.GetRequiredService<SqliteDatabase>();
         Assert.True((await database.OpenAsync(Ct)).IsReady);
-        var store = new SqliteConversationStore(database);
-        var branches = new SqliteBranchStore(database);
-        var client = new FakeChatClient();
-        var credentials = new MemoryCredentialStore();
-        await using var health = new StorageHealth(database, new StorageHealthOptions(), NullLogger<StorageHealth>.Instance);
-        var requests = new SqliteAiRequestStore(database);
-        var budgets = new ContextBudgets(requests, NullLogger<ContextBudgets>.Instance);
-        var generationRequests = new GenerationRequests(store, client, credentials, requests, budgets, health, new SystemClock(), NullLogger<GenerationRequests>.Instance);
-        await using var generation = new GenerationCoordinator(store, generationRequests, health, new SystemClock(), new GenerationOptions(), NullLogger<GenerationCoordinator>.Instance);
-        var models = new ModelSettingsService(new SqliteModelSettingsStore(database), store, credentials, client, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
-        var conversations = new ConversationService(store, branches, generation, budgets, health, models, new SystemClock(), NullLogger<ConversationService>.Instance);
+        var conversations = provider.GetRequiredService<ConversationService>();
 
         var branch = await conversations.CreateBranchAsync(
             ConversationId.Parse(Conversation), new BranchSelection(MessageId.Parse(Answer), 0, "蒸汽机", "{}", 1, "p"), Ct);

@@ -7,6 +7,7 @@ using Mindweave.Application.Share;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Infrastructure.Share;
+using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Share;
 

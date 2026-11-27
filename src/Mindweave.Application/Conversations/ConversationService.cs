@@ -86,20 +86,20 @@ public sealed partial class ConversationService : IConversations
 
     private readonly IConversationStore _store;
     private readonly IBranchStore _branches;
-    private readonly IContextSummaryStore? _summaries;
-    private readonly IConversationArchiveStore? _archive;
+    private readonly IContextSummaryStore _summaries;
+    private readonly IConversationArchiveStore _archive;
     private readonly GenerationCoordinator _generation;
     private readonly ContextBudgets _budgets;
     private readonly StorageHealth _health;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
     private readonly ConversationTitler _titler;
-    private readonly ResourceContext? _resources;
-    private readonly IResourceStore? _resourceStore;
-    private readonly Tools.ToolRegistry? _tools;
-    private readonly IRunStore? _runs;
-    private readonly Preferences.IToolSettings? _toolSettings;
-    private readonly Preferences.IWebSearchSettings? _webSearch;
+    private readonly ResourceContext _resources;
+    private readonly IResourceStore _resourceStore;
+    private readonly Tools.ToolRegistry _tools;
+    private readonly IRunStore _runs;
+    private readonly Preferences.IToolSettings _toolSettings;
+    private readonly Preferences.IWebSearchSettings _webSearch;
 
     public ConversationService(
         IConversationStore store,
@@ -110,15 +110,23 @@ public sealed partial class ConversationService : IConversations
         ModelSettingsService models,
         IClock clock,
         ILogger<ConversationService> logger,
-        IContextSummaryStore? summaries = null,
-        IConversationArchiveStore? archive = null,
-        ResourceContext? resources = null,
-        IResourceStore? resourceStore = null,
-        Tools.ToolRegistry? tools = null,
-        Preferences.IToolSettings? toolSettings = null,
-        IRunStore? runs = null,
-        Preferences.IWebSearchSettings? webSearch = null)
+        IContextSummaryStore summaries,
+        IConversationArchiveStore archive,
+        ResourceContext resources,
+        IResourceStore resourceStore,
+        Tools.ToolRegistry tools,
+        Preferences.IToolSettings toolSettings,
+        IRunStore runs,
+        Preferences.IWebSearchSettings webSearch)
     {
+        ArgumentNullException.ThrowIfNull(summaries);
+        ArgumentNullException.ThrowIfNull(archive);
+        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(resourceStore);
+        ArgumentNullException.ThrowIfNull(tools);
+        ArgumentNullException.ThrowIfNull(toolSettings);
+        ArgumentNullException.ThrowIfNull(runs);
+        ArgumentNullException.ThrowIfNull(webSearch);
         _webSearch = webSearch;
         _runs = runs;
         _tools = tools;
@@ -193,9 +201,9 @@ public sealed partial class ConversationService : IConversations
         }
 
         var messages = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
-        var compressed = _summaries is null ? null : await _summaries.CompressedAnswersAsync(id, cancellationToken).ConfigureAwait(false);
-        var reduced = _resourceStore is null ? null : await _resourceStore.ReducedInputsAsync(id, cancellationToken).ConfigureAwait(false);
-        var runs = _runs is null ? null : await _runs.RunsAsync(id, cancellationToken).ConfigureAwait(false);
+        var compressed = await _summaries.CompressedAnswersAsync(id, cancellationToken).ConfigureAwait(false);
+        var reduced = await _resourceStore.ReducedInputsAsync(id, cancellationToken).ConfigureAwait(false);
+        var runs = await _runs.RunsAsync(id, cancellationToken).ConfigureAwait(false);
         return new ConversationContent(conversation, messages, compressed, reduced, runs);
     }
 
@@ -576,7 +584,7 @@ public sealed partial class ConversationService : IConversations
     /// </summary>
     public async Task<ArchiveOutcome> ArchiveAsync(ConversationId id, CancellationToken cancellationToken)
     {
-        var archive = RequireArchive();
+        var archive = _archive;
         _health.ThrowIfBlocked();
         ArchiveResult result;
         try
@@ -609,12 +617,12 @@ public sealed partial class ConversationService : IConversations
 
     /// <summary>What restoring would clear and bring back; the page asks first when archived ancestors are cleared too (D-021).</summary>
     public Task<RestorePlan> PlanRestoreAsync(ConversationId id, CancellationToken cancellationToken) =>
-        _archive is null ? Task.FromResult(new RestorePlan(id, [], 0)) : _archive.PlanRestoreAsync(id, cancellationToken);
+        _archive.PlanRestoreAsync(id, cancellationToken);
 
     /// <summary>Restores the conversation and the archived ancestors on its path; archives off the path stay (D-021).</summary>
     public async Task<IReadOnlyList<ConversationId>> RestoreAsync(ConversationId id, CancellationToken cancellationToken)
     {
-        var shown = await CommitAsync(() => RequireArchive().RestoreAsync(id, cancellationToken)).ConfigureAwait(false);
+        var shown = await CommitAsync(() => _archive.RestoreAsync(id, cancellationToken)).ConfigureAwait(false);
         NotifyVisibility(shown);
         return shown;
     }
@@ -659,13 +667,10 @@ public sealed partial class ConversationService : IConversations
     public async Task<IReadOnlySet<ConversationId>> ArchivedAmongAsync(IReadOnlyCollection<ConversationId> conversations, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(conversations);
-        return _archive is null || conversations.Count == 0
+        return conversations.Count == 0
             ? new HashSet<ConversationId>()
             : await _archive.ArchivedAmongAsync(conversations, cancellationToken).ConfigureAwait(false);
     }
-
-    private IConversationArchiveStore RequireArchive() =>
-        _archive ?? throw new InvalidOperationException("No archive store is configured.");
 
     private void NotifyVisibility(IReadOnlyList<ConversationId> conversations)
     {
@@ -791,9 +796,7 @@ public sealed partial class ConversationService : IConversations
     {
         var ancestors = chain ?? await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
-        var stored = _summaries is null
-            ? []
-            : await _summaries.ListAsync([.. ancestors.Select(a => a.Conversation), id], cancellationToken).ConfigureAwait(false);
+        var stored = await _summaries.ListAsync([.. ancestors.Select(a => a.Conversation), id], cancellationToken).ConfigureAwait(false);
         var phrases = ModelPhrases.Current;
         var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text, phrases));
         var segment = new ContextSegment(id, source?.Quote, own);
@@ -801,9 +804,7 @@ public sealed partial class ConversationService : IConversations
         // The attachments of every message in the chain, planned as their own layer (architecture §15.4); their chunks are
         // ranked by the question the user typed.
         var question = own.LastOrDefault(m => m.Role == MessageRole.User) is { } last ? ContentBlocks.TypedTextOf(last.Blocks) : string.Empty;
-        var candidates = _resources is null
-            ? []
-            : await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment, phrases), question, model, cancellationToken).ConfigureAwait(false);
+        var candidates = await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment, phrases), question, model, cancellationToken).ConfigureAwait(false);
         var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates, phrases);
         return (outcome, new ContextInputs(ancestors, segment, candidates), known);
     }
@@ -839,7 +840,7 @@ public sealed partial class ConversationService : IConversations
         var blocks = new List<ContentBlock>();
         foreach (var resource in attachments.Distinct())
         {
-            if (_resourceStore is null || await _resourceStore.GetAsync(resource, cancellationToken).ConfigureAwait(false) is not { } stored)
+            if (await _resourceStore.GetAsync(resource, cancellationToken).ConfigureAwait(false) is not { } stored)
             {
                 return ([], SendRejection.AttachmentMissing);
             }
@@ -889,7 +890,7 @@ public sealed partial class ConversationService : IConversations
     private async Task<RunPlan?> RunPlanAsync(
         WorkspaceId? workspace, ConversationId id, ContextInputs inputs, ModelSnapshot model, SendOptions? options, string question, CancellationToken cancellationToken)
     {
-        if (_tools is null || _toolSettings is null || !model.Capabilities.Has(ModelCapability.ToolCalls)
+        if (!model.Capabilities.Has(ModelCapability.ToolCalls)
             || !await _toolSettings.GetEnabledAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
@@ -911,7 +912,7 @@ public sealed partial class ConversationService : IConversations
                 _ => (ResourceId?)null,
             })
             .OfType<ResourceId>();
-        var mode = options?.WebSearch ?? (_webSearch is null ? WebSearchMode.Auto : await _webSearch.GetDefaultModeAsync(cancellationToken).ConfigureAwait(false));
+        var mode = options?.WebSearch ?? await _webSearch.GetDefaultModeAsync(cancellationToken).ConfigureAwait(false);
         var scope = new Tools.ToolScope(ws, id, resources)
         {
             Web = await WebRunAsync(inputs, options, question, cancellationToken).ConfigureAwait(false),
@@ -937,11 +938,6 @@ public sealed partial class ConversationService : IConversations
     /// </summary>
     private async Task<Tools.WebRun?> WebRunAsync(ContextInputs inputs, SendOptions? options, string question, CancellationToken cancellationToken)
     {
-        if (_webSearch is null)
-        {
-            return null;
-        }
-
         var mode = options?.WebSearch ?? await _webSearch.GetDefaultModeAsync(cancellationToken).ConfigureAwait(false);
         if (mode == WebSearchMode.Off || !await _webSearch.HasKeyAsync(cancellationToken).ConfigureAwait(false))
         {

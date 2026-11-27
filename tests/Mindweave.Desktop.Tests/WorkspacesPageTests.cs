@@ -136,7 +136,7 @@ public class WorkspacesPageTests
         var (city, _) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
 
         // News in 城市交通 (open: 火车), so its hint and the switcher's tooltip name it.
-        var news = app.ShellPage.WorkspaceNews!;
+        var news = app.ShellPage.WorkspaceNews;
         app.Client.Reply("1863 年，伦敦。");
         await app.Services.GetRequiredService<ConversationService>().StartAsync(city.Id, "第一条地铁在哪里？", CancellationToken.None);
         await UiWait.UntilAsync(() => news.HasNews && news.Toasts.Count == 1);

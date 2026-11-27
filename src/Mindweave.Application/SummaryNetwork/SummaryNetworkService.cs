@@ -61,7 +61,7 @@ public sealed record SummaryNetworkProjection(IReadOnlyList<SummaryNetworkNode> 
 /// The workspace's network, derived from conversations, branch sources and summaries on every read (no second graph
 /// store), plus the explorations' saved places. Never reads summary bodies.
 /// </summary>
-public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetworkStore network, IConversationStore conversations, IClock clock, IImportStore? imports = null) : ISummaryNetworkLayout
+public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetworkStore network, IConversationStore conversations, IClock clock, IImportStore imports) : ISummaryNetworkLayout
 {
     /// <summary>
     /// Every conversation as a node (a summary is an attribute of its node, not a node of its own), branch edges from
@@ -73,7 +73,7 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
         var entries = await summaries.ListAsync(workspace, cancellationToken).ConfigureAwait(false);
         var chains = await network.AncestorChainsAsync(workspace, cancellationToken).ConfigureAwait(false);
         var questions = await network.QuestionCountsAsync(workspace, cancellationToken).ConfigureAwait(false);
-        var marks = imports is null ? new Dictionary<ConversationId, ImportMark>() : await imports.MarksAsync(workspace, cancellationToken).ConfigureAwait(false);
+        var marks = await imports.MarksAsync(workspace, cancellationToken).ConfigureAwait(false);
         var summarized = entries.ToDictionary(e => e.Node.Conversation);
         var weights = ConversationWeights.Of(listed.ToDictionary(c => c.Conversation.Id, c => c.Parent), questions);
 

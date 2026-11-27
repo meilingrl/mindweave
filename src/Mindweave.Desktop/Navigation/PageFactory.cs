@@ -43,27 +43,25 @@ internal sealed class PageFactory(
     Application.Preferences.IRecommendationSettings recommendationSettings,
     Application.SummaryLinks.ISummaryLinks links,
     Application.SummaryLinks.ILinkSuggestions suggestions,
-    Application.Resources.IResources? resources = null,
-    Application.Preferences.IToolSettings? toolSettings = null,
-    Application.Preferences.IWebSearchSettings? webSearch = null,
-    Application.Tools.Mcp.IMcpServers? mcpServers = null,
-    Application.Tools.Mcp.IMcpConnections? mcpConnections = null,
-    ISharePrompt? share = null,
-    LanguageSwitch? language = null,
-    TextWidth? textWidth = null) : IPageFactory
+    Application.Resources.IResources resources,
+    Application.Preferences.IToolSettings toolSettings,
+    Application.Preferences.IWebSearchSettings webSearch,
+    Application.Tools.Mcp.IMcpServers mcpServers,
+    Application.Tools.Mcp.IMcpConnections mcpConnections,
+    ISharePrompt share,
+    LanguageSwitch language,
+    TextWidth textWidth) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
-        SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings, links, suggestions, context.Replayed, summaryNetworkDetails, share),
+        SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, summaryNetworkDetails, recommendations, recommendationSettings, links, suggestions, context.Replayed, share),
         SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell, links, textWidth),
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt, resources, models, Switch(), textWidth),
         NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading, models, resources, Switch(), context.Replayed),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings,
-            toolSettings is null ? null : new ToolSettingsPanel(
-                toolSettings, models, webSearch is null ? null : new WebSearchSettingsPanel(webSearch),
-                mcpServers is null || mcpConnections is null ? null : new McpServersPanel(mcpServers, mcpConnections, dispatcher)),
+            new ToolSettingsPanel(toolSettings, models, new WebSearchSettingsPanel(webSearch), new McpServersPanel(mcpServers, mcpConnections, dispatcher)),
             language, textWidth),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
         UsageStatisticsRoute => new UsageStatisticsViewModel(context.Workspace, statistics, prices, context.Navigator),
@@ -79,6 +77,6 @@ internal sealed class PageFactory(
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),
     };
 
-    /// <summary>A composer page's web search switch (requirements §10.4.5); none without the settings.</summary>
-    private WebSearchSwitch? Switch() => webSearch is null ? null : new WebSearchSwitch(webSearch, toolSettings, models, dispatcher);
+    /// <summary>A composer page's web search switch (requirements §10.4.5).</summary>
+    private WebSearchSwitch Switch() => new(webSearch, toolSettings, models, dispatcher);
 }

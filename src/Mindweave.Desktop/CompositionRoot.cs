@@ -25,12 +25,7 @@ public static class CompositionRoot
     private static readonly ServiceProviderOptions Validated = new() { ValidateOnBuild = true, ValidateScopes = true };
 
     /// <summary>The service types the view provider registers itself; every other type belongs to the root.</summary>
-    private static readonly Lazy<HashSet<Type>> ViewTypes = new(() =>
-    {
-        var services = new ServiceCollection();
-        AddView(services);
-        return [.. services.Select(d => d.ServiceType)];
-    });
+    private static readonly Lazy<HashSet<Type>> ViewTypes = new(() => [.. ViewRegistrations().Select(d => d.ServiceType)]);
 
     /// <summary>
     /// Builds the root provider: logging, Infrastructure, Application, the platform services, the request bridges and the
@@ -86,6 +81,7 @@ public static class CompositionRoot
         services.AddSingleton<Application.Share.IShareMarkdown, Markdown.ShareMarkdown>();
         services.AddSingleton<Application.Share.IShareContents, Application.Share.ShareContentService>();
         services.AddSingleton<Application.ManualBackup.IManualBackups, Application.ManualBackup.ManualBackupService>();
+        services.AddSingleton<Application.Storage.ISaveBeforeClose, Application.Storage.SaveBeforeClose>(); // Needs the manual backups above.
         services.AddSingleton<ShareRequests>();
         services.AddSingleton<ISharePrompt>(sp => sp.GetRequiredService<ShareRequests>());
         services.AddSingleton<BackupRequests>();
@@ -118,6 +114,14 @@ public static class CompositionRoot
         AddOverrides(services, overrides, view: true);
         AddView(services);
         return services.BuildServiceProvider(Validated);
+    }
+
+    /// <summary>What a view provider registers itself (for tests that look at every view service).</summary>
+    internal static IReadOnlyList<ServiceDescriptor> ViewRegistrations()
+    {
+        var services = new ServiceCollection();
+        AddView(services);
+        return [.. services];
     }
 
     private static void AddView(IServiceCollection services)

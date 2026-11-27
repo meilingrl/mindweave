@@ -64,7 +64,7 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
     private readonly GenerationCoordinator _generation;
     private readonly IClock _clock;
     private readonly ILogger<LinkSuggestionService> _logger;
-    private readonly ISummaryNetworkLayout? _network;
+    private readonly ISummaryNetworkLayout _network;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<WorkspaceId, Run> _running = [];
@@ -82,8 +82,9 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
         GenerationCoordinator generation,
         IClock clock,
         ILogger<LinkSuggestionService> logger,
-        ISummaryNetworkLayout? network = null)
+        ISummaryNetworkLayout network)
     {
+        ArgumentNullException.ThrowIfNull(network);
         _network = network;
         _store = store;
         _summaries = summaries;
@@ -130,7 +131,7 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
 
         // A suggestion stored before the rule (design session-network §8), or whose summaries were moved onto one line of
         // descent since, is not offered: a branch line already joins them.
-        if (_network is not null && items.Count > 0)
+        if (items.Count > 0)
         {
             var input = new LinkSuggestionInput([], 0, []) { Lineage = await LineageAsync(workspace, cancellationToken).ConfigureAwait(false) };
             items = [.. items.Where(i => !input.OnOneLine(i.NodeA, i.NodeB))];
@@ -144,7 +145,7 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
 
     /// <summary>Where each summary of the workspace sits: its conversation, its exploration's root and the conversations above it.</summary>
     private async Task<IReadOnlyDictionary<SummaryNodeId, SummaryLineage>> LineageAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
-        (await _network!.ProjectAsync(workspace, cancellationToken).ConfigureAwait(false)).Nodes
+        (await _network.ProjectAsync(workspace, cancellationToken).ConfigureAwait(false)).Nodes
             .Where(n => n.HasSummary)
             .ToDictionary(n => n.Id, n => new SummaryLineage(n.Conversation, n.Root, n.Ancestors));
 
@@ -296,7 +297,7 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
         var avoid = await _store.ListAvoidedAsync(workspace, stop).ConfigureAwait(false);
 
         // Where each summary sits in its exploration, so a summary is never paired with one on its own line of descent.
-        var lineage = _network is null ? null : await LineageAsync(workspace, stop).ConfigureAwait(false);
+        var lineage = await LineageAsync(workspace, stop).ConfigureAwait(false);
         var input = LinkSuggestionPrompt.SelectInput(bases.Listed, bases.Count, avoid, lineage);
         string output;
         try

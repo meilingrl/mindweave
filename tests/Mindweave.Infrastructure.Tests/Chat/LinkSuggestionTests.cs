@@ -325,7 +325,8 @@ public class LinkSuggestionTests
     [Fact]
     public async Task Ignore_all_ignores_every_pending_one_and_a_paused_storage_changes_nothing()
     {
-        await using var h = await ChatHarness.StartAsync();
+        // Recovery never probes during the test: with the harness's 50 ms a loaded machine saw storage recover before the last check.
+        await using var h = await ChatHarness.StartAsync(storageRetry: TimeSpan.FromHours(1));
         await FourAsync(h);
         await h.LinkSuggestions.SuggestAsync(h.Workspace, Ct);
         var items = (await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items;

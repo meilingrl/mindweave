@@ -40,7 +40,7 @@ public sealed partial class ConversationDeletionService(
     GenerationCoordinator generation,
     ConversationService conversations,
     ILogger<ConversationDeletionService> logger,
-    IResourceBlobStore? blobs = null) : IConversationDeletion
+    IResourceBlobStore blobs) : IConversationDeletion
 {
     public Task<ConversationDeleteScope> InspectAsync(IReadOnlyCollection<ConversationId> selected, CancellationToken cancellationToken) =>
         store.InspectDeleteAsync(selected, cancellationToken);
@@ -73,7 +73,7 @@ public sealed partial class ConversationDeletionService(
             try
             {
                 path = await backup.BackupAsync(BackupReason.BeforeConversationDelete, cancellationToken).ConfigureAwait(false);
-                if (blobs is not null && scope.ResourceHashes.Count > 0)
+                if (scope.ResourceHashes.Count > 0)
                 {
                     await CopyOriginalsAsync(path, scope.ResourceHashes, cancellationToken).ConfigureAwait(false);
                 }
@@ -139,7 +139,7 @@ public sealed partial class ConversationDeletionService(
     {
         try
         {
-            await blobs!.CopyToBackupAsync(path, hashes, cancellationToken).ConfigureAwait(false);
+            await blobs.CopyToBackupAsync(path, hashes, cancellationToken).ConfigureAwait(false);
         }
         catch
         {

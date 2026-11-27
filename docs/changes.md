@@ -17,6 +17,15 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.29 · 2026-11-27
+
+- Changed every service the app builds to take its parts as required parameters; a test resolves each registered service (architecture-4, D-042)
+- Changed exit and restore to run one list of what is saved before the data is closed (architecture-5)
+- Fixed the new-answer marks, which the exit did not write, so a restore right after an exit could miss them
+- Fixed a link suggestion test that failed now and then
+- Try: nothing on screen changed; quit and restore as usual
+- Not verified: Linux and Windows before CI
+
 ## 0.6.28 · 2026-11-27
 
 - Added the cache line in Statistics › by model: the share of input read from the cache, tokens written to it, and how many requests reported it, or "not reported" ([ask-anywhere.md](design/ask-anywhere.md), prompt caching step 1)

@@ -5,7 +5,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 ## In progress
 
 - Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); step 2 is built: importing a structure-only share (0.6.18, migration v19) and a share with content (0.6.19). Step 3, the manual backup, is built: saving (0.6.26) and importing with joining by time (0.6.27) (D-046, D-047, [sharing-backup.md](docs/design/sharing-backup.md)). The three steps of sharing are all in.
-- Security, diagnostics and upkeep (evolution D2, [diagnostics-and-upkeep.md](docs/design/diagnostics-and-upkeep.md)): adopted (D-042). The code fixes performance-5 and -9 are built (0.6.21); architecture-4 and -5 follow once the manual-backup branches of sharing are in.
+- Security, diagnostics and upkeep (evolution D2, [diagnostics-and-upkeep.md](docs/design/diagnostics-and-upkeep.md)): adopted (D-042). The four code fixes are built: performance-5 and -9 (0.6.21), architecture-4 and -5 (0.6.29).
 - Design discussions on task branches: reply quality is adopted (D-043, [reply-quality.md](docs/design/reply-quality.md)); step 1, the prompts and the yardstick, needs a budget from you for real-model runs; return and review is adopted (D-044, [return-and-review.md](docs/design/return-and-review.md)); its first increment, recaps in the network, brings a migration. Ask from anywhere, several connections, search by meaning and prompt caching are adopted (D-045, [ask-anywhere.md](docs/design/ask-anywhere.md)); prompt caching step 1, measuring, is built (0.6.28, migration v20).
 
 ## Next steps
@@ -78,7 +78,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | prompt caching step 1, 0.6.28 | 2026-11-27 | passed: Core 943, Architecture 39, Infrastructure 1368 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | architecture-4 and -5, 0.6.29 | 2026-11-27 | passed: Core 943, Architecture 39, Infrastructure 1368 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

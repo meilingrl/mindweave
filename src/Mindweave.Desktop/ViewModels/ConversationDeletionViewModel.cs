@@ -58,9 +58,10 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase, IDisp
     /// <summary>How long after the counts change under the pointer a press is ignored (it may have started before).</summary>
     internal static readonly TimeSpan ChangeHold = TimeSpan.FromMilliseconds(600);
 
-    public ConversationDeletionViewModel(IConversationDeletion deletion, IConversations conversations, Workbench workbench, ConversationDeletionRequests requests, IUiDispatcher dispatcher, TimeProvider? time = null)
+    public ConversationDeletionViewModel(IConversationDeletion deletion, IConversations conversations, Workbench workbench, ConversationDeletionRequests requests, IUiDispatcher dispatcher, TimeProvider time)
     {
-        _time = time ?? TimeProvider.System;
+        ArgumentNullException.ThrowIfNull(time);
+        _time = time;
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(conversations);
         _deletion = deletion;

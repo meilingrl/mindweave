@@ -42,8 +42,8 @@ internal sealed class AppHost(SingleInstance instance, AppSession session) : IAs
 
     /// <summary>
     /// Last resort after the exit coordinator (architecture §12.3 step 6): stops generation, stops storage recovery, and
-    /// flushes kept writes and page state again (all idempotent, normally nothing is left), then closes the database. The single-instance
-    /// lock is released whatever fails before it.
+    /// saves again by the exit's own list (idempotent, normally nothing is left), then closes the database. The
+    /// single-instance lock is released whatever fails before it.
     /// </summary>
     /// <remarks>
     /// Runs after the UI loop has ended (see <see cref="Run"/>), with the window gone. When the coordinator has stopped
@@ -229,9 +229,9 @@ public sealed class AppSession : IInAppRestore, IViewSession
     }
 
     /// <summary>
-    /// Ends one session's services: stops generation (bounded by <paramref name="wait"/>), stops storage recovery, flushes
-    /// kept writes and page state (all idempotent, normally nothing is left), then closes the database and disposes the
-    /// view provider and the root provider.
+    /// Ends one session's services: stops generation (bounded by <paramref name="wait"/>), stops storage recovery, saves
+    /// what is kept in memory by the same list as the exit (idempotent, normally nothing is left), then closes the database
+    /// and disposes the view provider and the root provider.
     /// </summary>
     internal static async Task EndAsync(ServiceProvider root, ServiceProvider view, TimeSpan wait)
     {
@@ -241,13 +241,11 @@ public sealed class AppSession : IInAppRestore, IViewSession
             await root.GetRequiredService<Mindweave.Application.Conversations.GenerationCoordinator>()
                 .ShutdownAsync(wait).ConfigureAwait(false);
 
-            // Recovery stops (and a probe or retry in progress finishes) before the database closes; then every
-            // owner tries what it kept once more, while the database is still open (architecture review R3).
-            var health = root.GetRequiredService<Mindweave.Application.Storage.StorageHealth>();
-            await health.StopAsync().ConfigureAwait(false);
-            await health.RetryKeptAsync().ConfigureAwait(false);
-            await root.GetRequiredService<Mindweave.Application.Reading.ReadingStateService>().FlushAsync().ConfigureAwait(false);
-            await root.GetRequiredService<Mindweave.Application.Conversations.ConversationMarksService>().FlushAsync().ConfigureAwait(false);
+            // Recovery stops (and a probe or retry in progress finishes) before the database closes; then everything kept
+            // in memory is saved once more by the exit's own list, while the database is still open (architecture review
+            // R3, health check architecture-5).
+            await root.GetRequiredService<Mindweave.Application.Storage.StorageHealth>().StopAsync().ConfigureAwait(false);
+            await root.GetRequiredService<Mindweave.Application.Storage.ISaveBeforeClose>().SaveAsync().ConfigureAwait(false);
         }
         finally
         {

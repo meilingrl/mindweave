@@ -434,7 +434,7 @@ public static partial class SharePage
 }
 
 /// <summary>The shared file as the application asks for it (architecture §16.1: Application writes no HTML).</summary>
-internal sealed class SharePageWriter(IShareMarkdown? markdown = null) : ISharePageWriter
+internal sealed class SharePageWriter(IShareMarkdown markdown) : ISharePageWriter
 {
     public byte[] Encode(ExchangeDocument document) => SharePage.Encode(document, markdown);
 }

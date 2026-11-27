@@ -29,8 +29,8 @@ public sealed partial class ImportService(
     StorageHealth health,
     IClock clock,
     ILogger<ImportService> logger,
-    Summaries.SummaryService? summaries = null,
-    SummaryLinks.SummaryLinkService? links = null) : IImports
+    Summaries.SummaryService summaries,
+    SummaryLinks.SummaryLinkService links) : IImports
 {
     public Task<IReadOnlyDictionary<ConversationId, WorkspaceId>> HoldingsAsync(ExchangeDocument document, CancellationToken cancellationToken) =>
         store.HoldingsAsync([.. ImportRules.Compared(document)], cancellationToken);
@@ -58,10 +58,10 @@ public sealed partial class ImportService(
             reading.Forget(result.Created);
             LogImported(logger, document.Kind, result.Created.Count, result.Gained.Count);
             conversations.NotifyImported(result);
-            summaries?.NotifyImported(result.Summarized);
+            summaries.NotifyImported(result.Summarized);
             if (result.Linked is { } workspace)
             {
-                links?.RaiseChanged(workspace);
+                links.RaiseChanged(workspace);
             }
         }
 

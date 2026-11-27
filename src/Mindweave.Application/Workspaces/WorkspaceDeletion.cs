@@ -54,12 +54,12 @@ public sealed partial class WorkspaceDeletionService(
     StorageHealth health,
     GenerationCoordinator generation,
     ILogger<WorkspaceDeletionService> logger,
-    IWorkspaceNameCache? names = null,
-    Recommendations.RecommendationService? recommendations = null,
-    SummaryLinks.SummaryLinkService? links = null,
-    SummaryLinks.LinkSuggestionService? suggestions = null,
-    IResourceBlobStore? blobs = null,
-    Reading.ReadingStateService? reading = null) : IWorkspaceDeletion
+    IWorkspaceNameCache names,
+    Recommendations.RecommendationService recommendations,
+    SummaryLinks.SummaryLinkService links,
+    SummaryLinks.LinkSuggestionService suggestions,
+    IResourceBlobStore blobs,
+    Reading.ReadingStateService reading) : IWorkspaceDeletion
 {
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         store.InspectAsync(workspace, cancellationToken);
@@ -84,7 +84,7 @@ public sealed partial class WorkspaceDeletionService(
         try
         {
             path = await backup.BackupAsync(BackupReason.BeforeWorkspaceDelete, cancellationToken).ConfigureAwait(false);
-            if (blobs is not null && contents.ResourceHashes.Count > 0)
+            if (contents.ResourceHashes.Count > 0)
             {
                 await CopyOriginalsAsync(path, contents.ResourceHashes, cancellationToken).ConfigureAwait(false);
             }
@@ -130,35 +130,20 @@ public sealed partial class WorkspaceDeletionService(
         await generation.CancelBackgroundAsync(result.Deleted.ToHashSet()).ConfigureAwait(false);
 
         // Its kept names go with it (2026-11-11); its requests were recorded for it and went with the commit (v10 cascade).
-        if (names is not null)
-        {
-            await names.ForgetAsync(workspace, CancellationToken.None).ConfigureAwait(false);
-        }
+        await names.ForgetAsync(workspace, CancellationToken.None).ConfigureAwait(false);
 
         // Its recommendations went with the commit (v11 cascade); a request still running for it is stopped, and what was
         // remembered about it in memory goes (architecture §6: recommendations never hold a deletion up).
-        if (recommendations is not null)
-        {
-            await recommendations.ForgetAsync(workspace).ConfigureAwait(false);
-        }
+        await recommendations.ForgetAsync(workspace).ConfigureAwait(false);
 
         // Its links and suggestions went with the commit (v13 cascade); its remembered 显示关联 goes too.
-        if (links is not null)
-        {
-            await links.ForgetAsync(workspace).ConfigureAwait(false);
-        }
+        await links.ForgetAsync(workspace).ConfigureAwait(false);
 
         // A 建议关联 request still running for it is stopped; its late result finds no workspace (§10.3.4, architecture §6).
-        if (suggestions is not null)
-        {
-            await suggestions.ForgetAsync(workspace).ConfigureAwait(false);
-        }
+        await suggestions.ForgetAsync(workspace).ConfigureAwait(false);
 
         // Its unsent first question went with the commit; what was typed and not yet written goes too.
-        if (reading is not null)
-        {
-            await reading.ForgetNewDraftAsync(workspace).ConfigureAwait(false);
-        }
+        await reading.ForgetNewDraftAsync(workspace).ConfigureAwait(false);
 
         // Its resources went with it; their originals go too, the backup just made keeps its own copies (architecture §15.2).
         await Resources.ResourceService.SweepQuietlyAsync(blobs, logger).ConfigureAwait(false);
@@ -172,7 +157,7 @@ public sealed partial class WorkspaceDeletionService(
     {
         try
         {
-            await blobs!.CopyToBackupAsync(path, hashes, cancellationToken).ConfigureAwait(false);
+            await blobs.CopyToBackupAsync(path, hashes, cancellationToken).ConfigureAwait(false);
         }
         catch
         {

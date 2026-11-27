@@ -54,18 +54,19 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         IConversations conversations,
         IWorkbenchNavigator navigator,
         IUiDispatcher dispatcher,
+        SummaryNetworkDetails details,
         IRecommendations? recommendations = null,
         Application.Preferences.IRecommendationSettings? recommendationSettings = null,
         ISummaryLinks? links = null,
         ILinkSuggestions? suggestions = null,
         bool replayed = false,
-        SummaryNetworkDetails? details = null,
         ISharePrompt? share = null)
         : base(SummaryNetworkHomeRoute.Instance)
     {
         _replayed = replayed;
         _share = share;
-        Details = details ?? new SummaryNetworkDetails();
+        ArgumentNullException.ThrowIfNull(details);
+        Details = details;
         Details.PropertyChanged += OnDetailsChanged;
         Workspace = workspace;
         Session = session;

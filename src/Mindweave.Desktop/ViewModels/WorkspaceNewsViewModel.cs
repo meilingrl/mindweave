@@ -40,9 +40,9 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject, IDisposab
     private readonly Workbench _workbench;
     private readonly IConversationMarks _marks;
     private readonly IUiDispatcher _dispatcher;
-    private readonly INewsAlerts? _alerts;
-    private readonly IAlertSound? _sound;
-    private readonly IConversations? _conversations;
+    private readonly INewsAlerts _alerts;
+    private readonly IAlertSound _sound;
+    private readonly IConversations _conversations;
     private readonly WorkspaceNewsOptions _options;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
@@ -68,31 +68,32 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject, IDisposab
         Workbench workbench,
         IConversationMarks marks,
         IUiDispatcher dispatcher,
-        INewsAlerts? alerts = null,
-        IAlertSound? sound = null,
-        WorkspaceNewsOptions? options = null,
-        IConversations? conversations = null)
+        INewsAlerts alerts,
+        IAlertSound sound,
+        WorkspaceNewsOptions options,
+        IConversations conversations)
     {
         ArgumentNullException.ThrowIfNull(workbench);
         ArgumentNullException.ThrowIfNull(marks);
         ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(alerts);
+        ArgumentNullException.ThrowIfNull(sound);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(conversations);
         _workbench = workbench;
         _marks = marks;
         _dispatcher = dispatcher;
         _alerts = alerts;
         _sound = sound;
         _conversations = conversations;
-        _options = options ?? new WorkspaceNewsOptions();
+        _options = options;
         _open = workbench.CurrentWorkspace;
         _load = new SerialRefresh(RefreshAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
         _marks.Marked += OnMarked;
         _marks.Answered += OnAnswered;
         _marks.Changed += OnMarksChanged;
-        if (conversations is not null)
-        {
-            conversations.ConversationChanged += OnConversationChanged;
-        }
+        conversations.ConversationChanged += OnConversationChanged;
 
         _workbench.Workspaces.CollectionChanged += OnWorkspacesChanged;
         _workbench.PropertyChanged += OnWorkbenchChanged;
@@ -105,10 +106,7 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject, IDisposab
         _marks.Marked -= OnMarked;
         _marks.Answered -= OnAnswered;
         _marks.Changed -= OnMarksChanged;
-        if (_conversations is not null)
-        {
-            _conversations.ConversationChanged -= OnConversationChanged;
-        }
+        _conversations.ConversationChanged -= OnConversationChanged;
 
         _workbench.Workspaces.CollectionChanged -= OnWorkspacesChanged;
         _workbench.PropertyChanged -= OnWorkbenchChanged;
@@ -429,10 +427,6 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject, IDisposab
     private async Task<IReadOnlyDictionary<ConversationId, (WorkspaceId Workspace, string Title)>> TitlesAsync(IEnumerable<WorkspaceId> workspaces)
     {
         var titles = new Dictionary<ConversationId, (WorkspaceId, string)>();
-        if (_conversations is null)
-        {
-            return titles;
-        }
 
         foreach (var workspace in workspaces.Distinct().ToList())
         {
@@ -451,11 +445,6 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject, IDisposab
     /// <summary>Whether the open workspace's conversations pop up hints: on by default, and when the setting cannot be read.</summary>
     private async Task<bool> InWorkspaceAsync()
     {
-        if (_alerts is null)
-        {
-            return true;
-        }
-
         try
         {
             return await _alerts.GetInWorkspaceAsync(CancellationToken.None);
@@ -504,11 +493,6 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject, IDisposab
     /// </summary>
     private async Task PlaySoundAsync()
     {
-        if (_alerts is null || _sound is null)
-        {
-            return;
-        }
-
         bool on;
         try
         {

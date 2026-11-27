@@ -7,10 +7,10 @@ namespace Mindweave.Application.Tools;
 /// The tools a run may be given (architecture §15.6). Phase 2 has two built-in local tools; later phases add network and
 /// third-party ones. A run is offered the tools that have something to find in its scope (decision R5).
 /// </summary>
-public sealed class ToolRegistry(IEnumerable<ITool> tools, IEnumerable<IToolSource>? sources = null)
+public sealed class ToolRegistry(IEnumerable<ITool> tools, IEnumerable<IToolSource> sources)
 {
     private readonly IReadOnlyList<ITool> _tools = [.. tools];
-    private readonly IReadOnlyList<IToolSource> _sources = [.. sources ?? []];
+    private readonly IReadOnlyList<IToolSource> _sources = [.. sources];
 
     /// <summary>The built-in tools (and any a test adds); third-party tools come from the sources when a question is accepted.</summary>
     public IReadOnlyList<ITool> All => _tools;

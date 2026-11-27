@@ -45,6 +45,7 @@ public static class ApplicationServices
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();
         services.AddSingleton<ConversationMarksService>();
+        services.TryAddSingleton(new SummaryDraftOptions()); // Tests shorten the autosave.
         services.AddSingleton<SummaryDrafts>();
         services.AddSingleton<SummaryService>();
         services.AddSingleton<SummaryNetworkService>();
@@ -54,6 +55,7 @@ public static class ApplicationServices
         services.AddSingleton<Application.Import.IImports>(sp => sp.GetRequiredService<Application.Import.ImportService>());
         services.AddSingleton<Application.ManualBackup.ManualBackupImportService>();
         services.AddSingleton<Application.ManualBackup.IManualBackupImports>(sp => sp.GetRequiredService<Application.ManualBackup.ManualBackupImportService>());
+        services.TryAddSingleton(new ReadingStateOptions()); // Tests shorten the save delay.
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();

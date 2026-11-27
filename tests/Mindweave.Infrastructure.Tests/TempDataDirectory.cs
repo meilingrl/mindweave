@@ -18,7 +18,7 @@ public sealed class TempDataDirectory : IDisposable
     public AppPaths Paths { get; }
 
     public SqliteDatabase Database(MigrationCatalog? catalog = null, TimeProvider? time = null, SqliteDatabaseOptions? options = null) =>
-        new(Paths, catalog ?? MigrationCatalog.Default, time ?? TimeProvider.System, NullLogger<SqliteDatabase>.Instance, options);
+        new(Paths, catalog ?? MigrationCatalog.Default, time ?? TimeProvider.System, NullLogger<SqliteDatabase>.Instance, options ?? new SqliteDatabaseOptions());
 
     /// <summary>Opens the database file directly, bypassing the application, for assertions and setup.</summary>
     public SqliteConnection Raw() => SqliteConnections.OpenReadWrite(Paths.DatabasePath);
