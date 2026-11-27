@@ -377,6 +377,32 @@ public class SidebarStatusTests
         await UiWait.UntilAsync(() => preferences.GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None).GetAwaiter().GetResult()?.Contains(first.ToString(), StringComparison.Ordinal) == true);
     }
 
+    /// <summary>
+    /// The exit's own save writes the marks too (health check architecture-5, D-042), not only the end of the session after
+    /// it: a restore keeps a copy of the current data right after that save, and the session ends only after the copy.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_mark_whose_save_failed_is_written_before_the_window_closes()
+    {
+        var flaky = new FlakyPreferences();
+        await using var app = DesktopHarness.Create(flaky.Register);
+        app.ShowWindow(1100, 720);
+        var (first, _) = await TwoConversationsAsync(app);
+        flaky.FailWrites = true;
+        await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
+        await UiWait.UntilAsync(() => Item(app, first).IsUnread);
+        await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
+        Assert.True(flaky.FailedWrites > 0);
+        flaky.FailWrites = false;
+
+        Assert.True(app.Root.Exit.InterceptClose());
+        await app.Root.Exit.Running;
+
+        Assert.Equal(1, app.Shell.ExitRequests);
+        var stored = await app.Services.GetRequiredService<IPreferenceStore>().GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None);
+        Assert.Contains(first.ToString(), stored ?? string.Empty, StringComparison.Ordinal);
+    }
+
     [AvaloniaFact]
     public async Task A_mark_whose_save_failed_is_written_by_the_exit_and_comes_back()
     {

@@ -7,6 +7,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Reading;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.ViewModels.Pages;
+using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 using static Mindweave.Desktop.Tests.ExitScenario;
 
@@ -223,6 +224,39 @@ public class ExitSavingTests
         await app.Root.Exit.Running;
         Assert.Equal(1, writer.Writes);
         Assert.Equal(1, app.Shell.ExitRequests);
+    }
+
+    /// <summary>
+    /// The end of the session saves by the same list as the exit (health check architecture-5, D-042): when the window went
+    /// without the exit sequence, an export still writing its file is finished before the database closes.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_end_of_a_session_without_the_exit_sequence_finishes_an_export_still_writing()
+    {
+        var writer = new GatedExportWriter();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IExportFileWriter>(writer));
+        app.ShowWindow(1100, 720);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
+        var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
+        await summary.Loaded;
+        app.Shell.NextExport = _ => new ExportDestination("导出.md", "/unused/导出.md", null);
+        var export = summary.ExportCommand.ExecuteAsync(null);
+        await writer.Started.Task;
+
+        var instance = SingleInstance.TryAcquire(app.Paths);
+        Assert.NotNull(instance);
+        var ended = Task.Run(async () => await app.HandOverToHost(instance).DisposeAsync(), TestContext.Current.CancellationToken);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Assert.False(ended.IsCompleted);
+        Assert.True(app.Services.GetRequiredService<SqliteDatabase>().IsOpen);
+
+        writer.Release.SetResult();
+        await export;
+        await ended;
+        Assert.Equal(1, writer.Writes);
     }
 
     /// <summary>An export writer that holds the write until released.</summary>
