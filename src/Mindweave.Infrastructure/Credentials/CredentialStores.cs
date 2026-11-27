@@ -52,13 +52,13 @@ public static class CredentialStores
         public async Task<string?> ReadAsync(string reference, CancellationToken cancellationToken)
         {
             var secret = await inner.ReadAsync(reference, cancellationToken).ConfigureAwait(false);
-            secrets.Add(secret);
+            StoredKeys.AddEach(secrets, secret);
             return secret;
         }
 
         public Task WriteAsync(string reference, string secret, CancellationToken cancellationToken)
         {
-            secrets.Add(secret);
+            StoredKeys.AddEach(secrets, secret); // An MCP server's secrets are one JSON item: each value is a key of its own.
             return inner.WriteAsync(reference, secret, cancellationToken);
         }
 

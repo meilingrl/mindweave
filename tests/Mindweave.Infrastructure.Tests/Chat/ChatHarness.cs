@@ -92,6 +92,10 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>An answer's or a task's last failed request (D2 §2.1).</summary>
     public Application.Diagnostics.IFailureDetailsSource Failures => _services.GetRequiredService<Application.Diagnostics.IFailureDetailsSource>();
 
+    /// <summary>Any registered service (D2's diagnostics are reached this way rather than by a property each).</summary>
+    public T Get<T>()
+        where T : notnull => _services.GetRequiredService<T>();
+
     /// <summary>The keys the log scrubs (D2).</summary>
     public Application.Diagnostics.KnownSecrets Secrets => _services.GetRequiredService<Application.Diagnostics.KnownSecrets>();
 
@@ -425,6 +429,8 @@ internal sealed class ChatHarness : IAsyncDisposable
         services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown()); // The app's own is in Desktop.
         services.AddSingleton(new StorageHealthOptions { RetryInterval = storageRetry ?? TimeSpan.FromMilliseconds(50) });
         services.AddSingleton(TestMcpOptions);
+        services.AddSingleton(new Application.AppEnvironment(
+            paths.Channel, "1.2.3", paths.DataDirectory, paths.DatabasePath, paths.BackupDirectory, paths.LogDirectory, Sqlite.Migrations.MigrationCatalog.Default.LatestVersion, "abcdef1"));
 
         // The background's 30 s wait runs on a clock that stands still unless a test moves it.
         services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });
