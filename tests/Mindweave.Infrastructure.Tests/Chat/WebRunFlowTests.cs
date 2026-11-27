@@ -82,7 +82,7 @@ public class WebRunFlowTests
         // The search went out with the key and the query; its results reached the model numbered and marked untrusted.
         var search = Assert.Single(h.Search.Searches);
         Assert.Equal(("蒸汽机 发明", Key, WebSearchTool.MaxResults), search);
-        var material = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content;
+        var material = FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content;
         Assert.StartsWith(WebMaterial.Opening, material, StringComparison.Ordinal);
         Assert.Contains("[1] 蒸汽机 - 百科\n网址：https://example.org/steam", material, StringComparison.Ordinal);
         Assert.Contains("[2] 铁路的历史", material, StringComparison.Ordinal);
@@ -118,7 +118,7 @@ public class WebRunFlowTests
         Assert.Equal(MessageState.Complete, answer.State);
         Assert.Equal("1 加 1 等于几？", Assert.Single(h.Search.Searches).Query);
         var request = Assert.Single(h.Client.Requests, FakeChatClient.IsAnswer);
-        var question = request.Turns[^1].Content;
+        var question = FakeChatClient.Dialogue(request)[^1].Content;
         Assert.StartsWith(WebMaterial.PreSearchLead, question, StringComparison.Ordinal);
         Assert.Contains(WebMaterial.Opening, question, StringComparison.Ordinal);
         Assert.EndsWith("1 加 1 等于几？", question, StringComparison.Ordinal);
@@ -151,10 +151,10 @@ public class WebRunFlowTests
         Assert.Equal(4, requests.Count);
         Assert.Equal([WebSearchTool.ToolName, FetchPageTool.ToolName], requests[0].Tools!.Select(t => t.Name));
         Assert.Equal([WebSearchTool.ToolName, FetchPageTool.ToolName], requests[1].Tools!.Select(t => t.Name));
-        Assert.Contains(SearchAttachmentsTool.ToolName, requests[2].Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Contains(SearchAttachmentsTool.ToolName, FakeChatClient.Dialogue(requests[2])[^1].Content, StringComparison.Ordinal);
         Assert.Equal([WebSearchTool.ToolName, FetchPageTool.ToolName, SearchAttachmentsTool.ToolName], requests[2].Tools!.Select(t => t.Name));
         Assert.Contains($"- {SearchAttachmentsTool.ToolName}（", requests[2].Turns[0].Content, StringComparison.Ordinal);
-        Assert.Contains("瓦特在 1769 年取得了分离冷凝器的专利", requests[3].Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Contains("瓦特在 1769 年取得了分离冷凝器的专利", FakeChatClient.Dialogue(requests[3])[^1].Content, StringComparison.Ordinal);
         Assert.Equal(ToolResultStatus.Succeeded, answer.Blocks.OfType<ToolResultBlock>().Last().Status);
     }
 
@@ -252,7 +252,7 @@ public class WebRunFlowTests
         Assert.Empty(h.Pages.Fetched);
         var result = answer.Blocks.OfType<ToolResultBlock>().Single();
         Assert.Equal(ToolResultStatus.Denied, result.Status);
-        Assert.Equal(WebMaterial.DeniedResult, h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content);
+        Assert.Equal(WebMaterial.DeniedResult, FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content);
         var step = (await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id].Steps.Single(s => s.Kind == RunStepKind.Tool);
         Assert.Equal((RunStepState.Denied, Approval.Denied), (step.State, step.Approval));
         Assert.Empty(ContentBlocks.CitationsOf(answer.Blocks));
@@ -340,7 +340,7 @@ public class WebRunFlowTests
         var failed = answer.Blocks.OfType<ToolResultBlock>().Last();
         Assert.Equal(ToolResultStatus.Failed, failed.Status);
         Assert.Contains("局域网", failed.Preview, StringComparison.Ordinal);
-        Assert.Contains("局域网", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Contains("局域网", FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -17,7 +17,19 @@ public static class AnswerPrompt
     public const int Version = 1;
 
     /// <summary>The answer instructions for a conversation that is a branch from a selected passage, or not.</summary>
-    public static string For(bool branch) => Join(PromptLibrary.Get("answer"), branch ? PromptLibrary.Get("answer-branch") : string.Empty);
+    public static string For(bool branch) => Join(Fixed, BranchPart(branch));
+
+    /// <summary>
+    /// The part that is the same for every conversation: it opens the request (architecture §15.5, order of a request), so a
+    /// provider's cache serves it to every question.
+    /// </summary>
+    public static string Fixed => PromptLibrary.Get("answer");
+
+    /// <summary>
+    /// The branch part, for a branch from a selected passage; empty otherwise. It differs between a branch and its parent, so it
+    /// stands with the question (<see cref="RequestNote"/>), not at the start.
+    /// </summary>
+    public static string BranchPart(bool branch) => branch ? PromptLibrary.Get("answer-branch") : string.Empty;
 
     /// <summary>The system text of a run: the answer instructions, then the run instructions.</summary>
     public static string WithRun(string answer, string run) => Join(answer, run);

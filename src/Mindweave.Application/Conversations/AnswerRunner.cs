@@ -172,8 +172,9 @@ internal sealed partial class AnswerRunner(
             return;
         }
 
-        // The answer instructions open the request (requirements §10.9); a run adds its own to them, request by request.
-        request = request with { Turns = Opened(request.Turns, work.Inputs?.Instructions ?? string.Empty) };
+        // The answer instructions open the request (requirements §10.9); a run adds its own to them. What belongs to this
+        // conversation only, the branch part, goes with the question, so the start stays the same for every request (§10.11.4).
+        request = request with { Turns = RequestNote.Append(Opened(request.Turns, work.Inputs?.Instructions ?? string.Empty), RequestNote.Of(work.Inputs?.Note)) };
         MessageState final;
         GenerationErrorKind? error = null;
         string? detail = null;

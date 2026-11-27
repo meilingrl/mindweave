@@ -67,8 +67,9 @@ public class BranchFlowTests
             ["火车是怎么发明的？", "答：火车是怎么发明的？", "关于上文中的这段内容：\n> 火车\n\n谁造了第一台？"],
             FakeChatClient.Dialogue(request).Select(t => t.Content));
 
-        // The answer instructions open the request with the branch's own part (requirements §10.9).
-        Assert.Equal(new ChatTurn(ChatRole.System, AnswerPrompt.For(true)), request.Turns[0]);
+        // The answer instructions open the request; the branch's own part goes with the question (requirements §10.9, §10.11.4).
+        Assert.Equal(new ChatTurn(ChatRole.System, AnswerPrompt.Fixed), request.Turns[0]);
+        Assert.Equal(AnswerPrompt.BranchPart(true), FakeChatClient.NoteOf(request));
         // The stored question is exactly what the user typed.
         var stored = await h.Conversations.LoadAsync(branch.Child, Ct);
         Assert.Equal("谁造了第一台？", stored!.Messages[0].Text);

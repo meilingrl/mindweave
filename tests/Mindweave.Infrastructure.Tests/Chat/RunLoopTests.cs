@@ -101,12 +101,47 @@ public class RunLoopTests
         var (_, answer) = await AskWithAttachmentAsync(h, "蒸汽机？");
 
         Assert.Equal(MessageState.Complete, answer.State);
-        var systems = h.Client.Requests.Where(FakeChatClient.IsAnswer).Select(r => r.Turns[0].Content).ToList();
+        var systems = h.Client.Requests.Where(FakeChatClient.IsAnswer).Select(FakeChatClient.NoteOf).ToList();
         Assert.Equal(3, systems.Count);
         Assert.EndsWith("【额度】包括这一轮，本次回答还可以调用工具 2 轮、共 5 次；用完之后必须直接回答。", systems[0], StringComparison.Ordinal);
         Assert.EndsWith("【额度】包括这一轮，本次回答还可以调用工具 1 轮、共 4 次；用完之后必须直接回答。", systems[1], StringComparison.Ordinal);
         Assert.DoesNotContain("【额度】", systems[2], StringComparison.Ordinal);
         Assert.EndsWith(AnswerRunnerFinal, systems[2], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Prompt caching, step 2 (requirements §10.11.4, architecture §15.5): in a run with three tool steps, each request begins
+    /// with exactly what the previous one sent, the same system turn and the same tools in the same order, so a provider's cache
+    /// can serve it; what changes (the allowance, then the instruction to answer) comes last.
+    /// </summary>
+    [Fact]
+    public async Task Each_request_of_a_run_begins_with_exactly_what_the_previous_one_sent()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.ToolSettings.SetLimitsAsync(RunLimits.Default with { ModelRequests = 4, ToolCalls = 10 }, Ct);
+        h.Client.KeepCalling = (SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+
+        var (_, answer) = await AskWithAttachmentAsync(h, "蒸汽机？");
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
+        Assert.Equal(4, requests.Count);
+        for (var i = 1; i < requests.Count; i++)
+        {
+            var before = requests[i - 1].Turns;
+            Assert.True(requests[i].Turns.Count > before.Count);
+            Assert.Equal(before, requests[i].Turns.Take(before.Count));
+        }
+
+        // The same start every time, and the same tools until the last request, which offers none.
+        Assert.Single(requests.Select(r => r.Turns[0]).Distinct());
+        Assert.All(requests.SkipLast(1), r => Assert.Equal(requests[0].Tools!.Select(t => t.Name), r.Tools!.Select(t => t.Name)));
+        Assert.False(requests[^1].HasTools);
+
+        // The allowance of each step is the last turn it sent, and stays in the history after the model replied to it.
+        Assert.Equal(["3", "2", "1"], requests.SkipLast(1).Select(r => r.Turns[^1].Content).Select(c => System.Text.RegularExpressions.Regex.Match(c, @"调用工具 (\d+) 轮").Groups[1].Value));
+        Assert.Equal(3, requests[^1].Turns.Count(t => t.Content.Contains("【额度】", StringComparison.Ordinal)));
+        Assert.EndsWith(AnswerRunnerFinal + "\n" + RequestNote.Close, requests[^1].Turns[^1].Content, StringComparison.Ordinal);
     }
 
     // L5: one retry of a transient error.
@@ -197,7 +232,7 @@ public class RunLoopTests
         Assert.Null(run.LimitReached);
         var last = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last();
         Assert.False(last.HasTools);
-        Assert.Contains("【上一轮回复因输出长度上限被截断，其中的工具调用没有执行】", last.Turns[0].Content, StringComparison.Ordinal);
+        Assert.Contains("【上一轮回复因输出长度上限被截断，其中的工具调用没有执行】", FakeChatClient.NoteOf(last), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -354,7 +389,7 @@ public class RunLoopTests
         Assert.Contains($"资源 {results[0].Resource}", sentBack, StringComparison.Ordinal);
 
         // It counts as a call: the budget line says so.
-        Assert.Contains("共 13 次", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0].Content, StringComparison.Ordinal);
+        Assert.Contains("共 13 次", FakeChatClient.NoteOf(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last()), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -479,14 +514,17 @@ public class RunLoopTests
         h.Client.Reply("瓦特改良了蒸汽机[1]。");
         var first = await h.Conversations.StartAsync(h.Workspace, "蒸汽机是谁改良的？", [], null, new SendOptions(WebSearchMode.Auto), Ct);
         var answer = await h.WaitForAnswerAsync(first.Answer!.Value);
-        Assert.DoesNotContain("本会话较早取得的材料", h.Client.Requests.First(FakeChatClient.IsAnswer).Turns[0].Content, StringComparison.Ordinal);
+        Assert.DoesNotContain(h.Client.Requests.Where(FakeChatClient.IsAnswer), r => r.Turns.Any(t => t.Content.Contains("本会话较早取得的材料", StringComparison.Ordinal)));
         var (search, page) = (answer.Blocks.OfType<ToolResultBlock>().First().Resource, answer.Blocks.OfType<ToolResultBlock>().Last().Resource);
 
         h.Client.Reply("是 1769 年。");
         var sent = await h.Conversations.AskAsync(first.Conversation, "那是哪一年？", [], new SendOptions(WebSearchMode.Auto), Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);
 
-        var system = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0].Content;
+        // It goes with the question, not at the start: it grows from question to question (requirements §10.11.4).
+        var followUp = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last();
+        Assert.DoesNotContain("本会话较早取得的材料", followUp.Turns[0].Content, StringComparison.Ordinal);
+        var system = FakeChatClient.NoteOf(followUp);
         Assert.Contains("本会话较早取得的材料（最近的在前）", system, StringComparison.Ordinal);
         var pageLine = system.IndexOf($"- 资源 {page}：网页《蒸汽机的历史》（example.org）", StringComparison.Ordinal);
         var searchLine = system.IndexOf($"- 资源 {search}：网络搜索：蒸汽机", StringComparison.Ordinal);
@@ -507,8 +545,8 @@ public class RunLoopTests
         var sent = await h.Conversations.StartAsync(h.Workspace, "蒸汽机是谁改良的？", [resource], null, Ct);
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
 
-        Assert.StartsWith("检索“蒸汽机”找到 1 段", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
-        Assert.Contains($"[1] 《{ModelPhrases.Current.PastedText}》 resource={resource}", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
+        Assert.StartsWith("检索“蒸汽机”找到 1 段", FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content, StringComparison.Ordinal);
+        Assert.Contains($"[1] 《{ModelPhrases.Current.PastedText}》 resource={resource}", FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content, StringComparison.Ordinal);
         var citation = Assert.Single(ContentBlocks.CitationsOf(answer.Blocks));
         Assert.Equal((1, CitationKind.Attachment, null, resource), (citation.Number, citation.Kind, citation.Url, citation.Resource));
         Assert.Equal($"[1] 附件《{ModelPhrases.Current.PastedText}》", citation.Line(ModelPhrases.Current));
@@ -564,7 +602,7 @@ public class RunLoopTests
         var sent = await h.Conversations.AskAsync(first.Conversation, "他是怎么提高效率的？", [], new SendOptions(WebSearchMode.Auto), Ct);
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
 
-        var sentBack = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content;
+        var sentBack = FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content;
         Assert.Contains("[1] 《蒸汽机的历史》", sentBack, StringComparison.Ordinal);
         Assert.DoesNotContain("\n[1] 蒸汽机的历史", sentBack, StringComparison.Ordinal);
         var citation = Assert.Single(ContentBlocks.CitationsOf(answer.Blocks));

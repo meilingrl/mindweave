@@ -97,7 +97,7 @@ public class McpRunFlowTests
         Assert.EndsWith("原样返回 text。", offered.Description, StringComparison.Ordinal);
 
         // The model got the result marked as untrusted material from the server and tool.
-        var material = s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content;
+        var material = FakeChatClient.Dialogue(s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content;
         Assert.StartsWith(McpMaterial.Opening("files", "echo"), material, StringComparison.Ordinal);
         Assert.Contains("echo: 你好", material, StringComparison.Ordinal);
         Assert.EndsWith(McpMaterial.Closing, material, StringComparison.Ordinal);
@@ -148,7 +148,7 @@ public class McpRunFlowTests
         var results = answer.Blocks.OfType<ToolResultBlock>().ToList();
         Assert.Equal([ToolResultStatus.Succeeded, ToolResultStatus.Denied], results.Select(r => r.Status));
         Assert.Equal(McpMaterial.DeniedDetail, results[1].Detail);
-        Assert.Equal(McpMaterial.DeniedResult, s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content);
+        Assert.Equal(McpMaterial.DeniedResult, FakeChatClient.Dialogue(s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content);
         var steps = await StepsAsync(s.H, sent, answer.Id);
         Assert.Equal([(RunStepState.Completed, Approval.Approved), (RunStepState.Denied, Approval.Denied)], steps.Select(x => (x.State, x.Approval!.Value)));
     }
@@ -392,7 +392,7 @@ public class McpRunFlowTests
         var stored = (await s.H.ResourceService.GetAsync(answer.Blocks.OfType<ToolResultBlock>().Single().Resource!.Value, Ct))!;
         Assert.True(stored.Text!.Length <= McpMaterial.MaxText + 100);
         Assert.Contains("结果过长", stored.Text, StringComparison.Ordinal);
-        var sentToModel = s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content;
+        var sentToModel = FakeChatClient.Dialogue(s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content;
         Assert.True(sentToModel.Length < 10_000, sentToModel.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
         Assert.Contains("以上只是开头", sentToModel, StringComparison.Ordinal);
     }
@@ -433,7 +433,7 @@ public class McpRunFlowTests
         var sent = await s.H.Conversations.StartAsync(s.H.Workspace, "查一下", [], null, new SendOptions(WebSearchMode.Auto), Ct);
         var card = await CardAsync(s.H, sent.Answer!.Value);
 
-        var material = s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content;
+        var material = FakeChatClient.Dialogue(s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content;
         Assert.StartsWith(McpMaterial.Opening("files", "inject"), material, StringComparison.Ordinal);
         Assert.Contains(FakeServer.Injection, material, StringComparison.Ordinal);
         Assert.Contains("不可信", material, StringComparison.Ordinal);
@@ -455,7 +455,7 @@ public class McpRunFlowTests
 
         var result = answer.Blocks.OfType<ToolResultBlock>().Single();
         Assert.Equal(ToolResultStatus.Failed, result.Status);
-        var sentToModel = s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content;
+        var sentToModel = FakeChatClient.Dialogue(s.H.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content;
         Assert.Contains("数据库连接失败", sentToModel, StringComparison.Ordinal);
         Assert.Contains("不可信", sentToModel, StringComparison.Ordinal);
     }

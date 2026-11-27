@@ -63,13 +63,24 @@ public sealed record RunPlan(IReadOnlyList<Tools.ITool> Tools, Core.Runs.RunLimi
 public sealed record ContextInputs(IReadOnlyList<Core.Branches.ContextSegment> Ancestors, Core.Branches.ContextSegment Own, IReadOnlyList<ResourceCandidate> Resources)
 {
     /// <summary>
-    /// The answer instructions that open the request (<see cref="AnswerPrompt"/>, architecture §15.5); empty for none. A run's
-    /// instructions follow them.
+    /// The answer instructions that open the request, the same for every conversation (<see cref="AnswerPrompt.Fixed"/>,
+    /// architecture §15.5); empty for none. A run's instructions follow them.
     /// </summary>
     public string Instructions { get; init; } = string.Empty;
 
-    /// <summary>What <see cref="Instructions"/> take of the context budget, in estimated tokens: the context is planned in the rest.</summary>
-    public int InstructionTokens => Instructions.Length == 0 ? 0 : Core.Context.TokenEstimator.Message(Instructions);
+    /// <summary>
+    /// The part of the answer instructions that belongs to this conversation (<see cref="AnswerPrompt.BranchPart"/>): sent with
+    /// the question as the app's own lines (<see cref="RequestNote"/>), not at the start. Empty for none.
+    /// </summary>
+    public string Note { get; init; } = string.Empty;
+
+    /// <summary>
+    /// What <see cref="Instructions"/> and <see cref="Note"/> take of the context budget, in estimated tokens: the context is
+    /// planned in the rest.
+    /// </summary>
+    public int InstructionTokens =>
+        (Instructions.Length == 0 ? 0 : Core.Context.TokenEstimator.Message(Instructions))
+        + (Note.Length == 0 ? 0 : Core.Context.TokenEstimator.Message(RequestNote.Of(Note)));
 }
 
 public sealed record TitleWork(GenerationTaskRecord Task, ChatRequest Request)

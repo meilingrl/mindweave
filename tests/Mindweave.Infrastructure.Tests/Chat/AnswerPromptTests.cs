@@ -99,25 +99,30 @@ public class AnswerPromptTests
         await using var h = await ChatHarness.StartAsync();
         var (root, answer) = await h.RootWithAnswerAsync("火车是怎么发明的？");
         var rootRequest = h.Client.Requests.Single(FakeChatClient.IsAnswer);
-        Assert.Equal(AnswerPrompt.For(false), rootRequest.Turns[0].Content);
-        Assert.DoesNotContain(PromptLibrary.Get("answer-branch"), rootRequest.Turns[0].Content, StringComparison.Ordinal);
+        Assert.Equal(AnswerPrompt.Fixed, rootRequest.Turns[0].Content);
+        Assert.Empty(FakeChatClient.NoteOf(rootRequest));
+        Assert.DoesNotContain(rootRequest.Turns, t => t.Content.Contains(PromptLibrary.Get("answer-branch"), StringComparison.Ordinal));
 
         var child = await h.BranchAsync(root, answer, "火车");
         await h.AskAsync(child, "谁造了第一台？");
         await h.AskAsync(child, "后来呢？");
 
-        // Acceptance 3 and 4: the first question of the branch and a later one both open with the branch part.
+        // Acceptance 3 and 4: the first question of the branch and a later one both carry the branch part, with the question
+        // (requirements §10.11.4: the start of a request is the same for every conversation).
         var branchRequests = h.Client.Requests.Where(FakeChatClient.IsAnswer).Skip(1).ToList();
         Assert.Equal(2, branchRequests.Count);
-        Assert.All(branchRequests, r => Assert.Equal(new ChatTurn(ChatRole.System, AnswerPrompt.For(true)), r.Turns[0]));
+        Assert.All(branchRequests, r => Assert.Equal(new ChatTurn(ChatRole.System, AnswerPrompt.Fixed), r.Turns[0]));
+        Assert.All(branchRequests, r => Assert.Equal(AnswerPrompt.BranchPart(true), FakeChatClient.NoteOf(r)));
 
         // A deeper branch gets the same part once: it names only the nearest selection (the last passage quoted).
         var childAnswer = (await h.Store.GetMessagesAsync(child, Ct))[^1];
         var grandchild = await h.BranchAsync(child, childAnswer, "答");
         await h.AskAsync(grandchild, "再细说");
         var deeper = h.Client.Requests.Last(FakeChatClient.IsAnswer);
-        Assert.Equal(AnswerPrompt.For(true), deeper.Turns[0].Content);
+        Assert.Equal(AnswerPrompt.Fixed, deeper.Turns[0].Content);
+        Assert.Equal(AnswerPrompt.BranchPart(true), FakeChatClient.NoteOf(deeper));
         Assert.Single(deeper.Turns, t => t.Role == ChatRole.System);
+        Assert.Single(deeper.Turns, t => t.Content.Contains(AnswerPrompt.BranchPart(true), StringComparison.Ordinal));
     }
 
     [Fact]

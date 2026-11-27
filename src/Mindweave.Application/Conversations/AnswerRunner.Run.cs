@@ -99,12 +99,19 @@ internal sealed partial class AnswerRunner
         var retried = false;
         var answer = work.Inputs?.Instructions ?? string.Empty;
         var instructions = AnswerPrompt.WithRun(answer, RunPrompt.For(run.Tools));
+
+        // What belongs to this question only goes with it, after the conversation (requirements §10.11.4): the branch part and,
+        // L10, what earlier runs found, before anything of this run joins the scope. The first request adds its allowance line.
+        string? earlierIndex = null;
         if (run.Tools.Any(t => t.Name == SearchAttachmentsTool.ToolName)
             && await services.EarlierMaterialAsync(run.Scope, CancellationToken.None).ConfigureAwait(false) is { } index)
         {
-            // L10: what earlier runs found, before anything of this run joins the scope.
-            instructions += "\n\n" + index;
+            earlierIndex = index;
         }
+
+        var opening = new[] { work.Inputs?.Note, earlierIndex };
+        var noted = false;
+        var note = string.Empty;
 
         if (run.Scope.Web is { Mode: WebSearchMode.On } web && run.Tools.FirstOrDefault(t => t.Name == WebSearchTool.ToolName) is not null
             && turns.FindLastIndex(t => t.Role == ChatRole.User) is var question and >= 0)
@@ -160,6 +167,9 @@ internal sealed partial class AnswerRunner
             {
                 return new RunEnding(MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail.ToString());
             }
+
+            // What this request ends with; it stays in the history once the model replies to it (see below).
+            var sentNote = note;
 
             // One model request.
             requests++;
@@ -304,6 +314,10 @@ internal sealed partial class AnswerRunner
                     : new RunEnding(MessageState.Failed, GenerationErrorKind.InvalidResponse, "The service finished without any text.");
             }
 
+            // The next request begins with exactly what this one sent (requirements §10.11.4): its note stays where it was,
+            // and the reply and the results follow it. A request that brought no reply leaves no note behind.
+            RequestNote.AppendTo(turns, sentNote);
+            noted = true;
             turns.Add(new ChatTurn(ChatRole.Assistant, text.ToString()) { ToolCalls = asked.Calls, Reasoning = asked.Reasoning });
             var batch = new List<(ChatToolCall Call, int Ordinal)>();
             var repeats = new List<(ChatToolCall Call, int Ordinal, string Key)>();
@@ -397,17 +411,20 @@ internal sealed partial class AnswerRunner
 
             var offered = final ? [] : run.Tools.Where(t => !withdrawn.Contains(t.Name)).ToList();
 
-            // The run instructions (L1) end with the budget line (L2), or for the last request with the instruction to answer (R8, L6).
-            var system = instructions + "\n\n" + (reached is not null ? FinalInstruction : cutOff ? CutOffInstruction : RunPrompt.BudgetLine(limits, requests, calls));
-            return Compose(request, turns, results, shortened, offered, system);
+            // The run instructions (L1) open the request; it ends with the budget line (L2), or for the last request with the
+            // instruction to answer (R8, L6), after the question or the latest results. The first request also brings the parts
+            // that belong to this question.
+            var line = reached is not null ? FinalInstruction : cutOff ? CutOffInstruction : RunPrompt.BudgetLine(limits, requests, calls);
+            note = noted ? RequestNote.Of(line) : RequestNote.Of([.. opening, line]);
+            return Compose(request, turns, results, shortened, offered, instructions, note);
         }
     }
 
     /// <summary>
-    /// The request for the next step: the run's system turn first (its instructions and budget line, or the instruction to
-    /// answer), then the turns so far (older results shortened as needed), and the tools.
+    /// The request for the next step: the run's system turn first (its instructions, the same in every step), then the turns so
+    /// far (older results shortened as needed), then this step's note, and the tools.
     /// </summary>
-    private static ChatRequest Compose(ChatRequest request, List<ChatTurn> turns, List<SentResult> results, HashSet<int> shortened, List<ITool> offered, string system)
+    private static ChatRequest Compose(ChatRequest request, List<ChatTurn> turns, List<SentResult> results, HashSet<int> shortened, List<ITool> offered, string system, string note)
     {
         var sent = new List<ChatTurn>(turns);
         foreach (var result in results.Where(r => shortened.Contains(r.TurnIndex)))
@@ -415,7 +432,7 @@ internal sealed partial class AnswerRunner
             sent[result.TurnIndex] = sent[result.TurnIndex] with { Content = result.Line };
         }
 
-        return request with { Turns = Opened(sent, system), Tools = offered.Count == 0 ? null : [.. offered.Select(ToolRegistry.Definition)] };
+        return request with { Turns = RequestNote.Append(Opened(sent, system), note), Tools = offered.Count == 0 ? null : [.. offered.Select(ToolRegistry.Definition)] };
     }
 
     /// <summary>

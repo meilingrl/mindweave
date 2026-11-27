@@ -143,8 +143,9 @@ public sealed class FakeChatClient : IChatClient
         !IsTitle(request) && !IsSummary(request) && !IsResourceSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request) && !IsLinkSuggestion(request);
 
     /// <summary>
-    /// The turns of an answer request after the answer instructions that open it (requirements §10.9): what tests of the
-    /// history look at. A context summary joined to the instructions' system turn stays, as its own system turn.
+    /// The turns of an answer request after the answer instructions that open it (requirements §10.9), without the app's own
+    /// notes that go with the question (<see cref="Application.Conversations.RequestNote"/>): what tests of the history look at.
+    /// A context summary joined to the instructions' system turn stays, as its own system turn.
     /// </summary>
     public static IReadOnlyList<ChatTurn> Dialogue(ChatRequest request)
     {
@@ -174,7 +175,24 @@ public sealed class FakeChatClient : IChatClient
             }
         }
 
-        return turns;
+        return [.. turns
+            .Select(t => t.Role == ChatRole.User ? t with { Content = Application.Conversations.RequestNote.Without(t.Content) } : t)
+            .Where(t => t.Role != ChatRole.User || t.Content.Length > 0 || t.Images is { Count: > 0 })];
+    }
+
+    /// <summary>
+    /// The app's note this request ends with (<see cref="Application.Conversations.RequestNote"/>): the branch part, earlier
+    /// material, the allowance or the instruction to answer, without its marks. Empty when it has none.
+    /// </summary>
+    public static string NoteOf(ChatRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var last = request.Turns.LastOrDefault(t => t.Role == ChatRole.User)?.Content ?? string.Empty;
+        var open = Application.Conversations.RequestNote.Open + "\n";
+        var close = "\n" + Application.Conversations.RequestNote.Close;
+        return last.StartsWith(open, StringComparison.Ordinal) && last.IndexOf(close, StringComparison.Ordinal) is var end and >= 0
+            ? last[open.Length..end]
+            : string.Empty;
     }
 
     public const string DefaultSummaryTitle = "蒸汽机车";
@@ -340,7 +358,7 @@ public sealed class FakeChatClient : IChatClient
         if (script is null)
         {
             yield return new ChatStreamEvent.TextDelta("答：");
-            yield return new ChatStreamEvent.TextDelta(request.Turns[^1].Content);
+            yield return new ChatStreamEvent.TextDelta(Application.Conversations.RequestNote.Without(request.Turns[^1].Content));
             yield return new ChatStreamEvent.Completed(false);
             yield break;
         }
