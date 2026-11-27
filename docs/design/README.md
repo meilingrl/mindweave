@@ -24,12 +24,14 @@ This directory records the choices that the handoff document lets implementers r
 | [Web search and citations (agent platform phase 3)](web-search.md) | This phase's new decisions W1–W16 (confirmed by the user 2026-11-17), the Tavily adapter, URL checks for page fetching, approval cards, citation numbering and locating, 设置 › 工具 › 网络搜索 (Settings › Tools › Web search), items waiting for verification with real services |
 | [Third-party tools (agent platform phase 4, MCP)](mcp.md) | This phase's new decisions M1–M18 (accepted by the user 2026-11-19), the MCP client package, server settings and keys, starting and restarting processes, enabling tools and definition snapshots, approval cards, untrusted results, the fake server for tests |
 | [Run loop improvements](agent-loop.md) | A walkthrough of the run loop, the problems found P1–P10, improvements L1–L12 (run prompt, budget line, concurrent read-only calls, retry, leaving room, eviction by citation, material index, local citations, evaluation); implemented and merged 2026-11-20; §8 lists what is left |
+| [Reply quality](reply-quality.md) | Approved 2026-11-26 (D-043), not built: answer instructions for every answer with a branch part, the personal note, the titles of matching summaries, stop and refine rules, the best-matching passages of a long page, summaries by concept, the evaluation with cost and time; no suggested questions under an answer, no quiz or guided mode; three increments |
 
 ## Network
 
 | Document | Content |
 | --- | --- |
 | [Summary network: every conversation a dot, and the timeline](session-network.md) | Conversations as dots, the spatial view and the timeline, quiet links, exploration places; what the owner decided |
+| [Return and review](return-and-review.md) | Approved 2026-11-26 (D-044), not built: a recap for a rested, heavier conversation (key points and questions left open), where it shows on coming back (the branch entry, new exploration, the network's details and a dashed ring), Extend on a chosen dot, a summary of a conversation with its branches, failure cases, acceptance scenarios and five increments |
 
 ## Sharing
 

@@ -46,6 +46,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
     private bool _isShown;
+
+    // Known to be off screen: a view showed it and then left it, or it was replayed into a stack (performance-5). A page no
+    // view has reported on counts as on screen, as before views report.
+    private bool _offScreen;
+
+    // Something changed while off screen: read again when shown.
+    private bool _stale;
+    private int _loads;
     private bool _draftLoaded;
     private ITimer? _tick;
 
@@ -79,6 +87,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         _dispatcher = dispatcher;
         _time = time ?? TimeProvider.System;
         _load = new SerialRefresh(LoadAsync);
+        _offScreen = context.Replayed;
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         // Stop sits where send is while an answer runs; the page shows the storage pause once, at the top.
         // Attachments belong to this conversation's draft in this viewer slot (architecture §15.2), known once the workspace is.
@@ -240,7 +249,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     /// <summary>
     /// Set by the view while this page is on screen. The running answer's live counter ticks (on the app's clock) only
-    /// while the page is shown and something on it is generating; otherwise no timer exists.
+    /// while the page is shown and something on it is generating; otherwise no timer exists. What changed while the page
+    /// was off screen is read when it is shown again.
     /// </summary>
     public bool IsShown
     {
@@ -250,7 +260,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
             if (_isShown != value)
             {
                 _isShown = value;
+                _offScreen = !value;
                 UpdateTicking();
+                if (value && _stale)
+                {
+                    _stale = false;
+                    _ = _load.Request();
+                }
+
                 if (value && _draftLoaded)
                 {
                     _ = FollowDraftAsync();
@@ -261,6 +278,12 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     /// <summary>Whether the live counter's timer is running now; tests check that an idle page has none.</summary>
     internal bool IsTicking => _tick is not null;
+
+    /// <summary>Changed while off screen and not read again yet; tests check that a hidden page waits.</summary>
+    internal bool IsStale => _stale;
+
+    /// <summary>How often the page has read its content.</summary>
+    internal int Loads => _loads;
 
     /// <summary>The view reports where the reader is; kept in memory at once, stored shortly after.</summary>
     public void ReportPosition(ReadingPosition position) => _reading.SetPosition(Id, _slot, position);
@@ -484,7 +507,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         if (!_disposed)
         {
             _reload.Request();
-            _dispatcher.Post(() => _ = RefreshAttachmentCapabilitiesAsync());
+
+            // Off screen, the reload when shown refreshes them.
+            _dispatcher.Post(() =>
+            {
+                if (!_offScreen)
+                {
+                    _ = RefreshAttachmentCapabilitiesAsync();
+                }
+            });
         }
     }
 
@@ -533,6 +564,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     private async Task LoadAsync()
     {
+        // After its first read, a page off screen (in the back stack, in a minimised window) reads nothing until it is
+        // shown again (health check 2026-11-12, performance-5).
+        if (_offScreen && _loads > 0)
+        {
+            _stale = true;
+            return;
+        }
+
+        _loads++;
         var content = await _conversations.LoadAsync(Id, CancellationToken.None);
         if (_disposed)
         {
@@ -583,7 +623,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         HasBranches = Messages.Any(m => m.IsAnswer && m.Branches.Count > 0);
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
-        ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
+        ContextUsage = await _conversations.GetContextUsageAsync(content, CancellationToken.None);
         if (firstLoad)
         {
             // The draft's attachments come back with the draft (they survive a restart, §10.4.3).

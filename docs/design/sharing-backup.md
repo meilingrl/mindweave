@@ -1,6 +1,6 @@
 # Sharing, step 3: the manual backup (design note)
 
-**Status:** approved by the owner on 2026-11-26 (D-043), not built. It is the short note that [sharing.md](sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](sharing-import.md). Where it differs from sharing.md, this note holds for manual backups; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
+**Status:** approved by the owner on 2026-11-26 (D-045), not built. It is the short note that [sharing.md](sharing.md) §8 asks for before step 3's code. It builds on [sharing-import.md](sharing-import.md). Where it differs from sharing.md, this note holds for manual backups; sharing.md points here. Decisions are the owner's unless marked as the writer's call.
 
 ## What a manual backup is
 
@@ -230,7 +230,7 @@ Neither has a migration. Each merge states how to try it, what was run and what 
 
 ## 11. Text that changed with this note
 
-The requirements and architecture rows were written as their own commit and confirmed by the owner on 2026-11-27 (requirements v0.32). The renaming to manual backup, with "automatic backup" as the documents' name for the backups the app makes by itself, followed as requirements v0.33, which the owner accepted on 2026-11-27.
+The requirements and architecture rows were written as their own commit and confirmed by the owner on 2026-11-27 (requirements v0.34). The renaming to manual backup, with "automatic backup" as the documents' name for the backups the app makes by itself, followed as requirements v0.35, which the owner accepted on 2026-11-27.
 
 | Where | Change |
 | --- | --- |
