@@ -37,9 +37,11 @@ public static partial class UiText
     public static string BranchesHeading => T("Explorations branched from here", "从这里分出的探索");
 
     /// <summary>A mark in the conversation's margin for an answer with branches: "2 个分支 · 「蒸汽机车」".</summary>
-    public static string BranchMark(int count, string firstQuote) => T(
-        string.Format(CultureInfo.InvariantCulture, "{0} · {1}", Plural(count, "branch", "branches"), Quoted(firstQuote)),
-        string.Format(CultureInfo.InvariantCulture, "{0} 个分支 · {1}", count, Quoted(firstQuote)));
+    /// <param name="count">How many.</param>
+    /// <param name="first">The first one as its entry names it: the sentence it left from, quoted, or a continuation's title.</param>
+    public static string BranchMark(int count, string first) => T(
+        string.Format(CultureInfo.InvariantCulture, "{0} · {1}", Plural(count, "branch", "branches"), first),
+        string.Format(CultureInfo.InvariantCulture, "{0} 个分支 · {1}", count, first));
 
     // The status line of a running answer, one sentence per stage (docs/design/reasoning-and-status.md §2): "正在 + verb
     // + object…", the object after a colon, plain enough to translate sentence by sentence.

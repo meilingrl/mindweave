@@ -23,6 +23,30 @@ public class BranchFlowTests
     }
 
     [Fact]
+    public async Task The_context_usage_of_a_loaded_page_reads_only_the_ancestors_once()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, rootAnswer) = await h.RootWithAnswerAsync("一");
+        var child = (await h.Conversations.CreateBranchAsync(root, Selection(rootAnswer, "一"), Ct)).Child;
+        var childAnswer = await h.AskAsync(child, "二");
+        var grandchild = (await h.Conversations.CreateBranchAsync(child, Selection(childAnswer, "二"), Ct)).Child;
+        await h.AskAsync(grandchild, "三");
+        var content = (await h.Conversations.LoadAsync(grandchild, Ct))!;
+
+        // A page reload computes usage from what it read (performance-5): the conversation's own messages are not read
+        // again, and each of the two ancestors is read once.
+        var statements = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        SqliteCommands.Observer.Value = statements.Enqueue;
+        var usage = (await h.Conversations.GetContextUsageAsync(content, Ct))!;
+        SqliteCommands.Observer.Value = null;
+
+        Assert.Equal(2, statements.Count(s => s.Contains("FROM message_block b JOIN message m", StringComparison.Ordinal)));
+        var read = (await h.Conversations.GetContextUsageAsync(grandchild, Ct))!;
+        Assert.Equal(read with { Parts = usage.Parts }, usage);
+        Assert.Equal(read.Parts, usage.Parts);
+    }
+
+    [Fact]
     public async Task A_branch_continues_from_the_quoted_passage_without_repeating_the_background()
     {
         await using var h = await ChatHarness.StartAsync();

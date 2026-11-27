@@ -109,7 +109,7 @@
         <!-- On 新探索 the first recommended question shows in the empty input as a dim placeholder (requirements §10.3.1):
              Tab puts it in once, typing hides it; elsewhere nothing is offered and this is a plain text box. -->
         <views:GhostTextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="34"
-                            VerticalContentAlignment="Center" PlaceholderText="{x:Static t:UiText.AskPlaceholder}"
+                            VerticalContentAlignment="Center" PlaceholderText="{Binding Placeholder}"
                             Suggestions="{Binding GhostSuggestions}" OffersOnlyWhenEmpty="True"
                             OfferHelpFormat="{x:Static t:UiText.RecommendedQuestionHelpFormat}"
                             GhostForeground="{DynamicResource SuggestionGhostText}" KeyHintBorderBrush="{DynamicResource OutlineBrush}"

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Platform.Storage;
 using Mindweave.Application.Export;
 
 namespace Mindweave.Desktop.Services;
@@ -21,17 +20,20 @@ public interface ISystemShell
     /// asks before replacing an existing file (§8.3), so the app does not ask again. Null when cancelled.
     /// </summary>
     Task<ExportDestination?> PickExportFileAsync(string suggestedFileName, CancellationToken cancellationToken);
+
+    /// <summary>The same dialog for a share, which is one HTML file (docs/design/sharing.md S2). Null when cancelled.</summary>
+    Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken);
+
+    /// <summary>The system open dialog for one shared file to import: its path, or null when cancelled.</summary>
+    Task<string?> PickSharedFileAsync(CancellationToken cancellationToken);
 }
 
 internal sealed class SystemShell : ISystemShell
 {
     /// <summary>Built when the dialog opens, so its label is in the current interface language.</summary>
-    private static FilePickerFileType Markdown() => new(UiText.MarkdownFileType)
-    {
-        Patterns = ["*.md"],
-        MimeTypes = ["text/markdown"],
-        AppleUniformTypeIdentifiers = ["net.daringfireball.markdown"],
-    };
+    private static FileKind Markdown() => new(UiText.MarkdownFileType, ["md"], "text/markdown", "net.daringfireball.markdown");
+
+    private static FileKind Html() => new(UiText.HtmlFileType, ["html"], "text/html", "public.html");
 
     /// <summary>
     /// Shows the folder in the system's file manager. The opener is named by its full path, so a program of the same name
@@ -68,46 +70,20 @@ internal sealed class SystemShell : ISystemShell
         }
     }
 
-    public async Task<ExportDestination?> PickExportFileAsync(string suggestedFileName, CancellationToken cancellationToken)
-    {
-        if (Avalonia.Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime { MainWindow: { } window })
-        {
-            return null;
-        }
+    public Task<ExportDestination?> PickExportFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
+        PickFileAsync(UiText.ExportMarkdown, suggestedFileName, Markdown());
 
-        var markdown = Markdown();
-        var file = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = UiText.ExportMarkdown,
-            SuggestedFileName = suggestedFileName,
-            DefaultExtension = "md",
-            FileTypeChoices = [markdown],
-            SuggestedFileType = markdown,
-            ShowOverwritePrompt = true,
-        });
-        if (file is null)
-        {
-            return null;
-        }
+    public Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
+        PickFileAsync(UiText.ShareTitle, suggestedFileName, Html());
 
-        var name = file.Name;
-        if (file.TryGetLocalPath() is { } path)
-        {
-            file.Dispose();
-            return new ExportDestination(name, path, null);
-        }
+    public async Task<string?> PickSharedFileAsync(CancellationToken cancellationToken) =>
+        Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }
+            && await FilePanels.OpenAsync(window, UiText.ImportTitle, Html() with { Extensions = ["html", "htm"] }, multiple: false) is [var path, ..]
+            ? path
+            : null;
 
-        // Only a stream (sandboxed or virtual location): the writer falls back to writing in place.
-        return new ExportDestination(name, null, async _ =>
-        {
-            try
-            {
-                return await file.OpenWriteAsync();
-            }
-            finally
-            {
-                file.Dispose();
-            }
-        });
-    }
+    private static async Task<ExportDestination?> PickFileAsync(string title, string suggestedFileName, FileKind kind) =>
+        Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }
+            ? await FilePanels.SaveAsync(window, title, suggestedFileName, kind)
+            : null;
 }

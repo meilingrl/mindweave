@@ -24,12 +24,27 @@ This directory records the choices that the handoff document lets implementers r
 | [Web search and citations (agent platform phase 3)](web-search.md) | This phase's new decisions W1–W16 (confirmed by the user 2026-11-17), the Tavily adapter, URL checks for page fetching, approval cards, citation numbering and locating, 设置 › 工具 › 网络搜索 (Settings › Tools › Web search), items waiting for verification with real services |
 | [Third-party tools (agent platform phase 4, MCP)](mcp.md) | This phase's new decisions M1–M18 (accepted by the user 2026-11-19), the MCP client package, server settings and keys, starting and restarting processes, enabling tools and definition snapshots, approval cards, untrusted results, the fake server for tests |
 | [Run loop improvements](agent-loop.md) | A walkthrough of the run loop, the problems found P1–P10, improvements L1–L12 (run prompt, budget line, concurrent read-only calls, retry, leaving room, eviction by citation, material index, local citations, evaluation); implemented and merged 2026-11-20; §8 lists what is left |
+| [Reply quality](reply-quality.md) | Approved 2026-11-26 (D-043), not built: answer instructions for every answer with a branch part, the personal note, the titles of matching summaries, stop and refine rules, the best-matching passages of a long page, summaries by concept, the evaluation with cost and time; no suggested questions under an answer, no quiz or guided mode; three increments |
 
 ## Network
 
 | Document | Content |
 | --- | --- |
 | [Summary network: every conversation a dot, and the timeline](session-network.md) | Conversations as dots, the spatial view and the timeline, quiet links, exploration places; what the owner decided |
+| [Return and review](return-and-review.md) | Approved 2026-11-26 (D-044), not built: a recap for a rested, heavier conversation (key points and questions left open), where it shows on coming back (the branch entry, new exploration, the network's details and a dashed ring), Extend on a chosen dot, a summary of a conversation with its branches, failure cases, acceptance scenarios and five increments |
+
+## Sharing
+
+| Document | Content |
+| --- | --- |
+| [Sharing a thinking path](sharing.md) | Approved 2026-11-25 (evolution D8), step 1 built (0.6.13, 0.6.15): a share as one HTML file with the exchange data inside, structure only by default, what never leaves, the page a reader sees, import and continuing, copies between the user's devices, acceptance scenarios and increments |
+| [Sharing, step 2: import and continue](sharing-import.md) | Approved 2026-11-25, built (0.6.18, 0.6.19): a structure-only share arrives as empty conversations; a shared file only adds; a received conversation is read-only and the user's questions attach as conversations of their own; the rules of comparison, the migration, acceptance scenarios and increments 2a and 2b |
+
+## Security and diagnostics
+
+| Document | Content |
+| --- | --- |
+| [Security, diagnostics and upkeep](diagnostics-and-upkeep.md) | Approved 2026-11-27 (evolution D2, D-042), not built: what a failed request shows, the diagnostics page and package, removing keys and keys left behind, erasing deleted content for good, the renderer guard, failure cases, acceptance scenarios and five increments; the standing of the health check's open rows and the upkeep decisions |
 
 ## Model access
 

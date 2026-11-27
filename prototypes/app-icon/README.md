@@ -64,7 +64,7 @@ The owner's idea: the brain is the shape of both icons and the two overlap a lot
 
 ## The chosen drawing
 
-The owner sent a picture of a brain drawn as one line and chose it (2026-11-24). Sketch D is that picture traced by hand: 121 points, one smooth line through them. Where the picture came from is not recorded here; the owner checks that it may be used before a release.
+The owner sent a picture of a brain drawn as one line and chose it (2026-11-24). Sketch D is that picture traced by hand: 121 points, one smooth line through them. The owner drew the picture by hand; it raises no copyright question (the owner's word, after the choice).
 
 ```bash
 node prototypes/app-icon/brain.mjs && prototypes/app-icon/chosen-icon.sh

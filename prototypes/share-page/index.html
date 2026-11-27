@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared page (prototype)</title>
+<style>
+:root {
+  --bg: #FFFFFF; --panel: #F5F5F4; --card: #F7F7F6; --card-border: #ECEAE8; --divider: #E7E5E4;
+  --text: #1C1917; --muted: #78716C; --link: #2563EB; --accent: #4B6BFB;
+  --bubble: #F0EFED; --mark: #FDE68A; --mark-text: #1C1917; --mark-line: #B45309;
+  --canvas: #FCFCFB; --dot: #4B6BFB; --dot-hover: #6F89FF; --halo: #DCE3FF; --ring: #2B47CC;
+  --label: #1F2430; --caption: #8A8F99; --edge: #A1A9B7; --bold: #6B4A33;
+}
+:root[data-theme="dark"] {
+  --bg: #18191B; --panel: #1D1E22; --card: #1E1F23; --card-border: #2A2C31; --divider: #2C2E33;
+  --text: #E6E8EE; --muted: #9299A6; --link: #A9B8F5; --accent: #5A72E6;
+  --bubble: #26282E; --mark: #6E5210; --mark-text: #FFFFFF; --mark-line: #E0B458;
+  --canvas: #18191B; --dot: #B4BACD; --dot-hover: #D5D9E6; --halo: #26324D; --ring: #C1C6FA;
+  --label: #CBD0DA; --caption: #858B97; --edge: #5A616C; --bold: #E6D2BC;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.7 Inter, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+button { font: inherit; color: inherit; }
+
+/* Prototype controls: not part of a shared page. */
+.proto { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  padding: 6px 16px; background: #2B2118; color: #F4E9DA; font-size: 12px; line-height: 1.4; }
+.proto b { font-weight: 600; }
+.proto .seg { display: inline-flex; border: 1px solid #6B5846; border-radius: 6px; overflow: hidden; }
+.proto .seg button { background: none; border: 0; padding: 3px 9px; color: #D9C9B5; cursor: pointer; }
+.proto .seg button[aria-pressed="true"] { background: #F4E9DA; color: #2B2118; }
+
+.page { max-width: 880px; margin: 0 auto; padding: 28px 16px 64px; }
+header h1 { font-size: 24px; line-height: 1.3; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
+header .facts { color: var(--muted); font-size: 13px; }
+header .how { margin: 10px 0 0; color: var(--muted); max-width: 62ch; }
+
+.picture { margin: 20px 0 6px; border: 1px solid var(--divider); border-radius: 10px; background: var(--canvas);
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.stage { position: relative; }
+.stage svg { display: block; }
+.edge { fill: none; stroke: var(--edge); stroke-width: 1.4; }
+.edge.main { stroke-dasharray: 1 5; stroke-linecap: round; stroke-width: 1.8; }
+.dot { fill: var(--dot); cursor: pointer; transition: r .12s; }
+.dot:hover { fill: var(--dot-hover); }
+.sring { fill: none; stroke: var(--dot); stroke-width: 1.2; pointer-events: none; }
+.halo { fill: var(--halo); pointer-events: none; }
+.sel { fill: none; stroke: var(--ring); stroke-width: 1.6; pointer-events: none; }
+.lbl { position: absolute; width: 132px; margin-left: -66px; text-align: center; font-size: 12px; line-height: 1.35;
+  color: var(--label); cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lbl.on { color: var(--text); font-weight: 600; }
+.day { position: absolute; width: 132px; margin-left: -66px; text-align: center; font-size: 11px; color: var(--caption); }
+.legend { color: var(--caption); font-size: 12px; margin: 0 2px 22px; }
+
+h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: none; margin: 26px 0 8px; letter-spacing: .02em; }
+.outline { list-style: none; margin: 0; padding: 0; }
+.outline ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--divider); margin-left: 7px; }
+.outline button { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0;
+  padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.outline button:hover { background: var(--panel); }
+.outline button.on { background: var(--halo); }
+.outline .t { flex: 1; min-width: 0; }
+.outline .n { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.outline .rootday { color: var(--caption); font-size: 11px; margin: 10px 8px 2px; }
+
+.conv { margin-top: 26px; border-top: 1px solid var(--divider); padding-top: 18px; }
+.conv h3 { font-size: 19px; line-height: 1.35; margin: 0 0 2px; font-weight: 650; }
+.conv .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+.from { display: block; margin: 0 0 14px; padding: 8px 12px; border-left: 3px solid var(--mark-line); background: var(--card);
+  border-radius: 0 8px 8px 0; font-size: 13px; }
+.from q { quotes: "“" "”"; color: var(--text); }
+a, .linkish { color: var(--link); text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; }
+a:hover, .linkish:hover { text-decoration: underline; }
+
+.summary { border: 1px solid var(--card-border); background: var(--card); border-radius: 10px; margin: 0 0 18px; }
+.summary summary { cursor: pointer; padding: 9px 14px; font-weight: 600; font-size: 13px; }
+.summary .body { padding: 0 14px 10px; }
+.summary .body p { margin: 6px 0; }
+
+.turn { margin: 18px 0 0; }
+.q { margin-left: auto; width: fit-content; max-width: 86%; background: var(--bubble); border-radius: 14px; padding: 8px 14px; }
+.att { display: inline-block; margin: 6px 0 0 auto; font-size: 12px; color: var(--muted); border: 1px solid var(--card-border);
+  border-radius: 6px; padding: 1px 8px; }
+.attrow { text-align: right; }
+.activity { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+.a { position: relative; margin-top: 8px; }
+.a p { margin: 0 0 10px; }
+.a strong { font-weight: 500; color: var(--bold); }
+.a code { font: 12.5px ui-monospace, Menlo, Consolas, monospace; background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+.a.folded .inner { max-height: 5.1em; overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+.a math { font-size: 1.1em; }
+.fold { font-size: 12px; color: var(--muted); background: none; border: 0; padding: 2px 0; cursor: pointer; }
+.fold:hover { color: var(--text); }
+mark { background: var(--mark); color: var(--mark-text); border-bottom: 1.5px solid var(--mark-line); border-radius: 2px;
+  padding: 0 1px; cursor: pointer; }
+.left { margin: 4px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.left li { display: flex; gap: 6px; align-items: baseline; padding: 1px 0; }
+.left li::before { content: "↳"; color: var(--mark-line); }
+.badge { font-size: 11px; color: var(--muted); border: 1px solid var(--card-border); border-radius: 5px; padding: 0 6px; margin-left: 6px; }
+.cites { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.cites summary { cursor: pointer; }
+.cites ol { margin: 4px 0 0; padding-left: 0; list-style: none; }
+.cites li { overflow-wrap: anywhere; }
+sup.c { font-size: 11px; color: var(--link); }
+
+.pick { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--card-border); background: var(--card); border-radius: 10px; }
+.pick .t { font-weight: 600; }
+.pick .m { color: var(--muted); font-size: 12px; }
+footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
+
+@media (max-width: 560px) {
+  header h1 { font-size: 21px; }
+  .q { max-width: 94%; }
+}
+@media print {
+  .proto, .fold { display: none; }
+  .a.folded .inner { max-height: none; -webkit-mask-image: none; mask-image: none; }
+  .picture { overflow: visible; }
+}
+</style>
+</head>
+<body>
+<div class="proto" id="proto"></div>
+<div class="page" id="page"></div>
+
+<script>
+// ---------------------------------------------------------------------------------------------------------------
+// Made-up data. A conversation: id, parent (none for a root), the quoted sentence it left from, title, start, whether
+// it has a summary, and its turns. Answers are written as HTML here; the product would render stored Markdown.
+// ---------------------------------------------------------------------------------------------------------------
+const DATA = {
+  trains: {
+    title: "How trains came to be",
+    convs: [
+      { id: "t1", title: "History of trains", at: "2026-11-18T19:42",
+        summary: ["Railways came before locomotives: wooden wagonways carried coal carts pulled by horses for two centuries.",
+                  "Steam made sense on rails first because early engines were too heavy for roads.",
+                  "The 1829 Rainhill trials settled what a locomotive should look like."],
+        turns: [
+          { q: "When did trains begin? I always assumed the steam engine came first and then someone built tracks for it.",
+            activity: "searched 2 times · read 1 page",
+            a: ["It was the other way round. <mark data-b=\"t2\">Tracks are about two hundred years older than locomotives</mark>: from the 1600s, mines in England and Germany laid wooden wagonways so that a horse could pull a much heavier cart of coal than it could on a road.<sup class=\"c\">[1]</sup>",
+                "The steam engine arrived in mines too, but as a stationary pump. Putting one on wheels was tried on roads first and failed, mostly because the engines were far too heavy for the road surfaces of the time.",
+                "The first locomotive to run on rails was Richard Trevithick's, in 1804 at the Penydarren ironworks in Wales. It worked, but it broke the brittle cast-iron plates it ran on. For the next twenty years the problem was as much the track as the engine, and <mark data-b=\"t4\">the question of how far apart the rails should be</mark> was settled almost by accident."],
+            cites: [{ n: 1, t: "Wagonway — an overview of early railways", u: "https://example.org/history/wagonways" }] },
+          { q: "So who made it actually practical?",
+            a: ["George Stephenson, more than anyone. He built engines for collieries from 1814, and in 1825 the Stockton and Darlington Railway opened with his <strong>Locomotion No. 1</strong> hauling coal and, on the first day, passengers.",
+                "The moment usually taken as the start of the railway age is 1829: <mark data-b=\"t6\">the Rainhill trials</mark>, a competition to choose the locomotive for the Liverpool and Manchester line."] },
+          { q: "And how fast did it spread after that?",
+            a: ["Very fast. Britain had about 150 km of public railway in 1830 and nearly 10,000 km by 1850. The first lines in the United States, France and Germany all opened within six years of Rainhill."] }
+        ] },
+      { id: "t2", parent: "t1", quote: "Tracks are about two hundred years older than locomotives", title: "Why rails before engines", at: "2026-11-18T19:51",
+        turns: [
+          { q: "Why would anyone build rails for a horse? What does a rail give you?",
+            a: ["Low rolling resistance. A wheel on a smooth rail wastes far less energy than a wheel sinking into a rutted road. On a good wagonway one horse could pull roughly <strong>ten tonnes</strong>, against about one tonne on a road of the same period.",
+                "The cost was that carts could only go where the rails went, which was fine for a mine: the coal always travelled the same route, from the pit to the river.",
+                "Keeping the wheels on the rails was the hard part, and <mark data-b=\"t3\">the flanged wheel</mark> is what solved it."] }
+        ] },
+      { id: "t3", parent: "t2", quote: "the flanged wheel", title: "Flanged wheels", at: "2026-11-18T19:58",
+        turns: [
+          { q: "What is a flange exactly, and why is it on the wheel and not on the rail?",
+            a: ["A flange is the raised lip on the inside edge of the wheel. It stops the wheel sliding sideways off the rail.",
+                "Early plateways did it the other way: L-shaped rails with the lip on the rail and plain wheels. That let ordinary carts use the track, but the lip collected stones and mud, and the plates broke easily. Moving the lip to the wheel left the rail as a simple bar, which is stronger and stays clean."] },
+          { q: "Does the flange do the steering then?",
+            stopped: true,
+            a: ["Mostly not. The wheels are slightly conical, and that is what steers: when the pair drifts sideways, one wheel rides on a larger radius than the other and the axle turns back toward the centre. The flange only touches the rail in"] }
+        ] },
+      { id: "t4", parent: "t1", quote: "the question of how far apart the rails should be", title: "Standard gauge", at: "2026-11-19T08:15",
+        summary: ["Standard gauge is 1,435 mm between the inner faces of the rails.",
+                  "It comes from the colliery wagonways Stephenson already worked with, plus half an inch of extra play."],
+        turns: [
+          { q: "How far apart are the rails, and who decided?", att: "gauge-table.pdf",
+            a: ["On most of the world's railways the inner faces of the rails are <strong>1,435 mm</strong> apart. Written as a ratio to the old imperial figure:",
+                "<math display=\"block\"><mn>1435</mn><mtext>&nbsp;mm</mtext><mo>=</mo><mn>4</mn><mtext>&nbsp;ft&nbsp;</mtext><mn>8</mn><mfrac><mn>1</mn><mn>2</mn></mfrac><mtext>&nbsp;in</mtext></math>",
+                "Nobody decided it from first principles. Stephenson used the gauge of the wagonways around Killingworth, where he had learned his trade, and <mark data-b=\"t5\">added half an inch</mark> later. Because his lines were the first to connect, everyone who wanted to join them had to match."] }
+        ] },
+      { id: "t5", parent: "t4", quote: "added half an inch", title: "Why the extra half inch", at: "2026-11-19T08:22",
+        turns: [
+          { q: "Why half an inch more? That seems oddly precise.",
+            a: ["The original wagonway gauge was 4 ft 8 in. On curves the flanges bound against the rails, so the rails were moved apart by half an inch to give the wheels some play. The wheels did not change; only the track did."] }
+        ] },
+      { id: "t6", parent: "t1", quote: "the Rainhill trials", title: "The Rainhill trials", at: "2026-11-19T21:03",
+        summary: ["Five locomotives entered in October 1829; only Rocket finished every run.",
+                  "Rocket's multi-tube boiler and blast pipe became the pattern for steam locomotives for 130 years."],
+        turns: [
+          { q: "What happened at Rainhill?",
+            a: ["The directors of the Liverpool and Manchester Railway could not agree whether to use locomotives at all, or stationary engines pulling trains by cable. They offered £500 for a locomotive that could haul three times its own weight at 10 mph over a set distance.",
+                "Five entered. One was powered by a horse on a treadmill. <strong>Rocket</strong>, built by Robert Stephenson, was the only one to complete the trial, averaging 12 mph loaded and reaching about 30 mph running light."] },
+          { q: "What made Rocket better than the others?",
+            a: ["Two things working together. A boiler with 25 small fire tubes gave much more heating surface than one big flue, so it raised steam faster. And the exhaust steam was sent up the chimney through a blast pipe, which pulled air through the fire harder the faster the engine worked."] }
+        ] }
+    ]
+  },
+  exam: {
+    title: "期末复习：概率论",
+    convs: [
+      { id: "e1", title: "条件概率与贝叶斯", at: "2026-11-20T14:05",
+        summary: ["条件概率是在已知某事发生的前提下重新计算概率。", "贝叶斯公式把“由因推果”翻转成“由果推因”。"],
+        turns: [
+          { q: "条件概率和贝叶斯公式到底是什么关系？我总是把 P(A|B) 和 P(B|A) 搞混。",
+            a: ["两者差一个“翻转”。P(A|B) 是已知 B 发生时 A 的概率，P(B|A) 则反过来。贝叶斯公式就是连接这两个量的桥：",
+                "<math display=\"block\"><mi>P</mi><mo>(</mo><mi>A</mi><mo>|</mo><mi>B</mi><mo>)</mo><mo>=</mo><mfrac><mrow><mi>P</mi><mo>(</mo><mi>B</mi><mo>|</mo><mi>A</mi><mo>)</mo><mi>P</mi><mo>(</mo><mi>A</mi><mo>)</mo></mrow><mrow><mi>P</mi><mo>(</mo><mi>B</mi><mo>)</mo></mrow></mfrac></math>",
+                "其中 P(A) 叫<mark data-b=\"e2\">先验概率</mark>，P(A|B) 叫后验概率。最容易出错的地方是忽略先验，<mark data-b=\"e3\">医学检测的例子</mark>最能说明这一点。"] },
+          { q: "考试里一般怎么考？",
+            a: ["常见两类：一是直接套公式的计算题，通常配合全概率公式求分母；二是让你判断两个事件是否独立。先画树状图，再代公式，基本不会错。"] }
+        ] },
+      { id: "e2", parent: "e1", quote: "先验概率", title: "先验和后验的直觉", at: "2026-11-20T14:12",
+        turns: [
+          { q: "先验和后验有没有更直观的理解？",
+            a: ["先验是你看到证据之前的看法，后验是看到证据之后更新过的看法。今天的后验可以作为明天的先验，证据一条条进来，看法一步步修正。"] }
+        ] },
+      { id: "e3", parent: "e1", quote: "医学检测的例子", title: "医学检测的例子", at: "2026-11-20T14:20",
+        turns: [
+          { q: "检测准确率 99%，阳性了为什么不一定是真的得病？",
+            a: ["因为患病率本身很低。假设一万人里有 10 人患病，检测的准确率是 99%：",
+                "真阳性约 10 人，假阳性约 100 人。所以拿到阳性结果时，真正患病的概率只有大约 <strong>9%</strong>。先验越小，假阳性占的比例越大。"] }
+        ] },
+      { id: "e4", title: "大数定律", at: "2026-11-20T16:40",
+        turns: [
+          { q: "大数定律说的是什么？和“赌徒谬误”有什么区别？",
+            a: ["大数定律说的是：独立重复试验的次数越多，样本均值越接近期望值。它讲的是<strong>比例</strong>趋于稳定，而不是结果会“补回来”。",
+                "赌徒谬误恰恰误解了这一点：连开五次正面之后，下一次仍然是一半一半。"] }
+        ] },
+      { id: "e5", title: "中心极限定理", at: "2026-11-21T10:02",
+        summary: ["大量独立随机变量之和近似服从正态分布，与原分布的形状无关。"],
+        turns: [
+          { q: "中心极限定理和大数定律有什么不同？",
+            a: ["大数定律告诉你均值收敛到哪里；中心极限定理告诉你收敛过程中的<strong>波动长什么样</strong>：",
+                "不管原来的分布是什么形状，只要方差有限，足够多个独立变量的和（标准化之后）都近似<mark data-b=\"e6\">服从正态分布</mark>。"] }
+        ] },
+      { id: "e6", parent: "e5", quote: "服从正态分布", title: "为什么偏偏是正态分布", at: "2026-11-21T10:10",
+        turns: [
+          { q: "为什么偏偏是正态分布，而不是别的分布？",
+            a: ["一个直观的说法：把很多微小、独立的扰动加在一起，各自的细节会互相抵消，只剩下均值和方差两个信息，而只由这两个量决定的“最没有额外结构”的分布就是正态分布。",
+                "严格的证明通常用<mark data-b=\"e7\">特征函数</mark>。"] }
+        ] },
+      { id: "e7", parent: "e6", quote: "特征函数", title: "特征函数是什么", at: "2026-11-21T10:18",
+        turns: [
+          { q: "特征函数是什么？考试要求掌握吗？",
+            a: ["特征函数是随机变量的另一种“身份证”：它和分布一一对应，而且独立变量之和的特征函数等于各自特征函数的乘积，所以特别适合处理“和”的问题。课程大纲一般只要求了解概念。"] }
+        ] },
+      { id: "e8", title: "假设检验", at: "2026-11-22T09:30",
+        turns: [
+          { q: "假设检验的基本步骤是什么？",
+            a: ["四步：提出原假设和备择假设；选定检验统计量；根据显著性水平确定拒绝域；计算并下结论。",
+                "下结论时要注意措辞，<mark data-b=\"e9\">p 值</mark>小只说明“数据与原假设不太相容”。"] }
+        ] },
+      { id: "e9", parent: "e8", quote: "p 值", title: "p 值到底是什么", at: "2026-11-22T09:41",
+        turns: [
+          { q: "p 值到底是什么？是原假设为真的概率吗？",
+            a: ["不是。p 值是：<strong>假设原假设为真</strong>，观察到当前数据或更极端数据的概率。它是 P(数据|假设)，不是 P(假设|数据)。把两者混为一谈，正是第一天复习贝叶斯时说的那种“翻转”错误。"] }
+        ] }
+    ]
+  }
+};
+
+const TEXT = {
+  en: {
+    proto: "Prototype controls (not part of a shared page)", data: "Example", mode: "Carries", lang: "Page language", theme: "Theme",
+    structure: "Structure only", content: "With content", light: "Light", dark: "Dark", one: "One exploration", many: "Several days",
+    howStructure: "A path of questions. Each dot is a conversation; a line shows where one conversation branched off from another. This page shows the shape of the path, not what was said.",
+    howContent: "A path of questions. Each dot is a conversation; a line shows where one branched off from another. Choose a dot to read it. Answers are folded: the questions are the path.",
+    facts: (e, c, q) => `${e} ${e === 1 ? "exploration" : "explorations"} · ${c} conversations · ${q} questions`,
+    legend: "Dot size: how much was asked there. Ring: has a summary. Dotted line: order in time.",
+    outline: "Outline", nq: n => n === 1 ? "1 question" : `${n} questions`, started: "Started",
+    leftFrom: "Left from", back: "Back to where this left from", summary: "Summary", hasSummary: "has a summary",
+    showAll: "Show all", showLess: "Show less", branches: "Branches that left from this answer:",
+    attachment: "Attachment", incomplete: "incomplete", cites: n => n === 1 ? "1 citation" : `${n} citations`,
+    footStructure: "Made with Mindweave. Open this file in Mindweave to explore these directions yourself.",
+    footContent: "Made with Mindweave. Open this file in Mindweave to continue asking from here.",
+    locale: "en-GB"
+  },
+  zh: {
+    proto: "原型控制（不属于分享页面）", data: "示例", mode: "内容", lang: "页面语言", theme: "主题",
+    structure: "只有结构", content: "带内容", light: "浅色", dark: "深色", one: "一个探索", many: "多天",
+    howStructure: "一条由提问组成的路径。每个点是一次会话，连线表示一次会话从另一次会话的哪里分出。本页只展示路径的形状，不包含对话内容。",
+    howContent: "一条由提问组成的路径。每个点是一次会话，连线表示它从哪里分出。点一个点即可阅读。回答默认折叠：问题才是路径。",
+    facts: (e, c, q) => `${e} 个探索 · ${c} 次会话 · ${q} 个问题`,
+    legend: "点的大小：在这里问了多少。外环：有总结。虚线：时间先后。",
+    outline: "大纲", nq: n => `${n} 个问题`, started: "开始于",
+    leftFrom: "分出自", back: "回到分出的位置", summary: "总结", hasSummary: "有总结",
+    showAll: "展开全部", showLess: "收起", branches: "从这条回答分出的分支：",
+    attachment: "附件", incomplete: "未完成", cites: n => `${n} 条出处`,
+    footStructure: "由 Mindweave 生成。在 Mindweave 中打开此文件，可以自己沿这些方向探索。",
+    footContent: "由 Mindweave 生成。在 Mindweave 中打开此文件，可以从这里继续提问。",
+    locale: "zh-CN"
+  }
+};
+
+const state = { data: "trains", mode: "structure", lang: "en", theme: "light", sel: null, open: new Set() };
+const $ = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "html" ? e.innerHTML = v : k.startsWith("on") ? e.addEventListener(k.slice(2), v) : e.setAttribute(k, v);
+  for (const k of kids.flat()) if (k != null) e.append(k);
+  return e;
+};
+const svg = (tag, attrs = {}) => { const e = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Timeline layout: the app's rules (docs/design/session-network.md §5.1) in small. Roots on the main line in start
+// order with a wider gap between days; a root's children open new lanes; below a root, a first child continues its
+// parent's lane and further children open lanes on the same side.
+// ---------------------------------------------------------------------------------------------------------------
+const STEP = 148, LANE = 86;
+function arrange(convs) {
+  const by = new Map(convs.map(c => [c.id, c]));
+  const kids = new Map();
+  const order = [...convs].sort((a, b) => a.at.localeCompare(b.at));
+  for (const c of order) if (c.parent) (kids.get(c.parent) ?? kids.set(c.parent, []).get(c.parent)).push(c);
+  const roots = order.filter(c => !c.parent);
+  const weight = c => c.turns.length + (kids.get(c.id) ?? []).reduce((s, k) => s + weight(k), 0);
+  const pos = new Map(), end = new Map(), days = [];
+  const endOf = l => end.get(l) ?? -Infinity;
+  let gaps = 0;
+  roots.forEach((r, i) => {
+    const newDay = i === 0 || r.at.slice(0, 10) !== roots[i - 1].at.slice(0, 10);
+    if (newDay) { if (i) gaps++; days.push(r.id); }
+    pos.set(r.id, { x: (i + gaps) * STEP, lane: 0 });
+  });
+  const open = (parentLane, x0) => {
+    const side = Math.sign(parentLane);
+    for (let k = Math.abs(parentLane) + 1; ; k++)
+      for (const l of side === 0 ? [-k, k] : [side * k])
+        if (endOf(l) <= x0 - STEP) {
+          for (let m = Math.min(l, parentLane) + 1; m < Math.max(l, parentLane); m++) if (m) end.set(m, Math.max(endOf(m), x0 - STEP));
+          return l;
+        }
+  };
+  const place = (c, isRoot) => (kids.get(c.id) ?? []).forEach((k, i) => {
+    const p = pos.get(c.id);
+    let lane, x;
+    if (!isRoot && i === 0) { lane = p.lane; x = Math.max(p.x + STEP, endOf(lane) + STEP); }
+    else { x = p.x + STEP; lane = open(p.lane, x); }
+    end.set(lane, Math.max(endOf(lane), x));
+    pos.set(k.id, { x, lane });
+    place(k, false);
+  });
+  roots.forEach(r => place(r, true));
+  return { by, kids, roots, pos, days, weight };
+}
+const radius = w => Math.min(14, Math.max(5, 5 + 1.3765 * Math.sqrt(Math.max(0, w - 1))));
+
+function render() {
+  const t = TEXT[state.lang], set = DATA[state.data], L = arrange(set.convs);
+  document.documentElement.dataset.theme = state.theme;
+  document.documentElement.lang = state.lang;
+  const withContent = state.mode === "content";
+  const fmtDay = iso => new Date(iso).toLocaleDateString(t.locale, { year: "numeric", month: "short", day: "numeric" });
+  const fmtTime = iso => new Date(iso).toLocaleString(t.locale, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const select = (id, scroll) => { state.sel = id; render(); if (scroll) document.getElementById("reading")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+
+  // Prototype controls.
+  const seg = (label, key, options) => $("span", {}, $("b", {}, label + " "), $("span", { class: "seg" },
+    options.map(([v, text]) => $("button", { "aria-pressed": String(state[key] === v), onclick: () => { state[key] = v; if (key === "data") { state.sel = null; state.open.clear(); } render(); } }, text))));
+  document.getElementById("proto").replaceChildren(
+    $("span", {}, t.proto),
+    seg(t.data, "data", [["trains", t.one], ["exam", t.many]]),
+    seg(t.mode, "mode", [["structure", t.structure], ["content", t.content]]),
+    seg(t.lang, "lang", [["en", "English"], ["zh", "中文"]]),
+    seg(t.theme, "theme", [["light", t.light], ["dark", t.dark]]));
+
+  const page = document.getElementById("page");
+  const first = set.convs.map(c => c.at).sort()[0], last = set.convs.map(c => c.at).sort().at(-1);
+  const questions = set.convs.reduce((s, c) => s + c.turns.length, 0);
+  const range = fmtDay(first) === fmtDay(last) ? fmtDay(first) : `${fmtDay(first)} – ${fmtDay(last)}`;
+  const head = $("header", {},
+    $("h1", {}, set.title),
+    $("div", { class: "facts" }, `${range} · ${t.facts(L.roots.length, set.convs.length, questions)}`),
+    $("p", { class: "how" }, withContent ? t.howContent : t.howStructure));
+
+  // The picture.
+  const xs = [...L.pos.values()].map(p => p.x), lanes = [...L.pos.values()].map(p => p.lane);
+  const padX = 84, top = 62, bottom = 58;
+  const minLane = Math.min(...lanes), maxLane = Math.max(...lanes);
+  const W = Math.max(...xs) + padX * 2, H = (maxLane - minLane) * LANE + top + bottom;
+  const X = p => p.x + padX, Y = p => (p.lane - minLane) * LANE + top;
+  const s = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
+  const stage = $("div", { class: "stage", style: `width:${W}px;height:${H}px` });
+  for (let i = 1; i < L.roots.length; i++) {
+    const a = L.pos.get(L.roots[i - 1].id), b = L.pos.get(L.roots[i].id);
+    s.append(svg("path", { class: "edge main", d: `M${X(a)},${Y(a)} L${X(b)},${Y(b)}` }));
+  }
+  for (const c of set.convs) if (c.parent) {
+    const a = L.pos.get(c.parent), b = L.pos.get(c.id);
+    const d = a.lane === b.lane ? `M${X(a)},${Y(a)} L${X(b)},${Y(b)}`
+      : `M${X(a)},${Y(a)} C${X(a) + STEP * 0.5},${Y(a)} ${X(b) - STEP * 0.62},${Y(b)} ${X(b)},${Y(b)}`;
+    s.append(svg("path", { class: "edge", d }));
+  }
+  for (const c of set.convs) {
+    const p = L.pos.get(c.id), r = radius(L.weight(c)), on = state.sel === c.id;
+    if (on) s.append(svg("circle", { class: "halo", cx: X(p), cy: Y(p), r: r + 9 }));
+    if (c.summary) s.append(svg("circle", { class: "sring", cx: X(p), cy: Y(p), r: r + 3.5 }));
+    if (on) s.append(svg("circle", { class: "sel", cx: X(p), cy: Y(p), r: r + (c.summary ? 6.5 : 3.5) }));
+    const dot = svg("circle", { class: "dot", cx: X(p), cy: Y(p), r, tabindex: 0, role: "button", "aria-label": c.title });
+    dot.addEventListener("click", () => select(c.id, withContent));
+    dot.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(c.id, withContent); } });
+    s.append(dot);
+    const above = p.lane < 0;
+    const lbl = $("div", { class: "lbl" + (on ? " on" : ""), onclick: () => select(c.id, withContent) }, c.title);
+    lbl.style.left = X(p) + "px";
+    above ? lbl.style.bottom = (H - Y(p) + r + 9) + "px" : lbl.style.top = (Y(p) + r + 9) + "px";
+    stage.append(lbl);
+    if (L.days.includes(c.id)) {
+      const day = $("div", { class: "day" }, fmtDay(c.at));
+      day.style.left = X(p) + "px"; day.style.top = (Y(p) - r - 30) + "px";
+      stage.append(day);
+    }
+  }
+  stage.prepend(s);
+  const picture = $("div", { class: "picture" }, stage);
+
+  // The outline.
+  const item = c => $("li", {},
+    $("button", { class: state.sel === c.id ? "on" : "", onclick: () => select(c.id, withContent) },
+      $("span", { class: "t" }, c.title, c.summary ? $("span", { class: "badge" }, t.hasSummary) : null),
+      $("span", { class: "n" }, t.nq(c.turns.length))),
+    L.kids.has(c.id) ? $("ul", {}, L.kids.get(c.id).map(item)) : null);
+  const outline = $("ul", { class: "outline" }, L.roots.flatMap(r =>
+    [L.days.includes(r.id) && L.roots.length > 1 ? $("li", { class: "rootday" }, fmtDay(r.at)) : null, item(r)]));
+
+  const parts = [head, picture, $("p", { class: "legend" }, t.legend), $("h2", {}, t.outline), outline];
+
+  const sel = state.sel && L.by.get(state.sel);
+  if (sel && !withContent) {
+    parts.push($("div", { class: "pick" }, $("div", { class: "t" }, sel.title),
+      $("div", { class: "m" }, `${t.started} ${fmtTime(sel.at)} · ${t.nq(sel.turns.length)}${sel.summary ? " · " + t.hasSummary : ""}`)));
+  }
+  if (withContent) {
+    const c = sel ?? L.roots[0];
+    const conv = $("section", { class: "conv", id: "reading" },
+      $("h3", {}, c.title),
+      $("div", { class: "meta" }, `${t.started} ${fmtTime(c.at)} · ${t.nq(c.turns.length)}`));
+    if (c.parent) {
+      const parent = L.by.get(c.parent);
+      conv.append($("div", { class: "from" }, `${t.leftFrom} `, $("b", {}, parent.title), ": ", $("q", {}, c.quote), " · ",
+        $("button", { class: "linkish", onclick: () => select(parent.id, true) }, t.back)));
+    }
+    if (c.summary) conv.append($("details", { class: "summary" }, $("summary", {}, t.summary),
+      $("div", { class: "body" }, c.summary.map(p => $("p", {}, p)))));
+    c.turns.forEach((turn, i) => {
+      const key = c.id + ":" + i, opened = state.open.has(key);
+      const long = turn.a.join(" ").replace(/<[^>]+>/g, "").length > (state.data === "exam" ? 90 : 230);
+      const inner = $("div", { class: "inner", html: turn.a.map(p => p.startsWith("<math") ? p : `<p>${p}</p>`).join("") });
+      inner.querySelectorAll("mark[data-b]").forEach(m => { m.tabIndex = 0; m.title = L.by.get(m.dataset.b).title; m.addEventListener("click", () => select(m.dataset.b, true)); });
+      const left = [...inner.querySelectorAll("mark[data-b]")].map(m => L.by.get(m.dataset.b));
+      const answer = $("div", { class: "a" + (long && !opened ? " folded" : "") }, inner);
+      const row = $("div", { class: "turn" },
+        $("div", { class: "q" }, turn.q),
+        turn.att ? $("div", { class: "attrow" }, $("span", { class: "att" }, `${t.attachment}: ${turn.att}`)) : null,
+        turn.activity ? $("div", { class: "activity" }, turn.activity) : null,
+        answer,
+        long ? $("button", { class: "fold", onclick: () => { opened ? state.open.delete(key) : state.open.add(key); render(); } }, opened ? t.showLess : t.showAll) : null,
+        turn.stopped ? $("span", { class: "badge" }, t.incomplete) : null,
+        left.length ? $("ul", { class: "left", "aria-label": t.branches }, left.map(b =>
+          $("li", {}, $("button", { class: "linkish", onclick: () => select(b.id, true) }, b.title), $("span", { class: "n", style: "color:var(--muted);font-size:12px" }, t.nq(b.turns.length))))) : null,
+        turn.cites ? $("details", { class: "cites" }, $("summary", {}, t.cites(turn.cites.length)),
+          $("ol", {}, turn.cites.map(x => $("li", {}, `[${x.n}] ${x.t} `, $("a", { href: x.u, rel: "noreferrer" }, x.u))))) : null);
+      conv.append(row);
+    });
+    parts.push(conv);
+  }
+  parts.push($("footer", {}, withContent ? t.footContent : t.footStructure));
+  page.replaceChildren(...parts);
+}
+render();
+</script>
+</body>
+</html>

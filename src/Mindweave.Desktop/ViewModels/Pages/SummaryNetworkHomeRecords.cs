@@ -36,7 +36,11 @@ public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, str
 /// to the right of the dot on one line.
 /// </summary>
 public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string DisplayName, double X, double Y, bool Unread, bool HasCandidate, double LabelWidth, SummaryNodeId? Parent = null, bool IsRoot = false,
-    bool HasSummary = true, int Weight = 1, DateTimeOffset CreatedAt = default, SpatialLabel? Placed = null, bool Dated = false);
+    bool HasSummary = true, int Weight = 1, DateTimeOffset CreatedAt = default, SpatialLabel? Placed = null, bool Dated = false)
+{
+    /// <summary>It came from a shared file and nothing was said in it: drawn hollow.</summary>
+    public bool Unexplored { get; init; }
+}
 
 /// <summary>
 /// The date over (or under) the root that starts a new local day. <paramref name="Anchor"/> is that root, the only one of
@@ -85,6 +89,12 @@ public sealed record PathStep(string Name, bool Summarized, bool IsFirst)
 public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created,
     bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps, bool HasSummary = true, string? Question = null, bool HasLaterContent = false)
 {
+    /// <summary>It came from a shared file and nothing was said in it.</summary>
+    public bool Unexplored { get; init; }
+
+    /// <summary>Which shared file it came from and when; null for the user's own.</summary>
+    public string? Received { get; init; }
+
     public bool HasQuestion => !string.IsNullOrWhiteSpace(Question);
 
     public bool ShowsUnread => HasSummary && Unread;

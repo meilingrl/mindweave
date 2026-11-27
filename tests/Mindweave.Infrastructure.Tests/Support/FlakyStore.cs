@@ -40,6 +40,8 @@ internal sealed class FlakyStore(IConversationStore inner) : IConversationStore
 
     public Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, Application.Recommendations.StartingRecommendation? from, CancellationToken cancellationToken) => inner.CreateAsync(conversation, question, answer, task, from, cancellationToken);
 
+    public Task CreateBranchAsync(ConversationId parent, IReadOnlyList<Core.Branches.ContextSegment> context, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken) => inner.CreateBranchAsync(parent, context, conversation, question, answer, task, cancellationToken);
+
     public Task<(Message Question, Message Answer)> AppendQuestionAsync(Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken) => inner.AppendQuestionAsync(question, answer, task, cancellationToken);
 
     public Task<Message> AddRetryAsync(Message answer, GenerationTaskRecord task, CancellationToken cancellationToken) => inner.AddRetryAsync(answer, task, cancellationToken);

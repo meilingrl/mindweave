@@ -49,8 +49,8 @@ public class RowMenuUiTests
 
         // The page's entries in the page's words and icons, the default first and bold, the destructive one last in the danger colour.
         var items = menu.Items.OfType<MenuItem>().ToList();
-        Assert.Equal(["RowMenuOpen", "RowMenuRename", "RowMenuSummarize", "RowMenuArchive", "RowMenuDelete"], items.Select(i => i.Name));
-        Assert.Equal([UiText.RowOpen, UiText.Rename, UiText.Summarize, UiText.Archive, UiText.RowDelete], items.Select(i => i.Header));
+        Assert.Equal(["RowMenuOpen", "RowMenuRename", "RowMenuSummarize", "RowMenuShare", "RowMenuArchive", "RowMenuDelete"], items.Select(i => i.Name));
+        Assert.Equal([UiText.RowOpen, UiText.Rename, UiText.Summarize, UiText.ShareEntry, UiText.Archive, UiText.RowDelete], items.Select(i => i.Header));
         Assert.All(items, i => Assert.IsType<PathIcon>(i.Icon));
         Assert.All(items, i => Assert.True(i.IsEffectivelyEnabled, i.Name));
         Assert.Equal(Avalonia.Media.FontWeight.SemiBold, items[0].FontWeight);

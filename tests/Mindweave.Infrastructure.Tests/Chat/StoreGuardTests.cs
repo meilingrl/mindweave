@@ -63,7 +63,7 @@ public class StoreGuardTests
         Assert.Equal(("https://fake.example/v1", "fake-model"), row);
     }
 
-    private static async Task<(GenerationTaskId Task, MessageId Answer)> SeedStreamingAsync(ChatHarness h)
+    internal static async Task<(GenerationTaskId Task, MessageId Answer)> SeedStreamingAsync(ChatHarness h)
     {
         var held = h.Client.Hold("x");
         var sent = await h.Conversations.StartAsync(h.Workspace, "q", Ct);

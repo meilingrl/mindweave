@@ -114,6 +114,15 @@ public sealed class SummaryService : ISummaries
     /// <summary>A conversation's summary node, versions, names or summary task changed. Raised on worker threads.</summary>
     public event EventHandler<ConversationId>? Changed;
 
+    /// <summary>An import brought summaries for these conversations, already stored.</summary>
+    internal void NotifyImported(IReadOnlyList<ConversationId> conversations)
+    {
+        foreach (var id in conversations)
+        {
+            Changed?.Invoke(this, id);
+        }
+    }
+
     public Task<IReadOnlyList<SummaryEntry>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         _summaries.ListAsync(workspace, cancellationToken);
 
@@ -406,10 +415,10 @@ public sealed class SummaryService : ISummaries
         return SummarySaveResult.Saved;
     }
 
-    /// <summary>For a branch: the quote and the source answer, as background that is not to be summarized.</summary>
+    /// <summary>For a branch that left from a sentence: the quote and the source answer, as background that is not to be summarized.</summary>
     private async Task<string?> BackgroundAsync(ConversationId conversation, CancellationToken cancellationToken)
     {
-        if (await _branches.GetSourceAsync(conversation, cancellationToken).ConfigureAwait(false) is not { } source)
+        if (await _branches.GetSourceAsync(conversation, cancellationToken).ConfigureAwait(false) is not { Quote: { } quote } source)
         {
             return null;
         }
@@ -417,7 +426,7 @@ public sealed class SummaryService : ISummaries
         var parent = await _conversations.GetMessagesAsync(source.Parent, cancellationToken).ConfigureAwait(false);
         var answer = parent.FirstOrDefault(m => m.Id == source.SourceMessage)?.Text ?? string.Empty;
         var excerpt = answer.Length > SourceExcerpt ? answer[..SourceExcerpt] + "…" : answer;
-        return PromptLibrary.Get("summary-branch-background", ("quote", source.Quote), ("excerpt", excerpt));
+        return PromptLibrary.Get("summary-branch-background", ("quote", quote), ("excerpt", excerpt));
     }
 
     private readonly IResourceStore? _resources;

@@ -21,6 +21,8 @@ internal static class TestPhrases
 
         public string AttachmentMarker(string name) => $"[附件：{name}]";
 
+        public string AttachmentNotIncluded => "[一个附件，未包含]";
+
         public string MaterialWhole(string name) => $"以下是用户附上的材料《{name}》的全文：";
 
         public string MaterialDigest(string name) => $"以下是用户附上的材料《{name}》的摘要（全文较长，这里只有摘要）：";
@@ -59,6 +61,8 @@ internal static class TestPhrases
 
         public string AttachmentMarker(string name) => $"[Attachment: {name}]";
 
+        public string AttachmentNotIncluded => "[An attachment, not included]";
+
         public string MaterialWhole(string name) => $"Full text of \"{name}\":";
 
         public string MaterialDigest(string name) => $"Digest of \"{name}\":";
@@ -78,6 +82,7 @@ internal static class TestPhrases
 
         public string CitationLabel(CitationKind kind, string title) => kind switch
         {
+            CitationKind.Attachment when title.Length == 0 => "An attachment",
             CitationKind.Attachment => $"Attachment \"{title}\"",
             CitationKind.Material => $"Material \"{title}\"",
             CitationKind.Summary => $"Summary \"{title}\"",

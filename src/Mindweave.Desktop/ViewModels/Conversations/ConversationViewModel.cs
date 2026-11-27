@@ -46,6 +46,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
     private bool _isShown;
+
+    // Known to be off screen: a view showed it and then left it, or it was replayed into a stack (performance-5). A page no
+    // view has reported on counts as on screen, as before views report.
+    private bool _offScreen;
+
+    // Something changed while off screen: read again when shown.
+    private bool _stale;
+    private int _loads;
     private bool _draftLoaded;
     private ITimer? _tick;
 
@@ -79,13 +87,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         _dispatcher = dispatcher;
         _time = time ?? TimeProvider.System;
         _load = new SerialRefresh(LoadAsync);
+        _offScreen = context.Replayed;
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         // Stop sits where send is while an answer runs; the page shows the storage pause once, at the top.
         // Attachments belong to this conversation's draft in this viewer slot (architecture §15.2), known once the workspace is.
         var attachments = resources is null || models is null
             ? null
             : new ComposerAttachmentServices(resources, models, () => _workspace == default ? null : new DraftSlot(_workspace, Id, _slot.Value));
-        Composer = new Composer((text, ids) => _conversations.AskAsync(Id, text, ids, Composer?.Options, CancellationToken.None), attachments)
+        Composer = new Composer(AskAsync, attachments)
         {
             StopCommand = StopCommand,
             HostShowsStoragePause = true,
@@ -142,11 +151,29 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     [ObservableProperty]
     public partial bool IsMissing { get; private set; }
 
+    /// <summary>The sentence a branch left from; null for a root, and for a branch that left from none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsBranch))]
     public partial string? SourceQuote { get; private set; }
 
-    public bool IsBranch => SourceQuote is not null;
+    /// <summary>The header says where this branch sits. An empty received conversation shows its input box and nothing else.</summary>
+    [ObservableProperty]
+    public partial bool IsBranch { get; private set; }
+
+    /// <summary>There is an answer to go back to; a branch of an empty received conversation left from none.</summary>
+    [ObservableProperty]
+    public partial bool CanReturnToSource { get; private set; }
+
+    /// <summary>The tip of the way back: to the passage, or to the end of what this continues.</summary>
+    [ObservableProperty]
+    public partial string ReturnHint { get; private set; } = UiText.ReturnToSourceHint;
+
+    /// <summary>It came from a shared file, so it is read-only: a question asked here continues in a conversation of the user's own (decision I4).</summary>
+    [ObservableProperty]
+    public partial bool IsReceived { get; private set; }
+
+    /// <summary>It came from a shared file and nothing was said in it: asking starts a conversation of the user's own (decision I4).</summary>
+    [ObservableProperty]
+    public partial bool IsUnexplored { get; private set; }
 
     /// <summary>Shown when the source passage could not be located exactly (MW-C13); never replaced by a text search.</summary>
     [ObservableProperty]
@@ -222,7 +249,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     /// <summary>
     /// Set by the view while this page is on screen. The running answer's live counter ticks (on the app's clock) only
-    /// while the page is shown and something on it is generating; otherwise no timer exists.
+    /// while the page is shown and something on it is generating; otherwise no timer exists. What changed while the page
+    /// was off screen is read when it is shown again.
     /// </summary>
     public bool IsShown
     {
@@ -232,7 +260,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
             if (_isShown != value)
             {
                 _isShown = value;
+                _offScreen = !value;
                 UpdateTicking();
+                if (value && _stale)
+                {
+                    _stale = false;
+                    _ = _load.Request();
+                }
+
                 if (value && _draftLoaded)
                 {
                     _ = FollowDraftAsync();
@@ -243,6 +278,12 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     /// <summary>Whether the live counter's timer is running now; tests check that an idle page has none.</summary>
     internal bool IsTicking => _tick is not null;
+
+    /// <summary>Changed while off screen and not read again yet; tests check that a hidden page waits.</summary>
+    internal bool IsStale => _stale;
+
+    /// <summary>How often the page has read its content.</summary>
+    internal int Loads => _loads;
 
     /// <summary>The view reports where the reader is; kept in memory at once, stored shortly after.</summary>
     public void ReportPosition(ReadingPosition position) => _reading.SetPosition(Id, _slot, position);
@@ -265,6 +306,18 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         {
             _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Child)) { From = this });
         }
+    }
+
+    /// <summary>A question in a received conversation starts the user's own (decision I4), which opens unless the reader went elsewhere meanwhile.</summary>
+    private async Task<SendOutcome> AskAsync(string text, IReadOnlyList<Core.Resources.ResourceId> attachments)
+    {
+        var outcome = await _conversations.AskAsync(Id, text, attachments, Composer.Options, CancellationToken.None);
+        if (outcome.Accepted && outcome.Conversation != Id)
+        {
+            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Conversation)) { From = this });
+        }
+
+        return outcome;
     }
 
     [RelayCommand(CanExecute = nameof(CanStop))]
@@ -310,7 +363,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     [RelayCommand]
     private void ReturnToSource()
     {
-        if (_source is { } source)
+        if (_source is { SourceMessage: not null } source)
         {
             _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(source.Parent, SourceOf: Id), NavigationIntent.ReturnToSource));
         }
@@ -454,7 +507,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         if (!_disposed)
         {
             _reload.Request();
-            _dispatcher.Post(() => _ = RefreshAttachmentCapabilitiesAsync());
+
+            // Off screen, the reload when shown refreshes them.
+            _dispatcher.Post(() =>
+            {
+                if (!_offScreen)
+                {
+                    _ = RefreshAttachmentCapabilitiesAsync();
+                }
+            });
         }
     }
 
@@ -503,6 +564,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     private async Task LoadAsync()
     {
+        // After its first read, a page off screen (in the back stack, in a minimised window) reads nothing until it is
+        // shown again (health check 2026-11-12, performance-5).
+        if (_offScreen && _loads > 0)
+        {
+            _stale = true;
+            return;
+        }
+
+        _loads++;
         var content = await _conversations.LoadAsync(Id, CancellationToken.None);
         if (_disposed)
         {
@@ -524,6 +594,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         var branches = await _conversations.ListBranchesAsync(Id, CancellationToken.None);
         var archivedBranches = await _conversations.ArchivedAmongAsync([.. branches.Select(b => b.Child)], CancellationToken.None);
         var archive = await _conversations.PlanRestoreAsync(Id, CancellationToken.None);
+        var continuations = await ContinuationTitlesAsync(branches);
         if (_disposed)
         {
             return;
@@ -531,6 +602,12 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
         _source = lineage.Count > 0 ? lineage[^1].Source : null;
         SourceQuote = _source?.Quote;
+        IsReceived = content.Conversation.IsImported;
+        IsUnexplored = IsReceived && content.Messages.Count == 0;
+        IsBranch = _source is not null && !IsUnexplored;
+        CanReturnToSource = _source?.SourceMessage is not null;
+        ReturnHint = _source is { IsContinuation: true } ? UiText.ReturnToEndHint : UiText.ReturnToSourceHint;
+        Composer.Placeholder = IsUnexplored ? UiText.AskInReceivedPlaceholder : IsReceived ? UiText.ContinueReceivedPlaceholder : UiText.AskPlaceholder;
         DisplayTitle = UiText.ConversationTitle(content.Conversation, content.Messages.FirstOrDefault(m => m.Role == MessageRole.User) is { } first ? ContentBlocks.BriefOf(first.Blocks, ModelPhrases.Current) : null, _source?.Quote);
         Lineage.Clear();
         foreach (var ancestor in lineage.Take(Math.Max(0, lineage.Count - 1)))
@@ -542,11 +619,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         ArchiveText = !archive.IsHidden ? null
             : archive.ArchivedAncestors.Count == 0 ? UiText.ArchivedReadOnly
             : UiText.HiddenByAncestors([.. archive.ArchivedAncestors.Select(a => Lineage.FirstOrDefault(l => l.Id == a)?.Title ?? UiText.NewConversation)]);
-        MessageListReconciler.Reconcile(Messages, content, branches, archivedBranches, IsArchived, NewItem);
+        MessageListReconciler.Reconcile(Messages, content, branches, archivedBranches, IsArchived, NewItem, continuations, IsReceived);
         HasBranches = Messages.Any(m => m.IsAnswer && m.Branches.Count > 0);
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
-        ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
+        ContextUsage = await _conversations.GetContextUsageAsync(content, CancellationToken.None);
         if (firstLoad)
         {
             // The draft's attachments come back with the draft (they survive a restart, §10.4.3).
@@ -558,11 +635,22 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         await Summary.LoadAsync();
     }
 
+    /// <summary>A branch that left from no sentence is listed by its own title.</summary>
+    private async Task<IReadOnlyDictionary<ConversationId, string>> ContinuationTitlesAsync(IReadOnlyList<BranchSource> branches)
+    {
+        var ids = branches.Where(b => b.IsContinuation).Select(b => b.Child).ToHashSet();
+        return ids.Count == 0
+            ? new Dictionary<ConversationId, string>()
+            : (await _conversations.ListAsync(_workspace, CancellationToken.None)).Where(r => ids.Contains(r.Conversation.Id))
+                .ToDictionary(r => r.Conversation.Id, r => UiText.ConversationTitle(r.Conversation, r.FirstQuestion, r.Quote));
+    }
+
     private MessageItemViewModel NewItem(Message message)
     {
         var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time, Composer.Open, OpenToolResult, OpenSummary, OpenCitation, _conversations.DecideApproval)
         {
             IsBranchPaused = IsStorageBlocked,
+            IsReceived = IsReceived,
         };
         item.PropertyChanged += (_, e) =>
         {
@@ -582,7 +670,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         var last = Messages.LastOrDefault();
         if (last is { IsAnswer: true })
         {
-            last.CanRetry = !last.IsInProgress && !IsArchived;
+            last.CanRetry = !last.IsInProgress && !IsArchived && !IsReceived;
         }
 
         UpdateTicking();

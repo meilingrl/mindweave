@@ -53,6 +53,7 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
         Highlight = null;
         SourceUrl = null;
         IsConfirmingOpen = false;
+        IsAddressOnly = false;
         Title = chip.Name;
         Info = $"{chip.TypeLabel} · {chip.SizeLabel}";
         Text = chip.Stored?.Text ?? chip.Block?.Text;
@@ -119,12 +120,17 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
     [ObservableProperty]
     public partial bool IsConfirmingOpen { get; private set; }
 
+    /// <summary>A received web citation has no saved page: the dialog holds only the question whether to open the address.</summary>
+    [ObservableProperty]
+    public partial bool IsAddressOnly { get; private set; }
+
     /// <summary>The view opens the confirmed address in the system browser (the launcher belongs to the window).</summary>
     public event EventHandler<Uri>? OpenRequested;
 
     /// <summary>
     /// Opens a 出处 (requirements §10.4.5): the stored page or search results, the cited passage highlighted, the real address
-    /// with 在浏览器中打开 (shown in full before anything opens).
+    /// with 在浏览器中打开 (shown in full before anything opens). One that arrived in a share has only that last step
+    /// (docs/design/sharing-import.md §3).
     /// </summary>
     public async Task OpenCitationAsync(Core.Conversations.CitationBlock citation)
     {
@@ -134,12 +140,13 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
         Info = citation.Url is null ? UiText.LocalCitationInfo(citation.Number) : UiText.CitationInfo(citation.Number, citation.FetchedAt);
         Text = null;
         Image = null;
-        Note = citation.Url is null ? null : UiText.WebSourceUntrusted;
+        IsAddressOnly = citation is { Resource: null, Url: not null };
+        Note = citation.Url is null || IsAddressOnly ? null : UiText.WebSourceUntrusted;
         Highlight = null;
         SourceUrl = citation.Url;
-        IsConfirmingOpen = false;
+        IsConfirmingOpen = IsAddressOnly;
         IsOpen = true;
-        if (resources is null || await resources.GetAsync(citation.Resource, CancellationToken.None) is not { } stored || ticket != _opening)
+        if (resources is null || citation.Resource is not { } resource || await resources.GetAsync(resource, CancellationToken.None) is not { } stored || ticket != _opening)
         {
             return;
         }
@@ -155,7 +162,19 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
     private void AskToOpen() => IsConfirmingOpen = SourceUrl is not null;
 
     [RelayCommand]
-    private void CancelOpen() => IsConfirmingOpen = false;
+    private void CancelOpen()
+    {
+        IsConfirmingOpen = false;
+        CloseAddressOnly();
+    }
+
+    private void CloseAddressOnly()
+    {
+        if (IsAddressOnly)
+        {
+            Close();
+        }
+    }
 
     [RelayCommand]
     private void ConfirmOpen()
@@ -166,6 +185,7 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
         }
 
         IsConfirmingOpen = false;
+        CloseAddressOnly();
     }
 
     [RelayCommand]
@@ -179,5 +199,6 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
         Highlight = null;
         SourceUrl = null;
         IsConfirmingOpen = false;
+        IsAddressOnly = false;
     }
 }

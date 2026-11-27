@@ -16,6 +16,9 @@ public interface IModelPhrases
     /// <summary>An attachment as one line of its message's text, such as <c>[Attachment: name]</c>.</summary>
     string AttachmentMarker(string name);
 
+    /// <summary>All that is said of an attachment a share left out: that there was one (docs/design/sharing-import.md §3).</summary>
+    string AttachmentNotIncluded { get; }
+
     /// <summary>The line opening a whole text attachment; its text follows after a blank line.</summary>
     string MaterialWhole(string name);
 
@@ -43,7 +46,7 @@ public interface IModelPhrases
     /// <summary>The line naming an image sent as an image part.</summary>
     string Image(string name);
 
-    /// <summary>A citation's name in a citation list: a web page's title as it is, or the kind of material and its title.</summary>
+    /// <summary>A citation's name in a citation list: a web page's title as it is, or the kind of material and its title; the kind alone when <paramref name="title"/> is empty.</summary>
     string CitationLabel(CitationKind kind, string title);
 
     /// <summary>The heading of an answer's citation list in its context text.</summary>
