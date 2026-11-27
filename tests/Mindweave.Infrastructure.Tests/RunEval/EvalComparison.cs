@@ -80,6 +80,7 @@ internal static class EvalComparison
         Compare(s, "全部模型请求（含标题、摘要与前面的提问）", Sum(first, m => m.ScenarioRequests), Sum(second, m => m.ScenarioRequests));
         Compare(s, "全部输入 token（服务报告）", Sum(first, m => m.ScenarioPromptTokens ?? 0), Sum(second, m => m.ScenarioPromptTokens ?? 0));
         Compare(s, "全部输出 token（服务报告）", Sum(first, m => m.ScenarioCompletionTokens ?? 0), Sum(second, m => m.ScenarioCompletionTokens ?? 0));
+        Row(s, "其中读自缓存的输入 token（服务报告）", EvalText.CacheRead(Metrics(first)), EvalText.CacheRead(Metrics(second)), null);
         if (prices is not null)
         {
             Compare(s, "费用（全部）", Cost(first, prices), Cost(second, prices), "0.0000");
@@ -202,6 +203,8 @@ internal static class EvalComparison
         [.. first.Results.Join(second.Results, r => r.Scenario.Id, r => r.Scenario.Id, (a, b) => (a.Scenario, a, b), StringComparer.Ordinal)];
 
     private static string Passed(IReadOnlyList<EvalResult> results) => $"{results.Sum(r => r.Passed)} / {results.Sum(r => r.Checks.Count)}";
+
+    private static List<EvalMetrics> Metrics(EvalRun run) => [.. run.Results.Select(r => r.Metrics).OfType<EvalMetrics>()];
 
     private static double Sum(EvalRun run, Func<EvalMetrics, int> pick) => run.Results.Select(r => r.Metrics).OfType<EvalMetrics>().Sum(pick);
 

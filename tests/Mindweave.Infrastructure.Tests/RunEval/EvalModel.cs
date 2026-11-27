@@ -134,6 +134,9 @@ internal sealed record EvalObservation(
 
     public int? ScenarioCompletionTokens { get; init; }
 
+    /// <summary>Of <see cref="ScenarioPromptTokens"/>, what the provider read from its cache; null when it reported none.</summary>
+    public int? ScenarioCacheReadTokens { get; init; }
+
     /// <summary>What is measured: the summary's text in a summary scenario, the answer's otherwise.</summary>
     public string Text => Summary is { } summary ? summary.Body : Answer.Text;
 }
@@ -178,6 +181,9 @@ internal sealed record EvalMetrics(
 
     public int? ScenarioCompletionTokens { get; init; }
 
+    /// <summary>Of <see cref="ScenarioPromptTokens"/>, what the provider read from its cache; null when it reported none.</summary>
+    public int? ScenarioCacheReadTokens { get; init; }
+
     /// <summary>Input tokens: what the service reported, else the app's estimate.</summary>
     public int InputTokens => PromptTokens ?? EstimatedTokens;
 
@@ -207,6 +213,7 @@ internal sealed record EvalMetrics(
             ScenarioRequests = o.ScenarioRequests,
             ScenarioPromptTokens = o.ScenarioPromptTokens,
             ScenarioCompletionTokens = o.ScenarioCompletionTokens,
+            ScenarioCacheReadTokens = o.ScenarioCacheReadTokens,
         };
     }
 }

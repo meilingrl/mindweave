@@ -98,6 +98,7 @@ public class RunEvalTests
             Assert.Contains("| 检查通过 | ", markdown, StringComparison.Ordinal);
             Assert.Contains("| web-auto | 网络 | Complete | ", markdown, StringComparison.Ordinal);
             Assert.Contains("| summaries | 总结网络 | 未运行 |", markdown, StringComparison.Ordinal);
+            Assert.Contains("| 其中读自缓存的输入 token（服务报告） | 服务未报告 |", markdown, StringComparison.Ordinal);
             Assert.Contains("**未能运行：** 提问被拒绝：QuestionTooLarge", markdown, StringComparison.Ordinal);
             Assert.Contains("1. `web_search` 星河-3 探测器 最新进展 — Completed", markdown, StringComparison.Ordinal);
             Assert.Contains("> 星河-3 探测器已于 2026 年 11 月 9 日在月球背面成功着陆[1]。", markdown, StringComparison.Ordinal);
@@ -217,6 +218,11 @@ public class RunEvalTests
         Assert.Contains("### 本版的回答", markdown, StringComparison.Ordinal);
         Assert.Contains("所选的段落：", markdown, StringComparison.Ordinal);
         Assert.Contains("| 不重复上一级回答 | ✓", markdown, StringComparison.Ordinal);
+
+        // Prompt caching (requirements §10.11.4): what the provider read from its cache, and its share of the input.
+        Assert.Contains("| 其中读自缓存的输入 token（服务报告） | 服务未报告 | 服务未报告 |", markdown, StringComparison.Ordinal);
+        var cached = current[0].Metrics! with { ScenarioPromptTokens = 1_000, ScenarioCacheReadTokens = 300 };
+        Assert.Equal("300（30%）", EvalText.CacheRead([cached, current[1].Metrics! with { ScenarioCacheReadTokens = null }]));
 
         // The answer instructions cost input on every answer: the current edition sends more.
         var input = current[0].Metrics!.InputTokens - previous[0].Metrics!.InputTokens;

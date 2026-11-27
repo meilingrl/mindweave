@@ -160,7 +160,7 @@ internal static partial class EvalRunner
             },
             ct);
         var (title, shortTitle, body) = stored ?? (string.Empty, null, string.Empty);
-        var (total, prompt, completion) = await TotalsAsync(h, ct);
+        var (total, prompt, completion, cached) = await TotalsAsync(h, ct);
         var first = requests.FirstOrDefault(r => r.FirstTextMilliseconds is not null);
         return answered with
         {
@@ -172,20 +172,24 @@ internal static partial class EvalRunner
             ScenarioRequests = total,
             ScenarioPromptTokens = prompt,
             ScenarioCompletionTokens = completion,
+            ScenarioCacheReadTokens = cached,
             TimedOut = state is null,
             Cited = [],
         };
     }
 
-    /// <summary>Requests of the whole scenario, and the tokens the service reported for them.</summary>
-    private static Task<(int Requests, int? Prompt, int? Completion)> TotalsAsync(ChatHarness h, CancellationToken ct) =>
+    /// <summary>
+    /// Requests of the whole scenario, the tokens the service reported for them, and the input it read from its cache
+    /// (requirements §10.11.4; null when it reported none).
+    /// </summary>
+    private static Task<(int Requests, int? Prompt, int? Completion, int? CacheRead)> TotalsAsync(ChatHarness h, CancellationToken ct) =>
         h.Database.ReadAsync(
             c =>
             {
-                using var cmd = c.Command(null, "SELECT count(*), sum(prompt_tokens), sum(completion_tokens) FROM ai_request;");
+                using var cmd = c.Command(null, "SELECT count(*), sum(prompt_tokens), sum(completion_tokens), sum(cache_read_tokens) FROM ai_request;");
                 using var reader = cmd.ExecuteReader();
                 reader.Read();
-                return (reader.GetInt32(0), reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1), reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2));
+                return (reader.GetInt32(0), reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1), reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2), reader.IsDBNull(3) ? (int?)null : reader.GetInt32(3));
             },
             ct);
 
@@ -239,7 +243,7 @@ internal static partial class EvalRunner
         var calls = (run?.Steps ?? []).Where(s => s.Kind == RunStepKind.Tool)
             .Select(s => new EvalCall(s.Tool ?? "?", s.CallId is { } cid && blocks.TryGetValue(cid, out var b) ? b.Arguments : string.Empty, s.Input, s.State, s.Approval?.ToString()))
             .ToList();
-        var (total, prompt, completion) = await TotalsAsync(h, ct);
+        var (total, prompt, completion, cached) = await TotalsAsync(h, ct);
         return new EvalObservation(
             answer, run, calls, requests, [.. approvals],
             [.. h.Search.Searches.Skip(searchesBefore).Select(s => s.Query)],
@@ -248,6 +252,7 @@ internal static partial class EvalRunner
         {
             ScenarioPromptTokens = prompt,
             ScenarioCompletionTokens = completion,
+            ScenarioCacheReadTokens = cached,
             Cited = await CitedAsync(h, answer, ct),
         };
     }

@@ -11,6 +11,26 @@ namespace Mindweave.Infrastructure.Tests.RunEval;
 /// </summary>
 internal static partial class EvalText
 {
+    /// <summary>
+    /// The input the provider read from its cache over all requests of the scenarios, and its share of their input
+    /// (requirements §10.11.4): "12,345（38%）", or "服务未报告" when it reported none.
+    /// </summary>
+    public static string CacheRead(IReadOnlyCollection<EvalMetrics> metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        var reported = metrics.Where(m => m.ScenarioCacheReadTokens is not null).ToList();
+        if (reported.Count == 0)
+        {
+            return "服务未报告";
+        }
+
+        var read = reported.Sum(m => (long)m.ScenarioCacheReadTokens!.Value);
+        var input = reported.Sum(m => (long)(m.ScenarioPromptTokens ?? 0));
+        return input > 0
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{read:N0}（{Math.Round(100.0 * read / input, MidpointRounding.AwayFromZero):0}%）")
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{read:N0}");
+    }
+
     /// <summary>Runs of this many letters count as copied when the parent answer has them too.</summary>
     public const int Run = 12;
 

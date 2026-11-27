@@ -47,6 +47,7 @@ internal static class EvalReport
             Row(s, "服务报告的输入／输出 token", metrics.Any(m => m.PromptTokens is not null) ? $"{metrics.Sum(m => m.PromptTokens ?? 0):N0} / {metrics.Sum(m => m.CompletionTokens ?? 0):N0}" : "服务未报告");
             Row(s, "全部模型请求（含标题、摘要与前面的提问）", $"{ran.Sum(r => r.Observation!.ScenarioRequests)}");
             Row(s, "全部输入／输出 token（服务报告）", metrics.Any(m => m.ScenarioPromptTokens is not null) ? $"{metrics.Sum(m => m.ScenarioPromptTokens ?? 0):N0} / {metrics.Sum(m => m.ScenarioCompletionTokens ?? 0):N0}" : "服务未报告");
+            Row(s, "其中读自缓存的输入 token（服务报告）", EvalText.CacheRead(metrics));
             if (prices is not null)
             {
                 Row(s, "费用（全部）", $"{metrics.Sum(m => prices.Of(m.ScenarioPromptTokens ?? m.InputTokens, m.ScenarioCompletionTokens ?? m.CompletionTokens ?? 0)):0.0000}");
