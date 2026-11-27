@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.31  
+**Version:** v0.32  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -274,8 +274,8 @@ Import and export of whole conversations, with messages, branch sources, summari
 - Content that was saved successfully can be read after a restart; when the AI service is unavailable, existing conversations and summaries can still be read.
 - The runtime back history of each workspace and main area is kept and can be restored after switching. A restart restores only the last valid page, reading and drafts, not the full back history.
 - The same database has only one instance that writes and schedules; a repeated launch preferably returns to the existing window. After an abnormal exit, the app can be reopened safely.
-- When a core save fails, the input and in-memory state are kept and can be read and copied; new AI requests and actions that depend on a commit are paused. If quitting fails, the user can retry or go back; old tasks do not revive automatically. When only layout or page state fails, the app can degrade.
-- Before a data upgrade, a consistent backup is kept; forward migration and rollback on failure are supported. Restoring a backup is chosen explicitly by the user; it does not overwrite the original database automatically, and an empty database does not pose as a successful restore. A forced termination guarantees only committed checkpoints.
+- When a core save fails, the input and in-memory state are kept and can be read and copied; new AI requests and actions that depend on a commit are paused. If quitting fails, the user can retry or go back; after a retry has failed, the user can also quit without saving, and is first told what will be lost (v0.31). Old tasks do not revive automatically. When only layout or page state fails, the app can degrade.
+- Before a data upgrade, a consistent backup is kept, and the user is told that an upgrade is running and, afterwards, which version the data has and where the backup is (v0.31); forward migration and rollback on failure are supported. Restoring a backup is chosen explicitly by the user; it does not overwrite the original database automatically, and an empty database does not pose as a successful restore. A forced termination guarantees only committed checkpoints.
 
 ### 9.4 API and extension boundaries
 
@@ -482,7 +482,7 @@ v0.17 (2026-11-17) wrote this phase to the point where it can be accepted; on 20
 | “检索总结” (search summaries) | The current versions of the saved summaries in this workspace (including summaries of archived conversations), searching titles and text by keyword | At most 8 summaries: title, node ID, relevant snippet |
 
 - Each call is at most 10 seconds; a timeout is handled as an error.
-- Each result is saved in full as a resource of this conversation (a tool result), and can be opened in the step details. The part given to the model is at most about 2,000 estimated tokens. When it is longer, only a preview and the resource ID are given, and the model can read more with “检索附件”. The preview is the beginning of the result; for a long page of prose it is the passages that best match the question (§10.8).
+- Each result is saved in full as a resource of this conversation (a tool result), and can be opened in the step details. The part given to the model is at most about 2,000 estimated tokens. When it is longer, only a preview and the resource ID are given, and the model can read more with “检索附件”. The preview is the beginning of the result; for a long page of prose it is the passages that best match the question (§10.9).
 - Phase 2 does not add numbered citations in the answer body (Q8: citations come in phase 3 with web search). Summaries found by “检索总结” are listed in the step details, and clicking one opens that summary.
 
 **Activity text and step details.**
@@ -524,7 +524,7 @@ v0.18 (2026-11-17) wrote this phase to the point where it can be accepted: the f
 | Tool | What it does | What it gives the model |
 | --- | --- | --- |
 | “网络搜索” (web search) | Searches one query with the configured search service, at most 5 results each time | For each result: number, title, URL, snippet |
-| “取网页” (web fetch) | Reads one URL and turns the web page into readable text (HTML pages, plain text, PDFs with a text layer) | Number, title, URL and body text; when the body is longer than about 2,000 estimated tokens, the opening of the page, the passages that best match the question and the resource ID are given (§10.8), and the model can read the rest with “检索附件” (search attachments) |
+| “取网页” (web fetch) | Reads one URL and turns the web page into readable text (HTML pages, plain text, PDFs with a text layer) | Number, title, URL and body text; when the body is longer than about 2,000 estimated tokens, the opening of the page, the passages that best match the question and the resource ID are given (§10.9), and the model can read the rest with “检索附件” (search attachments) |
 
 - **Boundaries of web fetch:** only `http` and `https` URLs are read. Local, LAN and other private addresses (including Tailscale and other 100.64.0.0/10 addresses) and other schemes such as `file://` are refused; both the addresses after domain resolution and every redirect are checked. At most 5 redirects. No cookies or any login information are sent. A page is at most 5 MB and 20 seconds. Images, videos, archives and other types are not read, and the reason is stated. A page that is only a check that the visitor is not a robot counts as a failed fetch, with that reason. When a fetch is refused or fails, the error is handed back to the model as the result, and the run continues.
 - **URLs that need approval (Q10):** URLs that appeared in this run's search results, in the user's questions and attachments in this conversation, or in the links of pages already read in this run are read directly. Before any other URL (one the model wrote itself) is read, a small card appears in the answer: “模型想读取一个没有在搜索结果或你的消息中出现过的网址” (The model wants to read a URL that did not appear in the search results or your messages). It shows the full URL and offers “允许” (Allow) and “拒绝” (Deny). While waiting, the run pauses, takes no execution slot, and does not count toward the run's duration; after approval it continues ahead of queued questions. On denial, the model gets the result “用户拒绝读取这个网址” (The user denied reading this URL) and continues. If stop, quit or restart happens while waiting, the card becomes invalid, the answer is marked stopped or interrupted, and it does not continue automatically.
@@ -615,6 +615,8 @@ Built after the first release, by the user's decisions of 2026-11-10 to 2026-11-
 - **Usage statistics.** A page states facts only: tokens as the services reported them, requests, activity, and tool calls, for all workspaces or the current one, by day or by month, by model and by purpose. Requests whose usage was not reported are counted apart and not estimated. The user can enter prices to see an approximate cost. It does not judge learning (§5.4).
 - **Restoring a backup inside the app.** The user can restore a backup from the list of backups, or delete backups. Restoring brings back all workspaces, not one. Before it, running work is stopped (the user is asked first), drafts are saved, and the current data is kept as a backup of its own, so the restore can be undone.
 - **Workspace name suggestions.** When a workspace is renamed, the AI can suggest names from the titles of its conversations (a conversation without one by the start of its first question), the names of its summaries and its current name. Suggestions may also be prepared in the background (on by default; it can be turned off); such a request gives way to questions, summaries, titles and names.
+- **Appearance** (v0.31). The app is light or dark, or follows the system (the default); the choice takes effect at once.
+- **Right-click menu** (v0.31). A right-click on a conversation in the sidebar opens a menu of the actions for it.
 
 ### 10.7 Sharing, import and device copies (v0.29)
 
@@ -698,7 +700,43 @@ Before the file is saved, the dialog lists what will leave: the numbers of conve
 
 **Not included.** Hosted links, accounts and a community; automatic sync such as watching a cloud folder; attachment contents in a share; editing or hiding single sentences while sharing; password protection of the file; an exporter to PDF of its own; importing the exports of other assistants; a list of past shares.
 
-### 10.8 How answers and summaries are written (v0.31)
+### 10.8 Failures, diagnostics, keys and erasing (v0.31)
+
+The user's decisions of 2026-11-27 (design in [Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md)). The app sends nothing about itself anywhere; everything here stays on the user's machine unless the user moves a file.
+
+**A failed request.**
+
+1. A failure looks the same wherever it is shown: an answer, a summary, a tool step, the connection test, the web search test, an MCP server. It states what failed and the kind of failure, then says in one sentence what to do, with a link to the setting that fixes it when there is one.
+2. Details can be opened: the time, the model, the status the service returned, the service's request number, the duration and the service's own text. All of it can be selected, and one action copies it together with the app version and the system. It holds no conversation text and no key.
+3. A request the user did not start (an automatic title or name) fails silently on the page.
+4. Settings has a page “诊断” (Diagnostics). It lists recent requests with time, purpose, model, result and duration, failures first; a row opens the same details. The list holds no conversation content.
+
+**Diagnostic package.**
+
+1. From “诊断” the user can save a diagnostic package: one file of plain files that can be read before it is sent. The app does not send it.
+2. It holds a summary of the installation (versions, system, language, sizes and counts, the list of backups), the request records of the last 14 days, the settings that are not secret, and the log.
+3. It never holds conversation text, questions, answers, summaries, titles, workspace names, attachment names or contents, saved web pages, keys, or an MCP server's command, arguments, environment or headers.
+4. Before the file is saved, the dialog lists what will leave. Model names with service hosts, and the log, can each be left out.
+5. The package can also be saved when the data cannot be opened; it then holds the summary and the log.
+6. The log folder can be opened from the same page.
+
+**Keys.**
+
+1. The key of the model connection can be removed, as the web search key can. When requests are using it, the user is asked first.
+2. A key that nothing uses any more does not stay in the system's key store: a replaced key is removed once no unfinished request uses it, and at start-up the app removes the items of its own that nothing refers to. After restoring an older backup, a key may therefore have to be entered again.
+3. “诊断” can remove all keys of Mindweave from this computer, for before the app is deleted. It asks once.
+4. When the system's key store does not answer, the request fails with that reason after a wait and does not hold up other requests.
+
+**Erasing deleted content for good.**
+
+1. Deleting stays as §8.2 states it: a backup may still hold the content. Erasing is a separate action in 设置 › 数据与存储 (Settings › Data and storage).
+2. It makes every copy the app keeps match the current data: the database file is rewritten, one fresh backup is made, and every backup or replaced database that still holds deleted content is deleted, with the attachment copies beside it.
+3. Before it starts, it names those backups, says it cannot be undone, and says what it does not reach: copies made by the system or by the user outside the app.
+4. It works on all deleted content at once, not on one chosen conversation.
+5. The confirmation of a deletion that makes a backup says that the backup keeps the content and where it can be erased.
+
+**Content the app cannot draw.** A message whose formula or formatting cannot be drawn is shown as plain text with a note; it does not stop the app.
+### 10.9 How answers and summaries are written (v0.32)
 
 By the user's decisions of 2026-11-25 and 2026-11-26. The aim: an explanation is easier to follow, a summary is easier to review, and the user takes no extra step to get either. Nothing here adds a model request to an answer, and nothing new appears under an answer.
 
@@ -727,7 +765,7 @@ By the user's decisions of 2026-11-25 and 2026-11-26. The aim: an explanation is
 
 **A long page.** When a web page read during a run is longer than what is given to the model (§10.4.4), the model gets the opening of the page, then the passages that best match the question and the search that led to the page, in page order, with a mark where text is left out, and the resource ID. When no passage matches well, it gets the beginning, as for any long result. A result that is data and not prose keeps its beginning. Citations still point at the page and are found in its full saved text (§10.4.5).
 
-**Summaries.** A summary (§6.4) starts with one or two sentences that say what was learned. Its body is organized by concept, not by the order of the questions. When the conversation introduced terms, the summary lists them with a one-line definition each. Everything §6.4 asks a summary to keep still holds. This applies to summaries and versions generated from v0.31 on; existing ones are not rewritten.
+**Summaries.** A summary (§6.4) starts with one or two sentences that say what was learned. Its body is organized by concept, not by the order of the questions. When the conversation introduced terms, the summary lists them with a one-line definition each. Everything §6.4 asks a summary to keep still holds. This applies to summaries and versions generated from v0.32 on; existing ones are not rewritten.
 
 **Not included.** Suggested next questions under an answer; a card that asks the user to choose a reading before an answer; self-check or quiz cards and a mode in which the model leads with questions (§5.4); a model request that rewrites a follow-up question; optional summary styles; a second pass in which the model checks its own answer.
 
@@ -968,4 +1006,5 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.28 · 2026-11-24:** Following the user's decisions of 2026-11-24: the tool that searches saved summaries is called “检索总结” (search summaries) in the interface (§10.4.4, §10.4.5); “检索附件” is offered during a run once a result is not sent whole (§10.4.4); a page that is only a check that the visitor is not a robot counts as a failed fetch (§10.4.5). Does not change the first-release scope and acceptance.
 - **v0.29 · 2026-11-25:** Following the user's decisions of 2026-11-24 and 2026-11-25 (D-039), added §10.7 sharing, import and device copies: a share is a set of conversations from one workspace saved as one HTML file; it carries only the structure unless the user chooses the content; what never leaves; the page a reader sees; a share is a snapshot and no record is kept; import only keeps or adds and never copies what is already there; a device copy carries a whole workspace between the user's devices and offers deletions without making them. §4 gains the concepts share and device copy; §8.3 and §10.1 point to §10.7; §11 adds its acceptance. Does not change the first-release scope and acceptance.
 - **v0.30 · 2026-11-25:** Following the user's decisions of 2026-11-25 on import (D-041; [import note](design/sharing-import.md)), §10.7: a received conversation is read-only, and the user's question at its end starts a conversation of their own that continues from it; a shared file never changes a title, the current summary or the archived state; a structure-only share arrives as empty conversations that a later share with content fills; stand-ins for what a share left out; a URL in received text needs approval; two continuations of one conversation arise only between the user's own devices and move to device copies. §11's acceptance follows. Does not change the first-release scope and acceptance.
-- **v0.31 · 2026-11-26:** Following the user's decisions of 2026-11-25 and 2026-11-26 ([reply-quality.md](ideas/reply-quality.md), Q1–Q11), added §10.8, how answers and summaries are written: answer instructions for every answer, with a part for branch answers and for a question with two readings; a personal note in Settings; the titles of matching summaries sent with a question; the passages of a long page that match the question (§10.4.4, §10.4.5); summaries with a gist, a body by concept and key terms. No suggested questions under an answer, no quiz or guided mode. §11 adds its acceptance. One new stored preference.
+- **v0.31 · 2026-11-27:** Following the user's decisions of 2026-11-27 ([Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md)), added §10.8: what a failed request shows, the diagnostics page and package, removing keys and keys left behind, erasing deleted content for good, and content that cannot be drawn. §9.3: quitting without saving after a failed retry, and telling the user about a data upgrade. §10.6: appearance and the right-click menu, which were built and written down nowhere. Does not change the first-release scope and acceptance; no migration.
+- **v0.32 · 2026-11-27:** Following the user's decisions of 2026-11-25 and 2026-11-26 ([reply-quality.md](ideas/reply-quality.md), Q1–Q11), added §10.9, how answers and summaries are written: answer instructions for every answer, with a part for branch answers and for a question with two readings; a personal note in Settings; the titles of matching summaries sent with a question; the passages of a long page that match the question (§10.4.4, §10.4.5); summaries with a gist, a body by concept and key terms. No suggested questions under an answer, no quiz or guided mode. §11 adds its acceptance. One new stored preference.

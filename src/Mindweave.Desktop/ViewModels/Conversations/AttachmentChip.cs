@@ -91,7 +91,19 @@ public sealed partial class AttachmentChip : ViewModelBase
         };
     }
 
+    /// <summary>The name of an attachment a share left out (docs/design/sharing-import.md §3): nothing opens.</summary>
+    internal static AttachmentChip ForAbsent(AbsentAttachmentBlock block)
+    {
+        ArgumentNullException.ThrowIfNull(block);
+        return new AttachmentChip(block.Name ?? UiText.PastedTextName, string.Empty, false, block.Name is null, null, null) { IsAbsent = true, State = AttachmentChipState.Ready };
+    }
+
     public string Name { get; }
+
+    /// <summary>It did not travel in the share it arrived in.</summary>
+    public bool IsAbsent { get; private init; }
+
+    public bool CanOpen => IsReady && !IsAbsent;
 
     public string TypeLabel { get; }
 
@@ -117,7 +129,7 @@ public sealed partial class AttachmentChip : ViewModelBase
     internal int InsertAt { get; init; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWorking), nameof(IsFailed), nameof(IsReady), nameof(Detail), nameof(CanConvert))]
+    [NotifyPropertyChangedFor(nameof(IsWorking), nameof(IsFailed), nameof(IsReady), nameof(CanOpen), nameof(Detail), nameof(CanConvert))]
     public partial AttachmentChipState State { get; private set; }
 
     [ObservableProperty]
@@ -156,11 +168,12 @@ public sealed partial class AttachmentChip : ViewModelBase
     {
         AttachmentChipState.Working => UiText.Extracting,
         AttachmentChipState.Failed => Problem ?? string.Empty,
+        _ when IsAbsent => UiText.NotIncluded,
         _ => IsOriginalMissing ? $"{TypeLabel} · {UiText.OriginalMissing}" : $"{TypeLabel} · {SizeLabel}",
     };
 
     /// <summary>The name a screen reader says, with the detail.</summary>
-    public string AccessibleName => UiText.AttachmentAccessibleName(Name);
+    public string AccessibleName => IsAbsent ? Name + " · " + UiText.NotIncluded : UiText.AttachmentAccessibleName(Name);
 
     internal void Succeed(StoredResource stored, bool originalThere)
     {
@@ -199,7 +212,7 @@ public sealed partial class AttachmentChip : ViewModelBase
     [RelayCommand]
     private void Open()
     {
-        if (IsReady)
+        if (CanOpen)
         {
             _open?.Invoke(this);
         }

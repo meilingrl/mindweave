@@ -31,8 +31,8 @@ Based on architecture §4.1 and §4.2. Following the development route, only the
 | Create a branch: child conversation + branch source + ancestor ranges | S2 |
 | Adopt/discard/set as current/delete a version; the node is deleted with its last version | S4 |
 | Delete a conversation, or a closed set of conversations with their summaries; delete a workspace; archive and restore | S6, item 3 |
-| Import a shared file: the new workspace if one was chosen, the import, its conversations with their branch rows and ranges | v19 |
-| Ask in an empty received conversation: the user's own branch with its first question, and the draft's attachments | v19 |
+| Import a shared file: the new workspace if one was chosen, the import, its conversations with their branch rows and ranges, their messages, sources, summaries and links | v19 |
+| Ask in a received conversation: the user's own branch of it with its first question, and the draft's attachments | v19 |
 | Save the places of explorations that are new or changed, when the network loads | v18 |
 
 ## Deletion boundaries

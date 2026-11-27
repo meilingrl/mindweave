@@ -112,7 +112,7 @@ public sealed class ShareContentFlowTests : IDisposable
 
         // What may not leave is not.
         Assert.DoesNotContain("PLANTED", html, StringComparison.OrdinalIgnoreCase);
-        foreach (var secret in new[] { unticked.ToString(), superseded.Id.ToString(), h.Workspace.ToString(), file.Resource.Id.ToString(), cited.Resource.ToString(), server.Id, echo.ModelName, "example.org/uncited" })
+        foreach (var secret in new[] { unticked.ToString(), superseded.Id.ToString(), h.Workspace.ToString(), file.Resource.Id.ToString(), cited.Resource!.Value.ToString(), server.Id, echo.ModelName, "example.org/uncited" })
         {
             Assert.DoesNotContain(secret, html, StringComparison.OrdinalIgnoreCase);
         }

@@ -1,6 +1,6 @@
 # Sharing a thinking path (design)
 
-**Status:** approved by the owner on 2026-11-25 (D-039). Step 1 (§12) is built: 1a in 0.6.13, 1b in 0.6.15. Of step 2, 2a is built (0.6.18); 2b and step 3 are not. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. The requirements and architecture text that follows from it is listed in §13; the owner confirmed it on 2026-11-25.
+**Status:** approved by the owner on 2026-11-25 (D-039). Step 1 (§12) is built: 1a in 0.6.13, 1b in 0.6.15. Step 2 is built: 2a in 0.6.18, 2b in 0.6.19. Step 3 is not. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. The requirements and architecture text that follows from it is listed in §13; the owner confirmed it on 2026-11-25.
 
 Related: [session-network.md](session-network.md) (every conversation is a dot; the timeline), [evolution-seams.md](evolution-seams.md) E5 (the exchange format), [attachments.md](attachments.md), [web-search.md](web-search.md), [reasoning-and-status.md](reasoning-and-status.md), requirements §8.3 (export) and §10.1 (full import and export, sync). The page's look: [prototypes/share-page](../../prototypes/share-page/README.md).
 
@@ -201,7 +201,7 @@ One model, in Application, built from the stores and holding no stored record:
 
 - the share: format name and version (E5: `mindweave-export`, version 1), title, the time it was made, the app version, and its kind: `structure`, `content` or `device`;
 - conversations: identity, title, start time, parent identity, number of questions, whether it has a summary;
-- with content: per conversation, its messages in order (identity, role, time, state, text as Markdown, attachment names, the tool count line, citations as S7 allows), its branch source (the parent message's identity, the quoted text, and the position as block index and offset, per E5), and its current summary version (identity, title, body, time). For import, each message also carries its stored sequence number, gaps included, and the summary the number it covers up to (owner, 2026-11-25);
+- with content: per conversation, its messages in order (identity, role, time, state, text as Markdown, attachment names, the tool count line, citations as S7 allows), its branch source (the parent message's identity, the quoted text, and the position as block index and offset, per E5; a continuation of a received conversation has no quoted text, [sharing-import.md](sharing-import.md) I4), and its current summary version (identity, title, body, time). For import, each message also carries its stored sequence number, gaps included, and the summary the number it covers up to (owner, 2026-11-25);
 - summary links between two shared conversations (identities; the note only with content);
 - for a device copy only (step 3): everything S7 holds back from a share except keys, connections and addresses; the list of deleted identities.
 

@@ -264,3 +264,12 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **A URL in received text needs your approval** before the model reads it.
 - The note is [sharing-import.md](sharing-import.md). It corrects [sharing.md](sharing.md) where the two differed.
 
+## D-042 Security and diagnostics are adopted; the upkeep rows are decided (you, 2026-11-25 and 11-27)
+
+- **Evolution D2 is adopted as designed.** A failed request shows the same block everywhere, with details that can be copied. Settings gets a diagnostics page with the list of requests and the export of a diagnostic package.
+- **The package is built from a list of what may enter it.** It never carries content, titles, keys, or the arguments, environment or headers of an MCP server. The dialog lists what leaves before anything is written.
+- **Keys.** A key can be removed. Old keys are cleaned when settings are saved, when a task ends and at start-up. Items of this channel that nothing refers to are deleted at start-up. One command removes every key of Mindweave from the computer.
+- **Erasing is one mechanism.** It makes every copy match the current data: the database is rewritten, one fresh backup is made, and the backups that held deleted content are deleted. `secure_delete` stays off, and no migration is needed.
+- **Two rules for what is left for later.** A performance problem with an easy fix is fixed early, without waiting until users feel it. An architectural problem is never left. Four rows of the health check are therefore fixed now: performance-5, performance-9, architecture-4, architecture-5.
+- **The 15 upkeep rows are decided.** Among them: the schema version is the only gate for stored formats; "Quit without saving" after a failed retry; a broken relationship from before a migration does not stop it; no lock files before 1.0.0; performance budgets run in CI without blocking; no coverage figure.
+- The note is [diagnostics-and-upkeep.md](diagnostics-and-upkeep.md); the text is requirements v0.31 (§10.8) and architecture §17. Nothing is built.

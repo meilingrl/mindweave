@@ -18,6 +18,10 @@ public static partial class UiText
         "Structure only: titles and branch lines, no questions or answers. The conversations arrive empty, not explored yet.",
         "只有结构：标题和分支连线，没有提问和回答。会话导入后是空的，尚未探索。");
 
+    public static string ImportKindContent => T(
+        "With conversation content: questions, answers and summaries. What arrives is read-only; your own questions continue in conversations of your own.",
+        "包含会话内容：提问、回答和总结。导入的会话只读；你的提问会在你自己的会话中继续。");
+
     public static string ImportIntoHeading => T("Import into", "导入到");
 
     public static string ImportIntoNew(string name) => T("A new workspace, “" + name + "”", "新工作区“" + name + "”");
@@ -34,6 +38,27 @@ public static partial class UiText
     public static string ImportNew(int count) => T(
         Plural(count, "conversation is", "conversations are") + " new and will be added",
         string.Format(CultureInfo.InvariantCulture, "新增 {0} 个会话", count));
+
+    public static string ImportGainsMessages(int count) => T(
+        Plural(count, "conversation is", "conversations are") + " here and will gain messages",
+        string.Format(CultureInfo.InvariantCulture, "{0} 个已在这里的会话会增加消息", count));
+
+    /// <summary>What is here and gains something other than messages.</summary>
+    public static string ImportGainsMore(int count) => T(
+        Plural(count, "conversation is", "conversations are") + " here and will gain a summary or the sentence " + (count == 1 ? "it" : "they") + " left from",
+        string.Format(CultureInfo.InvariantCulture, "{0} 个已在这里的会话会增加总结或分出的原句", count));
+
+    public static string ImportLinks(int count) => T(
+        Plural(count, "link between summaries", "links between summaries") + " will be added",
+        string.Format(CultureInfo.InvariantCulture, "新增 {0} 条总结之间的关联", count));
+
+    public static string ImportUnfit(int count) => T(
+        Plural(count, "conversation", "conversations") + " will be skipped: what the file has doesn’t fit what is here",
+        string.Format(CultureInfo.InvariantCulture, "跳过 {0} 个会话：文件中的内容与这里已有的对不上", count));
+
+    public static string ImportOwn(int count) => T(
+        Plural(count, "conversation of your own", "conversations of your own") + " will be skipped: the file has messages for " + (count == 1 ? "it" : "them") + " that aren’t here, and a shared file never adds to your own conversations",
+        string.Format(CultureInfo.InvariantCulture, "跳过 {0} 个你自己的会话：文件中有这里没有的消息，而分享文件不会改动你自己的会话", count));
 
     public static string ImportHere(int count) => T(
         Plural(count, "conversation is", "conversations are") + " already here and will stay as " + (count == 1 ? "it is" : "they are"),
@@ -63,7 +88,6 @@ public static partial class UiText
         ImportRefusal.Damaged => T("This file is damaged and can’t be imported.", "这个文件已损坏，无法导入。"),
         ImportRefusal.NewerFormat => T("This file was made by a newer Mindweave. Update Mindweave to open this.", "这个文件由更新版本的 Mindweave 生成。请更新 Mindweave 后再打开。"),
         ImportRefusal.DeviceCopy => T("This is a copy of a workspace for another device. A newer Mindweave is needed to import it.", "这是给另一台设备的工作区副本，需要更新版本的 Mindweave 才能导入。"),
-        ImportRefusal.WithContent => T("This share includes conversation content. This version imports structure-only shares.", "这个分享包含会话内容。当前版本只能导入只有结构的分享。"),
         ImportRefusal.TooLarge => T("This file is too large to import.", "这个文件太大，无法导入。"),
         _ => T("Couldn’t read this file.", "无法读取这个文件。"),
     };
@@ -90,6 +114,34 @@ public static partial class UiText
 
     /// <summary>In the empty input of a received conversation (decision I4).</summary>
     public static string AskInReceivedPlaceholder => T("Ask here to start a conversation of your own…", "在这里提问，开始你自己的会话…");
+
+    /// <summary>In the input of a received conversation with messages (decision I4).</summary>
+    public static string ContinueReceivedPlaceholder => T("Ask here to continue in a conversation of your own…", "在这里提问，在你自己的会话中继续…");
+
+    /// <summary>In a received answer's details, where the time is.</summary>
+    public static string ImportedAnswer => T("Imported", "导入");
+
+    /// <summary>Where an attachment's type and size would be.</summary>
+    public static string NotIncluded => T("Not included in the share", "未包含在分享中");
+
+    /// <summary>The address of a received web citation is all there is of it.</summary>
+    public static string CitationNotSaved(int number) => T(
+        string.Format(CultureInfo.InvariantCulture, "Citation [{0}] · the page isn’t in the share", number),
+        string.Format(CultureInfo.InvariantCulture, "出处 [{0}] · 分享中没有这个网页的内容", number));
+
+    /// <summary>How a received answer used tools, as the activity line says it; a third party's tools have no name in a share.</summary>
+    public static string ActivityCount(Core.Conversations.ActivityCountBlock counts)
+    {
+        ArgumentNullException.ThrowIfNull(counts);
+        return string.Join(" · ", new[]
+        {
+            ("search_attachments", counts.AttachmentSearches), ("search_summaries", counts.SummarySearches), ("web_search", counts.WebSearches), ("fetch_page", counts.PagesRead),
+            (string.Empty, counts.OtherCalls),
+        }.Where(c => c.Item2 > 0).Select(c => ToolCalls(c.Item1, T("other tools", "其他工具"), c.Item2)));
+    }
+
+    /// <summary>The tip of the way back from a continuation.</summary>
+    public static string ReturnToEndHint => T("Go back to the end of the conversation this continues", "回到这个会话所接续的会话的末尾");
 
     public static string LegendUnexplored => T("Hollow: not explored yet", "空心：尚未探索");
 }

@@ -33,6 +33,14 @@
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
   <!-- The square on the left: an icon for text and files, the picture itself for an image. -->
+  <!-- What a share left out: the name stays readable, the rest steps back, and nothing looks as if it opened. -->
+  <Style Selector="Border.attachment-chip.absent Button.chip-body:disabled TextBlock.chip-name">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Border.attachment-chip.absent Border.chip-icon">
+    <Setter Property="Opacity" Value="0.6" />
+  </Style>
+
   <Style Selector="Border.attachment-chip Border.chip-icon">
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
@@ -112,6 +120,10 @@
     <Setter Property="Width" Value="720" />
     <Setter Property="MaxHeight" Value="640" />
     <Setter Property="Margin" Value="32" />
+  </Style>
+  <!-- Only the question whether to open an address (a received citation): as wide as its card. -->
+  <Style Selector="Border.dialog.attachment-viewer.address-only">
+    <Setter Property="Width" Value="560" />
   </Style>
   <Style Selector="Border.attachment-viewer SelectableTextBlock.viewer-text">
     <Setter Property="TextWrapping" Value="Wrap" />

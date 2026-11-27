@@ -84,10 +84,15 @@ public sealed class SharedFileReaderTests : IDisposable
     }
 
     [Fact]
-    public async Task A_device_copy_and_a_share_with_content_are_refused_by_name()
+    public async Task A_device_copy_is_refused_by_name()
     {
         Assert.Equal(ImportRefusal.DeviceCopy, await RefusalAsync(Changed("\"kind\":\"structure\"", "\"kind\":\"device\"")));
-        Assert.Equal(ImportRefusal.WithContent, await RefusalAsync(Changed("\"kind\":\"structure\"", "\"kind\":\"content\"")));
+    }
+
+    [Fact]
+    public async Task A_share_that_says_it_has_content_and_has_none_is_damaged()
+    {
+        Assert.Equal(ImportRefusal.Damaged, await RefusalAsync(Changed("\"kind\":\"structure\"", "\"kind\":\"content\"")));
     }
 
     [Fact]

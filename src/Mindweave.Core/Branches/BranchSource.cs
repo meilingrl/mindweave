@@ -24,6 +24,12 @@ public sealed record BranchSource(
     string? RenderProfile,
     DateTimeOffset CreatedAt)
 {
+    /// <summary>Where the quote starts in its block's Markdown, as a shared file said; a branch made here has its anchor instead.</summary>
+    public int? SourceOffset { get; init; }
+
+    /// <summary>It left from the end of a received conversation, not from a sentence in it (decision I4).</summary>
+    public bool IsContinuation => SourceMessage is not null && Quote is null;
+
     /// <summary>A branch that left from no answer: it has its parent only.</summary>
     public static BranchSource WithoutMessage(ConversationId child, ConversationId parent, DateTimeOffset at) =>
         new(child, parent, null, null, null, null, null, null, at);
@@ -103,6 +109,16 @@ public static class BranchRules
     {
         ArgumentNullException.ThrowIfNull(parentRanges);
         return [.. parentRanges.OrderBy(r => r.Depth), new BranchContextRange(parent, parentRanges.Count, sourceSeq)];
+    }
+
+    /// <summary>Ranges that say exactly what <paramref name="context"/> holds: a row for every ancestor, and nothing of one that is not in it.</summary>
+    /// <param name="ancestors">From the root to the parent.</param>
+    public static IReadOnlyList<BranchContextRange> RangesOf(IReadOnlyList<ConversationId> ancestors, IReadOnlyList<ContextSegment> context)
+    {
+        ArgumentNullException.ThrowIfNull(ancestors);
+        ArgumentNullException.ThrowIfNull(context);
+        var used = context.Where(s => s.Messages.Count > 0).ToDictionary(s => s.Conversation, s => s.Messages[^1].Seq);
+        return [.. ancestors.Select((a, i) => new BranchContextRange(a, i, used.TryGetValue(a, out var seq) ? seq : BranchContextRange.Nothing))];
     }
 
     /// <summary>

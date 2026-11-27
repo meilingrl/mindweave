@@ -59,7 +59,7 @@ public static partial class SharePage
     /// <summary>Every shared answer and summary by its identity. A mark is drawn only for a branch that is in the share.</summary>
     private static Dictionary<string, IReadOnlyList<ShareNode>> Drawn(ExchangeDocument document, IShareMarkdown markdown)
     {
-        var marks = document.Conversations.Where(c => c.Content?.Source is not null)
+        var marks = document.Conversations.Where(c => c.Content?.Source?.Quote is not null)
             .ToLookup(c => c.Content!.Source!.Message, c => new ShareMark(c.Id, c.Content!.Source!));
         var drawn = new Dictionary<string, IReadOnlyList<ShareNode>>();
         foreach (var content in document.Conversations.Select(c => c.Content).OfType<ExchangeContent>())
@@ -172,7 +172,7 @@ public static partial class SharePage
         {
             json.WriteStartObject("source");
             json.WriteString("message", source.Message.ToString());
-            json.WriteString("quote", source.Quote);
+            WriteIfAny(json, "quote", source.Quote);
             if (source.Position is { } position)
             {
                 json.WriteStartObject("position");
