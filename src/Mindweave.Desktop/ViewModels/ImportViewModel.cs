@@ -47,7 +47,7 @@ public sealed partial class ImportViewModel(
     ISystemShell shell,
     IClock clock,
     Workbench workbench,
-    IWorkspaceSwitcher switcher) : ViewModelBase
+    WorkspaceSwitchRequests switcher) : ViewModelBase
 {
     private ExchangeDocument? _document;
     private ManualBackupFile? _backup;

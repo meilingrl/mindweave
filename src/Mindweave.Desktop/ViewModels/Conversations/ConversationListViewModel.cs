@@ -27,7 +27,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
     private readonly ConversationDeletionRequests _deletionPrompt;
     private readonly ISummaries _summaries;
     private readonly IStorageStatus _storage;
-    private readonly ISharePrompt _share;
+    private readonly ShareRequests _share;
     private readonly IUiDispatcher _dispatcher;
     private WorkspaceId? _shown;
 
@@ -42,7 +42,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         ConversationDeletionRequests deletion,
         ISummaries summaries,
         IStorageStatus storage,
-        ISharePrompt share)
+        ShareRequests share)
     {
         ArgumentNullException.ThrowIfNull(marks);
         ArgumentNullException.ThrowIfNull(deletion);

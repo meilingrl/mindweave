@@ -20,7 +20,7 @@ public sealed partial class ConversationLifecycleActions : ViewModelBase
     private readonly ConversationId _conversation;
     private readonly IConversations _conversations;
     private readonly IConversationDeletion? _deletion;
-    private readonly IConversationDeletionPrompt? _deletionPrompt;
+    private readonly ConversationDeletionRequests? _deletionPrompt;
     private readonly IWorkbenchNavigator _navigator;
     private readonly Func<WorkspaceId> _workspace;
     private readonly Func<Task> _reload;
@@ -30,7 +30,7 @@ public sealed partial class ConversationLifecycleActions : ViewModelBase
         ConversationId conversation,
         IConversations conversations,
         IConversationDeletion? deletion,
-        IConversationDeletionPrompt? deletionPrompt,
+        ConversationDeletionRequests? deletionPrompt,
         IWorkbenchNavigator navigator,
         Func<WorkspaceId> workspace,
         Func<Task> reload,

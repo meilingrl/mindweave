@@ -22,6 +22,28 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
 
     private static readonly Regex BackupName = BackupNameRegex();
 
+    private string? _writing;
+    private long _expectedBytes;
+
+    /// <summary>
+    /// How far the copy being written is: the size of its file so far against the pages in use in the source, from 0 to
+    /// 1; null when no copy is being written (performance-7, D-042).
+    /// </summary>
+    public double? Progress
+    {
+        get
+        {
+            var writing = Volatile.Read(ref _writing);
+            var expected = Interlocked.Read(ref _expectedBytes);
+            if (writing is null || expected <= 0)
+            {
+                return null;
+            }
+
+            return Math.Clamp((double)(SizeOf(writing) ?? 0) / expected, 0, 1);
+        }
+    }
+
     /// <summary>What one restore moved aside: each current file and its "replaced" name.</summary>
     internal sealed record Replacement(IReadOnlyList<(string From, string To)> Moved);
 
@@ -89,7 +111,7 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     public BackupProblem Check(BackupInfo backup, int latestVersion)
     {
         ArgumentNullException.ThrowIfNull(backup);
-        var full = BackupPathOf(backup.Path);
+        var full = SourcePathOf(backup);
         if (!File.Exists(full))
         {
             return BackupProblem.Missing;
@@ -147,10 +169,45 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
             .Select(g => new LeftoverDatabase(
                 DateTimeOffset.ParseExact(g.Key, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal),
                 [.. g.Value.Order(StringComparer.Ordinal)],
-                g.Value.Sum(f => SizeOf(f) ?? 0)))
+                g.Value.Sum(f => SizeOf(f) ?? 0),
+                HeaderVersionOf(g.Value.FirstOrDefault(IsMainFile))))
             .OrderByDescending(l => l.ReplacedAt)
             .ToArray();
     }
+
+    /// <summary>
+    /// The schema version in a database file's header (its <c>user_version</c>, bytes 60–63, big-endian), read without
+    /// opening it: listing must not touch the file. Null when there is no such file or it is not Mindweave's (application
+    /// id, bytes 68–71). A version changed only in the file's write-ahead log is not seen here; the check before a restore
+    /// reads the file properly.
+    /// </summary>
+    private static int? HeaderVersionOf(string? file)
+    {
+        if (file is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Span<byte> header = stackalloc byte[100];
+            using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            stream.ReadExactly(header);
+            if (System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header[68..]) != SqliteConnections.ApplicationId)
+            {
+                return null;
+            }
+
+            return System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header[60..]);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The database file of a leftover group, not one of its log files.</summary>
+    private static bool IsMainFile(string file) => !file.EndsWith("-wal", StringComparison.Ordinal) && !file.EndsWith("-shm", StringComparison.Ordinal);
 
     /// <summary>The file's size, or null when it is gone or cannot be read.</summary>
     private static long? SizeOf(string file)
@@ -234,12 +291,22 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         {
             beforeWrite?.Invoke(connection, partial);
 
+            var pageSize = SqliteConnections.Scalar<long>(connection, "PRAGMA page_size;");
+            var inUse = SqliteConnections.Scalar<long>(connection, "PRAGMA page_count;") - SqliteConnections.Scalar<long>(connection, "PRAGMA freelist_count;");
+            Interlocked.Exchange(ref _expectedBytes, inUse * pageSize);
+            Volatile.Write(ref _writing, partial);
+
             // VACUUM INTO writes a transactionally consistent copy, including content still in the WAL.
-            using (var command = connection.CreateCommand())
+            try
             {
+                using var command = connection.CreateCommand();
                 command.CommandText = "VACUUM INTO $path;";
                 command.Parameters.AddWithValue("$path", partial);
                 command.ExecuteNonQuery();
+            }
+            finally
+            {
+                Volatile.Write(ref _writing, null);
             }
 
             using (var copy = SqliteConnections.OpenReadWrite(partial))
@@ -274,15 +341,23 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     /// </summary>
     public Replacement ReplaceDatabaseWith(BackupInfo backup, Action? beforeSwap = null)
     {
-        if (!File.Exists(backup.Path))
+        var source = SourcePathOf(backup);
+        if (!File.Exists(source))
         {
-            throw new FileNotFoundException("Backup file not found.", backup.Path);
+            throw new FileNotFoundException("Backup file not found.", source);
         }
 
         var stamp = time.GetUtcNow().UtcDateTime.ToString(StampFormat, CultureInfo.InvariantCulture);
         var incoming = paths.DatabasePath + ".restoring";
         DeleteDatabaseFiles(incoming);
-        CopyFlushed(backup.Path, incoming);
+        if (backup.Reason == BackupReason.Replaced)
+        {
+            CopyReplaced(source, incoming);
+        }
+        else
+        {
+            CopyFlushed(source, incoming);
+        }
 
         // Keep the current database (and any WAL) under a "replaced" name; nothing is deleted. Any step can fail (on
         // Windows a file still open or mapped elsewhere cannot be renamed); then everything already moved goes back,
@@ -346,6 +421,33 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     }
 
     /// <summary>
+    /// A replaced database may have content in its own write-ahead log ("…-wal" beside it, which SQLite finds by name), so
+    /// it is not copied as a file: <c>VACUUM INTO</c> from a read-only connection writes one self-contained copy, which
+    /// is then flushed to the disk like any copy put in place (gap-schema-5, D-042).
+    /// </summary>
+    private static void CopyReplaced(string from, string to)
+    {
+        try
+        {
+            using (var connection = SqliteConnections.OpenReadOnly(from))
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "VACUUM INTO $path;";
+                command.Parameters.AddWithValue("$path", to);
+                command.ExecuteNonQuery();
+            }
+
+            using var written = new FileStream(to, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            written.Flush(flushToDisk: true);
+        }
+        catch (SqliteException ex)
+        {
+            DeleteDatabaseFiles(to);
+            throw new IOException($"The replaced database could not be copied: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
     /// After the restored copy failed to open: puts the replaced database back. The copy's own log files go first, then
     /// the database file is moved back over the copy (one rename, so a database file is always in place), then its log
     /// files. Throws when a step fails; the file in place is then the copy or the original, never nothing.
@@ -401,6 +503,36 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         BeforeRestoreSuffix => BackupReason.BeforeRestore,
         _ => BackupReason.Migration,
     };
+
+    /// <summary>
+    /// The file a restore reads: a backup in the backup directory, or a database an earlier restore replaced (reason
+    /// <see cref="BackupReason.Replaced"/>), which lives in the data directory. Anything else is refused.
+    /// </summary>
+    private string SourcePathOf(BackupInfo backup)
+    {
+        if (backup.Reason != BackupReason.Replaced)
+        {
+            return BackupPathOf(backup.Path);
+        }
+
+        ArgumentException.ThrowIfNullOrEmpty(backup.Path);
+        var full = Path.GetFullPath(backup.Path);
+        if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(paths.DataDirectory), StringComparison.Ordinal)
+            || LeftoverStampOf(full) is null
+            || !IsMainFile(full))
+        {
+            throw new ArgumentException("Not a replaced database of this data directory.", nameof(backup));
+        }
+
+        return full;
+    }
+
+    /// <summary>The replaced database a <see cref="BackupReason.Replaced"/> entry names, with its log files; null when it is gone.</summary>
+    public LeftoverDatabase? LeftoverOf(BackupInfo backup)
+    {
+        var full = SourcePathOf(backup);
+        return ListLeftovers().FirstOrDefault(l => l.Files.Contains(full, StringComparer.Ordinal));
+    }
 
     /// <summary>A backup's full path, refused (<see cref="ArgumentException"/>) unless it names a backup of this data directory.</summary>
     private string BackupPathOf(string path)

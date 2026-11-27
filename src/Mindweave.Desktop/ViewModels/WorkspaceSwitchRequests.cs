@@ -5,15 +5,10 @@ using Mindweave.Core.Workspaces;
 namespace Mindweave.Desktop.ViewModels;
 
 /// <summary>
-/// Asks for another workspace to be opened, the way the switcher opens it. Pages hold this, not the shell, so the page factory has no cycle.
+/// Asks for another workspace to be opened, the way the switcher opens it: pages hold this, not the shell, so the page
+/// factory has no cycle. It hands the request to the shell that is listening (2026-11-10).
 /// </summary>
-public interface IWorkspaceSwitcher
-{
-    void SwitchTo(Workspace workspace);
-}
-
-/// <summary>Hands a switch request from a page to the shell that is listening (2026-11-10).</summary>
-public sealed class WorkspaceSwitchRequests : IWorkspaceSwitcher
+public sealed class WorkspaceSwitchRequests
 {
     public event EventHandler<Workspace>? Requested;
 

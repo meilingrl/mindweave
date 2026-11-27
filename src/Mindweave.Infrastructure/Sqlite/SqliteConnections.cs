@@ -97,4 +97,25 @@ internal static class SqliteConnections
             ? $"table {reader.GetString(0)} row {reader.GetValue(1)} references missing {reader.GetString(2)}"
             : null;
     }
+
+    /// <summary>
+    /// Every foreign key violation, counted per child table and the table it references ("message → conversation").
+    /// Counted rather than listed by row: a migration that rebuilds a table may give its rows new row ids, and the same
+    /// dangling row must still be recognized as the same one afterwards (gap-schema-7, D-042).
+    /// </summary>
+    public static Dictionary<string, int> ForeignKeyViolations(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA foreign_key_check;";
+        command.Transaction = transaction;
+        using var reader = command.ExecuteReader();
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        while (reader.Read())
+        {
+            var key = $"{reader.GetString(0)} → {reader.GetString(2)}";
+            counts[key] = counts.GetValueOrDefault(key) + 1;
+        }
+
+        return counts;
+    }
 }

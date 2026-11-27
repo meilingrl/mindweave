@@ -35,20 +35,13 @@ public sealed record BackupEntry(BackupInfo? Backup, LeftoverDatabase? Leftover,
     public string Key => Backup?.Path ?? Leftover!.Files[0];
 }
 
-/// <summary>The storage page's way to the window's restore and delete dialogs, and their way back to it.</summary>
-public interface IBackupPrompts
+/// <summary>
+/// The storage page's way to the window's restore and delete dialogs, and their way back to it: the page holds this, not
+/// the dialogs, so the page factory has no cycle.
+/// </summary>
+public sealed class BackupRequests
 {
     /// <summary>Something was deleted or a restore did not go ahead: the list is read again.</summary>
-    event EventHandler? Changed;
-
-    void Restore(BackupInfo backup);
-
-    void Delete(IReadOnlyList<BackupEntry> entries);
-}
-
-/// <summary>Hands the storage page's requests to the window's dialogs (the page factory then has no cycle).</summary>
-public sealed class BackupRequests : IBackupPrompts
-{
     public event EventHandler? Changed;
 
     public event EventHandler<BackupInfo>? RestoreRequested;

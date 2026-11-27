@@ -21,6 +21,13 @@ public class StoragePerformanceTests
     /// <summary>Assembling what the deepest branch sends: every ancestor cut to its frozen range.</summary>
     private static readonly TimeSpan ContextBudget = TimeSpan.FromMilliseconds(300);
 
+    /// <summary>
+    /// The verified copy made before a cascading delete (performance-7, D-042; D-030 keeps it). Not a read: it grows with
+    /// the data, and the delete dialog shows progress once it passes a second. A copy slower than this comes back to the
+    /// owner with the numbers.
+    /// </summary>
+    private static readonly TimeSpan BackupBudget = TimeSpan.FromSeconds(1);
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -53,13 +60,21 @@ public class StoragePerformanceTests
             Assert.Equal(expectedContext + own.Count, BranchContext.Assemble(ancestors, new ContextSegment(deepest, "蒸汽机", own), ModelPhrases.Current).Count);
         });
 
+        var backup = await MedianAsync(async () =>
+        {
+            var path = await h.Database.BackupAsync(Application.Startup.BackupReason.BeforeConversationDelete, Ct);
+            h.Database.Discard(path);
+        });
+        var size = new FileInfo(h.Paths.DatabasePath).Length;
+
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{shape}: seed {seeding.ElapsedMilliseconds} ms, list {list.TotalMilliseconds:F1} ms, load {load.TotalMilliseconds:F1} ms, deepest branch context {context.TotalMilliseconds:F1} ms");
+            $"{shape}: seed {seeding.ElapsedMilliseconds} ms, list {list.TotalMilliseconds:F1} ms, load {load.TotalMilliseconds:F1} ms, deepest branch context {context.TotalMilliseconds:F1} ms, backup before a delete {backup.TotalMilliseconds:F0} ms ({size / 1_048_576.0:F1} MB)");
         if (enforceBudgets)
         {
             Assert.True(list <= ListBudget, $"Listing took {list.TotalMilliseconds:F1} ms (budget {ListBudget.TotalMilliseconds} ms).");
             Assert.True(load <= LoadBudget, $"Loading took {load.TotalMilliseconds:F1} ms (budget {LoadBudget.TotalMilliseconds} ms).");
             Assert.True(context <= ContextBudget, $"Assembling the deepest branch took {context.TotalMilliseconds:F1} ms (budget {ContextBudget.TotalMilliseconds} ms).");
+            Assert.True(backup <= BackupBudget, $"The backup before a delete took {backup.TotalMilliseconds:F0} ms (budget {BackupBudget.TotalMilliseconds} ms).");
         }
     }
 

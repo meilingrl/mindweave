@@ -36,7 +36,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private NodeOffer _offer = NodeOffer.Off;
     private RecommendationId? _selectedRecommendation;
     private readonly ISummaryLinks? _links;
-    private readonly ISharePrompt? _share;
+    private readonly ShareRequests? _share;
     private readonly SerialRefresh _linkLoad;
     private IReadOnlyList<SummaryLink> _workspaceLinks = [];
     private bool _linksHidden;
@@ -60,7 +60,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         ISummaryLinks? links = null,
         ILinkSuggestions? suggestions = null,
         bool replayed = false,
-        ISharePrompt? share = null)
+        ShareRequests? share = null)
         : base(SummaryNetworkHomeRoute.Instance)
     {
         _replayed = replayed;
