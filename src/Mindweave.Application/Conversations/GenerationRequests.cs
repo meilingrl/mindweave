@@ -106,7 +106,7 @@ public sealed partial class GenerationRequests
                     }
 
                     var known = await compressor.KnownSummaryTokensAsync([.. inputs.Ancestors.Select(a => a.Conversation), inputs.Own.Conversation]).ConfigureAwait(false);
-                    plan = ContextPlanner.Plan(inputs.Ancestors, inputs.Own, budget.Available, known, candidates, ModelPhrases.Current).Plan
+                    plan = ContextPlanner.Plan(inputs.Ancestors, inputs.Own, budget.Available - inputs.InstructionTokens, known, candidates, ModelPhrases.Current).Plan
                         ?? throw new ContextCompressionException(T(
                             "The attachments' digests are longer than expected; the question and its attachments do not fit in what the model can take.",
                             "附件的摘要比预计的长，问题和附件放不进模型的可用容量。"));

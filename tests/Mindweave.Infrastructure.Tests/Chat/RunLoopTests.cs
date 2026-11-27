@@ -34,7 +34,7 @@ public class RunLoopTests
     // L1: run instructions.
 
     [Fact]
-    public async Task Every_request_of_a_run_opens_with_the_run_instructions_and_an_answer_without_tools_has_none()
+    public async Task Every_request_of_a_run_opens_with_the_answer_and_run_instructions_and_an_answer_without_tools_has_only_the_first()
     {
         await using var h = await ChatHarness.StartAsync(model: ToolModel);
         h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
@@ -48,17 +48,19 @@ public class RunLoopTests
         Assert.All(requests, r =>
         {
             Assert.Equal(ChatRole.System, r.Turns[0].Role);
-            Assert.StartsWith("你是 Mindweave 中回答用户提问的助手", r.Turns[0].Content, StringComparison.Ordinal);
+            Assert.StartsWith(AnswerPrompt.For(false) + "\n\n关于工具与材料：", r.Turns[0].Content, StringComparison.Ordinal);
             Assert.Contains("search_attachments（检索附件）", r.Turns[0].Content, StringComparison.Ordinal);
             Assert.DoesNotContain("web_search", r.Turns[0].Content, StringComparison.Ordinal);
             Assert.Single(r.Turns, t => t.Role == ChatRole.System);
         });
 
-        // Without a model that calls tools, the request is exactly as before: no system turn of its own.
+        // Without a model that calls tools, the request opens with the answer instructions alone (requirements §10.9).
         await using var plain = await ChatHarness.StartAsync();
         var (_, single) = await AskWithAttachmentAsync(plain, "问");
         Assert.Equal(MessageState.Complete, single.State);
-        Assert.DoesNotContain(plain.Client.Requests.Single(FakeChatClient.IsAnswer).Turns, t => t.Role == ChatRole.System);
+        var system = Assert.Single(plain.Client.Requests.Single(FakeChatClient.IsAnswer).Turns, t => t.Role == ChatRole.System);
+        Assert.Equal(AnswerPrompt.For(false), system.Content);
+        Assert.DoesNotContain("search_attachments", system.Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -77,8 +79,10 @@ public class RunLoopTests
         }
 
         Assert.Contains("notes_write：用户添加的第三方工具", text, StringComparison.Ordinal);
-        Assert.InRange(TokenEstimator.Estimate(text), 1, 650);
-        Assert.InRange(TokenEstimator.Estimate(RunPrompt.For([new SearchAttachmentsTool(null!)])), 1, 400);
+        // Version 4 added the stop, refine, search-term, source and attachment lines (reply quality Q6, about 70 tokens
+        // accepted); what the app is moved to the answer instructions.
+        Assert.InRange(TokenEstimator.Estimate(text), 1, 720);
+        Assert.InRange(TokenEstimator.Estimate(RunPrompt.For([new SearchAttachmentsTool(null!)])), 1, 480);
 
         // The fake provider tells internal requests apart by their system turn; the instructions must read as an answer's.
         var request = new ChatRequest(ModelSnapshot(), [new ChatTurn(ChatRole.System, text), new ChatTurn(ChatRole.User, "问")]);

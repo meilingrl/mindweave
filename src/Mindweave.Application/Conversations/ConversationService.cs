@@ -246,7 +246,8 @@ public sealed partial class ConversationService : IConversations
         // sends is planned with room for the run, and the run's instructions and tool definitions go with it.
         var (planned, inputs, known) = await PlanAsync(id, own.Messages, budget, model, cancellationToken, ancestors).ConfigureAwait(false);
         var run = await RunPlanAsync(null, id, inputs, model, null, string.Empty, cancellationToken).ConfigureAwait(false);
-        var instructions = TokenEstimator.PerRequest + (run is null ? 0 : TokenEstimator.Message(RunPrompt.For(run.Tools)));
+        var system = AnswerPrompt.WithRun(inputs.Instructions, run is null ? string.Empty : RunPrompt.For(run.Tools));
+        var instructions = TokenEstimator.PerRequest + (system.Length == 0 ? 0 : TokenEstimator.Message(system));
         var tools = run?.Tools.Select(Tools.ToolRegistry.Definition).Sum(ChatTurns.Estimate) ?? 0;
         var items = BranchContext.Assemble(ancestors, own, ModelPhrases.Current);
         var raw = items.Sum(i => TokenEstimator.Message(i.Text));
@@ -804,8 +805,11 @@ public sealed partial class ConversationService : IConversations
         var candidates = _resources is null
             ? []
             : await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment, phrases), question, model, cancellationToken).ConfigureAwait(false);
-        var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates, phrases);
-        return (outcome, new ContextInputs(ancestors, segment, candidates), known);
+        // The answer instructions open every answer request and count in its budget (architecture §15.5); a branch from a
+        // selected passage gets its own part (requirements §10.9).
+        var inputs = new ContextInputs(ancestors, segment, candidates) { Instructions = AnswerPrompt.For(!string.IsNullOrWhiteSpace(segment.Quote)) };
+        var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available - inputs.InstructionTokens, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates, phrases);
+        return (outcome, inputs, known);
     }
 
     /// <summary>Share of the input space a run's context plan leaves for tool results and later rounds (L8).</summary>
@@ -824,7 +828,7 @@ public sealed partial class ConversationService : IConversations
         }
 
         var room = budget.LeavingRoom(RunRoomPercent);
-        return ContextPlanner.Plan(inputs.Ancestors, inputs.Own, room.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, inputs.Resources, ModelPhrases.Current).Plan is { } reserved
+        return ContextPlanner.Plan(inputs.Ancestors, inputs.Own, room.Available - inputs.InstructionTokens, key => known.TryGetValue(key, out var tokens) ? tokens : null, inputs.Resources, ModelPhrases.Current).Plan is { } reserved
             ? (reserved, room)
             : (plan, budget);
     }

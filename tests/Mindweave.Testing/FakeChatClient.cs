@@ -142,6 +142,41 @@ public sealed class FakeChatClient : IChatClient
     public static bool IsAnswer(ChatRequest request) =>
         !IsTitle(request) && !IsSummary(request) && !IsResourceSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request) && !IsLinkSuggestion(request);
 
+    /// <summary>
+    /// The turns of an answer request after the answer instructions that open it (requirements §10.9): what tests of the
+    /// history look at. A context summary joined to the instructions' system turn stays, as its own system turn.
+    /// </summary>
+    public static IReadOnlyList<ChatTurn> Dialogue(ChatRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var turns = request.Turns.ToList();
+        if (turns.Count == 0 || turns[0].Role != ChatRole.System)
+        {
+            return turns;
+        }
+
+        var first = turns[0].Content;
+        foreach (var instructions in new[] { Application.Conversations.AnswerPrompt.For(true), Application.Conversations.AnswerPrompt.For(false) })
+        {
+            if (instructions.Length > 0 && first.StartsWith(instructions, StringComparison.Ordinal))
+            {
+                var rest = first[instructions.Length..].TrimStart('\n');
+                if (rest.Length == 0)
+                {
+                    turns.RemoveAt(0);
+                }
+                else
+                {
+                    turns[0] = turns[0] with { Content = rest };
+                }
+
+                break;
+            }
+        }
+
+        return turns;
+    }
+
     public const string DefaultSummaryTitle = "蒸汽机车";
 
     /// <summary>The default knowledge summary: titled <see cref="DefaultSummaryTitle"/>, saying how many turns it saw.</summary>

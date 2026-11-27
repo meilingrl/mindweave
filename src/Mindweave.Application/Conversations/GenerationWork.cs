@@ -60,7 +60,17 @@ public sealed record RunPlan(IReadOnlyList<Tools.ITool> Tools, Core.Runs.RunLimi
 }
 
 /// <summary>The inputs of a context plan: the frozen ancestor chain, the conversation itself, and its attachments' candidates.</summary>
-public sealed record ContextInputs(IReadOnlyList<Core.Branches.ContextSegment> Ancestors, Core.Branches.ContextSegment Own, IReadOnlyList<ResourceCandidate> Resources);
+public sealed record ContextInputs(IReadOnlyList<Core.Branches.ContextSegment> Ancestors, Core.Branches.ContextSegment Own, IReadOnlyList<ResourceCandidate> Resources)
+{
+    /// <summary>
+    /// The answer instructions that open the request (<see cref="AnswerPrompt"/>, architecture §15.5); empty for none. A run's
+    /// instructions follow them.
+    /// </summary>
+    public string Instructions { get; init; } = string.Empty;
+
+    /// <summary>What <see cref="Instructions"/> take of the context budget, in estimated tokens: the context is planned in the rest.</summary>
+    public int InstructionTokens => Instructions.Length == 0 ? 0 : Core.Context.TokenEstimator.Message(Instructions);
+}
 
 public sealed record TitleWork(GenerationTaskRecord Task, ChatRequest Request)
     : GenerationWork(Task, Request, GenerationPriority.Background);

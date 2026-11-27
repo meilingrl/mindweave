@@ -97,7 +97,8 @@ internal sealed partial class AnswerRunner
         var preSearchCut = false;
         var seen = new Dictionary<string, EarlierCall>(StringComparer.Ordinal);
         var retried = false;
-        var instructions = RunPrompt.For(run.Tools);
+        var answer = work.Inputs?.Instructions ?? string.Empty;
+        var instructions = AnswerPrompt.WithRun(answer, RunPrompt.For(run.Tools));
         if (run.Tools.Any(t => t.Name == SearchAttachmentsTool.ToolName)
             && await services.EarlierMaterialAsync(run.Scope, CancellationToken.None).ConfigureAwait(false) is { } index)
         {
@@ -391,7 +392,7 @@ internal sealed partial class AnswerRunner
             {
                 // A result not sent whole names 检索附件 for the rest, so it is offered from here on (requirements §10.4.4).
                 run = run with { Tools = [.. run.Tools, reader], Reader = null };
-                instructions = RunPrompt.For(run.Tools);
+                instructions = AnswerPrompt.WithRun(answer, RunPrompt.For(run.Tools));
             }
 
             var offered = final ? [] : run.Tools.Where(t => !withdrawn.Contains(t.Name)).ToList();
@@ -414,17 +415,7 @@ internal sealed partial class AnswerRunner
             sent[result.TurnIndex] = sent[result.TurnIndex] with { Content = result.Line };
         }
 
-        if (sent.Count > 0 && sent[0].Role == ChatRole.System)
-        {
-            // One system turn at the start: some services refuse a system turn anywhere but first (an older summary may open the context).
-            sent[0] = sent[0] with { Content = system + "\n\n" + sent[0].Content };
-        }
-        else
-        {
-            sent.Insert(0, new ChatTurn(ChatRole.System, system));
-        }
-
-        return request with { Turns = sent, Tools = offered.Count == 0 ? null : [.. offered.Select(ToolRegistry.Definition)] };
+        return request with { Turns = Opened(sent, system), Tools = offered.Count == 0 ? null : [.. offered.Select(ToolRegistry.Definition)] };
     }
 
     /// <summary>

@@ -15,6 +15,8 @@ public static partial class PromptLibrary
     /// <summary>The prompts, by file name.</summary>
     public static IReadOnlyList<string> Names { get; } =
     [
+        "answer",
+        "answer-branch",
         "summary",
         "summary-branch-background",
         "summary-naming",
@@ -30,6 +32,21 @@ public static partial class PromptLibrary
 
     private static readonly ConcurrentDictionary<(string Name, UiLanguage Language), string> Loaded = new();
 
+    private static readonly AsyncLocal<PromptEdition?> InUse = new();
+
+    /// <summary>
+    /// Uses <paramref name="edition"/>'s texts in place of the embedded ones in this asynchronous flow and the work started
+    /// from it, until the result is disposed. The evaluation runs an earlier version of the prompts beside the current one
+    /// with it (docs/design/reply-quality.md, Q10); the app itself never does.
+    /// </summary>
+    public static IDisposable Use(PromptEdition edition)
+    {
+        ArgumentNullException.ThrowIfNull(edition);
+        var before = InUse.Value;
+        InUse.Value = edition;
+        return new Restore(before);
+    }
+
     /// <summary>The prompt <paramref name="name"/> in the current interface language, placeholders unfilled.</summary>
     public static string Get(string name) => Get(name, CurrentLanguage.Value);
 
@@ -37,6 +54,11 @@ public static partial class PromptLibrary
     public static string Get(string name, UiLanguage language)
     {
         ArgumentNullException.ThrowIfNull(name);
+        if (InUse.Value?.TextOf(name, language) is { } replaced)
+        {
+            return replaced;
+        }
+
         return Loaded.GetOrAdd((name, language), static key => Load(key.Name, key.Language));
     }
 
@@ -104,6 +126,11 @@ public static partial class PromptLibrary
     }
 
     private static string ResourcePrefix(UiLanguage language) => language == UiLanguage.English ? "Prompts.en." : "Prompts.zh.";
+
+    private sealed class Restore(PromptEdition? before) : IDisposable
+    {
+        public void Dispose() => InUse.Value = before;
+    }
 
     /// <summary>"{name}": lower-case letters, digits and hyphens. JSON in a prompt ({"a":…}) never matches.</summary>
     [GeneratedRegex(@"\{([a-z][a-z0-9-]*)\}")]

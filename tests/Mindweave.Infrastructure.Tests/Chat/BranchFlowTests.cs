@@ -1,4 +1,5 @@
 using Mindweave.Application.Ai;
+using Mindweave.Testing;
 using Mindweave.Application.Conversations;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
@@ -64,7 +65,10 @@ public class BranchFlowTests
         var request = LastAnswerRequest(h);
         Assert.Equal(
             ["火车是怎么发明的？", "答：火车是怎么发明的？", "关于上文中的这段内容：\n> 火车\n\n谁造了第一台？"],
-            request.Turns.Select(t => t.Content));
+            FakeChatClient.Dialogue(request).Select(t => t.Content));
+
+        // The answer instructions open the request with the branch's own part (requirements §10.9).
+        Assert.Equal(new ChatTurn(ChatRole.System, AnswerPrompt.For(true)), request.Turns[0]);
         // The stored question is exactly what the user typed.
         var stored = await h.Conversations.LoadAsync(branch.Child, Ct);
         Assert.Equal("谁造了第一台？", stored!.Messages[0].Text);
@@ -91,7 +95,7 @@ public class BranchFlowTests
             "关于上文中的这段内容：\n> 一\n\n二",
             "答：关于上文中的这段内容：\n> 一\n\n二",
             "关于上文中的这段内容：\n> 二\n\n三",
-        ], LastAnswerRequest(h).Turns.Select(t => t.Content));
+        ], FakeChatClient.Dialogue(LastAnswerRequest(h)).Select(t => t.Content));
 
         var lineage = await h.Conversations.GetLineageAsync(grandchild, Ct);
         Assert.Equal([root, child, grandchild], lineage.Select(e => e.Conversation.Id));
@@ -111,7 +115,7 @@ public class BranchFlowTests
         await h.WaitForAnswerAsync(retry.Answer!.Value);
         await h.AskAsync(child, "追问");
 
-        Assert.Equal(["问", "答：问", "关于上文中的这段内容：\n> 问\n\n追问"], LastAnswerRequest(h).Turns.Select(t => t.Content));
+        Assert.Equal(["问", "答：问", "关于上文中的这段内容：\n> 问\n\n追问"], FakeChatClient.Dialogue(LastAnswerRequest(h)).Select(t => t.Content));
 
         // The superseded attempt can still be branched from (§6.2).
         Assert.True((await h.Conversations.CreateBranchAsync(root, Selection(source, "问"), Ct)).Accepted);
@@ -170,9 +174,9 @@ public class BranchFlowTests
         var child = (await h.Conversations.CreateBranchAsync(root, Selection(answer, "蒸汽机"), Ct)).Child;
         await h.AskAsync(child, "谁发明的");
 
-        await ChatHarness.UntilAsync(() => h.Client.Requests.Count(r => r.Turns[0].Role == ChatRole.System) == 2);
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsTitle) == 2);
         // The root's and the branch's title requests run in the background in either order: take the branch's by its question.
-        var title = Assert.Single(h.Client.Requests, r => r.Turns[0].Role == ChatRole.System && r.Turns[1].Content.Contains("谁发明的", StringComparison.Ordinal));
+        var title = Assert.Single(h.Client.Requests, r => FakeChatClient.IsTitle(r) && r.Turns[1].Content.Contains("谁发明的", StringComparison.Ordinal));
         Assert.Contains("> 蒸汽机", title.Turns[1].Content, StringComparison.Ordinal);
     }
 
@@ -192,11 +196,11 @@ public class BranchFlowTests
         await using var reopened = await ChatHarness.StartAsync(directory: dir);
         Assert.Equal(root, (await reopened.Conversations.GetSourceAsync(child, Ct))!.Parent);
         await reopened.AskAsync(child, "接着");
-        Assert.Equal(3, LastAnswerRequest(reopened).Turns.Count);
+        Assert.Equal(3, FakeChatClient.Dialogue(LastAnswerRequest(reopened)).Count);
     }
 
     internal static BranchSelection Selection(Message source, string quote) =>
         new(source.Id, 0, quote, "{\"v\":1}", 1, "test-profile");
 
-    private static ChatRequest LastAnswerRequest(ChatHarness h) => h.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
+    private static ChatRequest LastAnswerRequest(ChatHarness h) => h.Client.Requests.Last(FakeChatClient.IsAnswer);
 }
