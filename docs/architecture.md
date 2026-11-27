@@ -32,7 +32,7 @@ Dependency direction: Application → Core; Infrastructure → Application, Core
 
 The Desktop startup entry composes the infrastructure, and ViewModels work through use cases and service interfaces. Selection hit-testing, text geometry, highlighting and scrolling belong to the View / adaptation layer; they are not forced into ViewModels just to look like MVVM.
 
-Abstractions exist only at real replacement boundaries such as storage, AI and navigation; no general command bus, per-class interfaces or complex repository framework is introduced. Prototypes are not extended directly into the formal product.
+Abstractions exist only at real replacement boundaries such as storage, AI and navigation; no general command bus or complex repository framework is introduced. The Desktop reaches each Application service through one interface, which is where tests put a stand-in; a class used only inside its own project gets no interface of its own. Prototypes are not extended directly into the formal product.
 
 ### 2.1 Course requirements
 
@@ -334,7 +334,7 @@ Ordinary configuration is stored in SQLite, API keys in macOS Keychain / Windows
 
 The user enters the address and API key, explicitly fetches the models and then chooses one; on failure the manual entry is kept. Fetching models is separate from test requests that may be billed. The first release has one active configuration; a stable connection identity keeps the boundary for multiple connections in the future.
 
-When a task is accepted, it binds the configuration and credential version, and new settings affect only new tasks; when an old credential becomes invalid, the task fails explicitly and never secretly switches key or vendor. Updating an API key writes a new credential item and updates the connection's reference; the old credential item is cleaned up once no unfinished task references it [review suggestion · MW-C15]. Concrete version saving, reading and cleanup are handled by implementation design; there is no credential version management interface for users. Project export does not carry API keys; after moving to another machine, they are entered again.
+When a task is accepted, it binds the configuration and credential version, and new settings affect only new tasks; when an old credential becomes invalid, the task fails explicitly and never secretly switches key or vendor. Updating an API key writes a new credential item and updates the connection's reference; the old credential item is cleaned up once no unfinished task references it [review suggestion · MW-C15]. Concrete version saving, reading and cleanup are handled by implementation design; there is no credential version management interface for users. Project export does not carry API keys; after moving to another machine, they are entered again. Clean-up of old credential items runs when settings are saved, when a task ends and at start-up. The credential service can list the items of its own channel; at start-up, items that no connection, search setting, MCP server or unfinished task refers to are deleted, and only their number is logged. A read from the system's store waits a bounded time and then fails the request as credential unavailable (requirements §10.8).
 
 ### 7.4 Long-term vision: built-in free AI experience with limits
 
@@ -493,12 +493,12 @@ The user message and the request record are committed before sending. The text, 
 
 ### 12.2 Migration and backup
 
-- The database schema version is independent of the software version. Migrations run forward in sequence, and downgrade migrations are not supported. Old software that meets a newer schema refuses to write.
-- After acquiring single-instance ownership, the version is checked before entering the workbench and before starting AI. When a migration is needed, a consistent backup is created first; if that fails, the migration does not start.
-- First-version migration steps are limited to operations that can be completed within the migration transaction. Schema changes, necessary data conversions and the schema version number are committed together; if a necessary relationship check fails, everything rolls back.
+- The database schema version is independent of the software version. Migrations run forward in sequence, and downgrade migrations are not supported. Old software that meets a newer schema refuses to write. The schema version is the only gate for what is stored: a build that starts writing a value an older build cannot read (a new block kind, a new stored name, a required field inside stored JSON) raises it, with a migration that may be empty.
+- After acquiring single-instance ownership, the version is checked before entering the workbench and before starting AI. When a migration is needed, a consistent backup is created first; if that fails, the migration does not start. No such backup is made of a database that was just restored from a backup file that still exists.
+- First-version migration steps are limited to operations that can be completed within the migration transaction. Schema changes, necessary data conversions and the schema version number are committed together; if the migration itself breaks a necessary relationship, everything rolls back. A broken relationship that was already there before the migration does not stop it; it is logged and counted in the diagnostic summary (§17), and nothing is deleted automatically.
 - Do not simply copy an active database file that may have unmerged logs. Backups are made with `VACUUM INTO`. Writes go through one connection and reads through short-lived read-only connections; single-instance ownership is acquired first, then the version is checked and migrated [review suggestion · MW-C19].
 - A failed migration does not automatically overwrite the original database with a backup, and does not automatically create an empty database to fake success. It offers the error, retry, opening the data location, and quit. When a usable backup exists, the user explicitly chooses whether to restore it.
-- Before restoring, stop tasks, close connections and keep the current file; then restore the backup and check again. Explain clearly the point in time restored to and the possible losses. A migration backup is not the same as a routine backup. Besides migrations, a backup is made before deleting a conversation with a cascade, deleting a workspace, and restoring; only migration backups are pruned (5 kept). A backup can also be restored inside the running app, through the exit prompts of §12.3.
+- Before restoring, stop tasks, close connections and keep the current file; then restore the backup and check again. Explain clearly the point in time restored to and the possible losses. A migration backup is not the same as a routine backup. Besides migrations, a backup is made before deleting a conversation with a cascade, deleting a workspace, and restoring; only migration backups are pruned (5 kept). A backup can also be restored inside the running app, through the exit prompts of §12.3. The database a restore replaced is kept and can be restored in the same way, also when it was replaced because its schema was newer than the software.
 
 Infrastructure performs opening, backup, migration and restore; Application coordinates the startup result; Desktop shows the workbench or the recovery page through Root; Core does not handle SQL upgrades. Transaction failure, process interruption, backup failure, incompatibility between old and new versions, and relationship integrity after restore all need verification on a temporary database.
 
@@ -510,7 +510,7 @@ Infrastructure performs opening, backup, migration and restore; Application coor
 2. Quit only: when answers or summaries the user started are running or queued, prompt. On cancel, go back. When the system logs out or shuts down, nothing is asked unless such work is running, and everything is saved.
 3. After confirmation, close the entry points for new operations and scheduling, and take no more items from the queue. Stop running tasks, and mark queued tasks that have not started as canceled.
 4. Save the final drafts, reading positions, summary edit drafts and the terminal state of partial answers, and wait for the unified write queue to drain.
-5. Save failure: keep memory and the error; the user can retry quitting or return to the workspace. Returning only accepts new operations and does not revive canceled tasks (D6).
+5. Save failure: keep memory and the error; the user can retry quitting or return to the workspace. After a failed retry there is a third choice, to quit without saving; it lists what is lost and then goes to step 6. Returning only accepts new operations and does not revive canceled tasks (D6).
 6. Release single-instance ownership, then quit.
 
 ## 13. Verification status and asset entry points
@@ -822,3 +822,32 @@ Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered a
 ### 16.5 Migrations
 
 The share itself needs none. Import rebuilds `branch_source` and `branch_context_range` for branches without a source sentence, and adds the record of imports and of which conversations were received. Device copies add the time of the last title change and the record of deleted identities. Each is tried on a copy of real data first (§12.2).
+
+## 17. Diagnostics and erasing (after the first release)
+
+Product basis: requirements §10.8 (v0.31). Reasons, failure cases and the increments are in [Security, diagnostics and upkeep](design/diagnostics-and-upkeep.md).
+
+### 17.1 Layers
+
+- **Application** holds what a failure's details are, the request list (read from `ai_request`), the content of the diagnostic package, and the erase steps and their order.
+- **Infrastructure** writes the package with the atomic file write, lists and deletes credential items, rewrites the database file and deletes backup files.
+- **Desktop** holds the one failure block used by every page, the “诊断” page and the dialogs.
+
+### 17.2 The diagnostic package
+
+- It is built from a list of allowed fields. No storage record is serialized as it is (the E5 rule, [evolution-seams.md](design/evolution-seams.md)).
+- The log is its only free text. At export it is scrubbed again with every stored key, and the home folder is written as `~`. The file log also receives the stored keys while the app runs, so a key without a known shape is scrubbed.
+- When the key store is locked, the log is scrubbed by shape only, and the summary says so.
+- From the recovery page the package is built without opening the database.
+
+### 17.3 Erasing
+
+- The order is fixed: rewrite the database file (including the search index, and with the write-ahead log emptied), make one fresh backup, then delete the old copies. If the fresh backup fails, nothing is deleted.
+- A backup or replaced database "still holds deleted content" when it has a conversation, a summary version or a resource whose ID is not in the current data. It is opened read-only to find out.
+- The rewrite needs the single writer: running work is asked about and stopped first, as for a restore (§12.3). It is refused before it starts when free space is short.
+- Every step is safe alone, so an interrupted erase is finished by running it again. Nothing is recorded about what was erased.
+- `secure_delete` stays off; the rewrite does that work once, when the user asks.
+
+### 17.4 Migrations
+
+None.
