@@ -56,4 +56,22 @@ Both orders miss it sometimes; four samples cannot tell them apart.
 No check shows the allowance or the instruction to answer being ignored: `limit-two` reached its request limit and
 answered (3 / 3), and no run repeated a call.
 
-Paid in all: about USD 0.21 at full input price (two runs and six short reruns), less on the bill.
+## Request by request (2026-11-28)
+
+Why do runs of several steps still read only about 70% from the cache? Four of them again on the stable start, with each
+request's input and cached input in the JSON ([per-request.md](per-request.md), [per-request.json](per-request.json);
+17 / 17 checks; USD 0.042 at full input price):
+
+| Scenario | Answer requests: input → cached |
+| --- | --- |
+| web-auto | 955 → 768; 1,665 → 1,024; 2,172 → 1,664; 2,618 → 2,176 |
+| follow-up (the second question) | 1,700 → 896; 2,943 → 1,792; 3,226 → 3,072 |
+| long-page | 1,123 → 896; 2,699 → 1,152; 3,990 → 2,816; 5,308 → 4,224 |
+| tight-context | 6,660 → 1,024; 7,463 → 6,784; 7,972 → 7,552 |
+
+Each request after the first reads from the cache everything the previous request sent (DeepSeek counts in blocks of 64
+tokens). What it does not read is what is new in that step: the model's reply, the tool results and the next note. No
+cache can serve that. The first request of a question reads what earlier questions sent up to where they differ.
+The attachment digests before tight-context's answer are separate requests with their own material.
+
+Paid in all: about USD 0.25 at full input price (three runs and six short reruns), less on the bill.

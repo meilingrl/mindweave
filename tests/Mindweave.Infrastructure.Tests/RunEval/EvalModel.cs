@@ -100,7 +100,8 @@ internal sealed record EvalCheck(string Name, bool Passed, string Detail);
 internal sealed record EvalCall(string Tool, string Arguments, string? Input, RunStepState State, string? Approval);
 
 /// <summary>One model request of the measured answer task (the answer's own and any summaries made for it).</summary>
-internal sealed record EvalRequest(string? Purpose, string Outcome, int? EstimatedTokens, int? PromptTokens, int? CompletionTokens, long Milliseconds, long? FirstTextMilliseconds = null);
+/// <paramref name="CacheReadTokens"/>: of <paramref name="PromptTokens"/>, what the provider read from its cache (requirements §10.11.4).
+internal sealed record EvalRequest(string? Purpose, string Outcome, int? EstimatedTokens, int? PromptTokens, int? CompletionTokens, long Milliseconds, long? FirstTextMilliseconds = null, int? CacheReadTokens = null);
 
 /// <summary>What was observed of a scenario's last answer (or its summary), and of the scenario as a whole.</summary>
 internal sealed record EvalObservation(

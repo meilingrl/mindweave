@@ -139,6 +139,9 @@ internal static class EvalReport
                     passed = r.Passed,
                     checks = r.Checks.Select(c => new { name = c.Name, passed = c.Passed, detail = c.Detail }),
                     metrics = r.Metrics,
+
+                    // Each request of the measured answer: its input and what of it the provider's cache served.
+                    requests = r.Observation?.Requests.Select(q => new { purpose = q.Purpose, input = q.PromptTokens, cached = q.CacheReadTokens }),
                     quote = r.Observation?.Quote,
                     answer = r.Observation?.Text,
                 }),

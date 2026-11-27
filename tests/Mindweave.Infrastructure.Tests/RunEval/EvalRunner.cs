@@ -291,14 +291,14 @@ internal static partial class EvalRunner
             {
                 var list = new List<EvalRequest>();
                 using var cmd = c.Command(null, """
-                    SELECT purpose, outcome, estimated_tokens, prompt_tokens, completion_tokens, finished_at - started_at, first_text_ms
+                    SELECT purpose, outcome, estimated_tokens, prompt_tokens, completion_tokens, finished_at - started_at, first_text_ms, cache_read_tokens
                     FROM ai_request WHERE task_id = $task ORDER BY started_at;
                     """, ("$task", task ?? string.Empty));
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
                     int? Int(int i) => reader.IsDBNull(i) ? null : reader.GetInt32(i);
-                    list.Add(new EvalRequest(reader.IsDBNull(0) ? null : reader.GetString(0), reader.GetString(1), Int(2), Int(3), Int(4), reader.GetInt64(5), reader.IsDBNull(6) ? null : reader.GetInt64(6)));
+                    list.Add(new EvalRequest(reader.IsDBNull(0) ? null : reader.GetString(0), reader.GetString(1), Int(2), Int(3), Int(4), reader.GetInt64(5), reader.IsDBNull(6) ? null : reader.GetInt64(6), Int(7)));
                 }
 
                 return list;
