@@ -5,7 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- A fixed number, so a new SDK never brings new analyzer warnings by itself; raising it is one deliberate line
+         (docs/design/diagnostics-and-upkeep.md §3.2, ci-build-7). -->
+    <AnalysisLevel>10.0</AnalysisLevel>
     <AnalysisMode>Recommended</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

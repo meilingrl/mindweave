@@ -33,7 +33,7 @@ if [[ -n "$bad" ]]; then
 fi
 
 # The things a reader needs to build and run it.
-for required in mindweave/Mindweave.slnx mindweave/global.json mindweave/src/Mindweave.Desktop/Mindweave.Desktop.csproj mindweave/docs/design/run-guide.md; do
+for required in mindweave/Mindweave.slnx mindweave/global.json mindweave/nuget.config mindweave/src/Mindweave.Desktop/Mindweave.Desktop.csproj mindweave/docs/design/run-guide.md; do
   # A here-string, not a pipe: grep -q stops at the first match, and under pipefail the writer's SIGPIPE would count as
   # "missing" once the list is longer than the pipe buffer.
   if ! grep -qx "$required" <<< "$names"; then
