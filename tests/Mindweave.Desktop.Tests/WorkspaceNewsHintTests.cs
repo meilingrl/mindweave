@@ -307,7 +307,7 @@ public class WorkspaceNewsHintTests
         // After a restart the marks are back on the badge, but nothing pops up and nothing sounds.
         scene.Window.Close();
         await app.RestartAsync();
-        var news = app.ShellPage.WorkspaceNews!;
+        var news = app.ShellPage.WorkspaceNews;
         await UiWait.UntilAsync(() => news.Count == 3);
         await Task.Delay(300);
         await news.Loaded;
@@ -355,7 +355,7 @@ public class WorkspaceNewsHintTests
 
         public Window Window { get; private set; } = null!;
 
-        public WorkspaceNewsViewModel News => App.ShellPage.WorkspaceNews!;
+        public WorkspaceNewsViewModel News => App.ShellPage.WorkspaceNews;
 
         public Workspace Trains { get; private set; } = null!;
 

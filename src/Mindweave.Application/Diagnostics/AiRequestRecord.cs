@@ -17,7 +17,9 @@ public enum AiRequestOutcome
 /// sent, kept beside <see cref="PromptTokens"/> to learn how the model counts (<c>TokenCalibration</c>).
 /// A request is made either for a task (<see cref="TaskId"/>, whose row holds the model) or, without a task row, for a
 /// workspace and a kind (<see cref="Attribution"/>, 2026-11-11, migration v10), with its own <see cref="Model"/> and
-/// <see cref="BaseUrl"/> so its token use can still be counted by model.
+/// <see cref="BaseUrl"/> so its token use can still be counted by model. <see cref="CacheReadTokens"/> and
+/// <see cref="CacheWriteTokens"/> (migration v20) are the part of <see cref="PromptTokens"/> the provider read from its cache
+/// and wrote to it; null when it did not report them.
 /// </summary>
 public sealed record AiRequestRecord(
     Guid Id,
@@ -38,7 +40,9 @@ public sealed record AiRequestRecord(
     Conversations.RequestAttribution? Attribution = null,
     string? Model = null,
     string? BaseUrl = null,
-    string? Purpose = null);
+    string? Purpose = null,
+    int? CacheReadTokens = null,
+    int? CacheWriteTokens = null);
 
 /// <summary>
 /// What a request within a task was for (architecture §15.11, migration v16): statistics count resource summaries apart from

@@ -71,7 +71,7 @@ internal static class SummaryNetworkScenario
             marks.MarkSeen(id);
         }
 
-        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews!.Toasts.Count == 0);
+        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews.Toasts.Count == 0);
     }
 
     internal static async Task<ConversationId> AskAsync(DesktopHarness app, ConversationService conversations, ConversationId? existing, WorkspaceId workspace, string question)

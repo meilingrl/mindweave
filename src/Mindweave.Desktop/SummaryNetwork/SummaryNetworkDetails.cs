@@ -8,7 +8,7 @@ namespace Mindweave.Desktop.SummaryNetwork;
 /// The summary network page's details beside the canvas, for every workspace alike: their width and whether they are
 /// folded away. Restored when the database opens, kept in the preference store when changed.
 /// </summary>
-public sealed partial class SummaryNetworkDetails(ISummaryNetworkDetailsLayout? store = null) : ObservableObject
+public sealed partial class SummaryNetworkDetails(ISummaryNetworkDetailsLayout store) : ObservableObject
 {
     private double _width = SummaryNetworkDetailsLayout.DefaultWidth;
 
@@ -27,11 +27,6 @@ public sealed partial class SummaryNetworkDetails(ISummaryNetworkDetailsLayout? 
 
     public async Task RestoreAsync()
     {
-        if (store is null)
-        {
-            return;
-        }
-
         try
         {
             var layout = await store.GetAsync(CancellationToken.None);
@@ -55,11 +50,6 @@ public sealed partial class SummaryNetworkDetails(ISummaryNetworkDetailsLayout? 
     /// <summary>Keeps the layout; called once when a resize ends, not at every pointer move.</summary>
     public void Save()
     {
-        if (store is null)
-        {
-            return;
-        }
-
         // One write after another, so the last change made is the one that stays.
         var layout = new SummaryNetworkDetailsLayout(Width, IsCollapsed);
         var previous = Saving;

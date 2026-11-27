@@ -39,6 +39,7 @@ This directory records the choices that the handoff document lets implementers r
 | --- | --- |
 | [Sharing a thinking path](sharing.md) | Approved 2026-11-25 (evolution D8), step 1 built (0.6.13, 0.6.15): a share as one HTML file with the exchange data inside, structure only by default, what never leaves, the page a reader sees, import and continuing, copies between the user's devices, acceptance scenarios and increments |
 | [Sharing, step 2: import and continue](sharing-import.md) | Approved 2026-11-25, built (0.6.18, 0.6.19): a structure-only share arrives as empty conversations; a shared file only adds; a received conversation is read-only and the user's questions attach as conversations of their own; the rules of comparison, the migration, acceptance scenarios and increments 2a and 2b |
+| [Sharing, step 3: the manual backup](sharing-backup.md) | Approved 2026-11-26, built (0.6.26, 0.6.27): everything in all workspaces as one package file the user keeps; the same operation as sharing with a wider scope; not the app's automatic backups and not sync: importing only adds, and what differs keeps this device's value; a conversation continued on both sides is joined by time; no migration; acceptance scenarios and increments 3a and 3b |
 
 ## Security and diagnostics
 
@@ -51,6 +52,7 @@ This directory records the choices that the handoff document lets implementers r
 | Document | Content |
 | --- | --- |
 | [Free trial](free-trial.md) | Adopted 2026-11-22 (evolution D9), not built: a relay on the owner's VPS, anonymous install tokens with proof-of-work, per-install and global caps, the request flow, starting limits, hosting, the app changes, cost and open decisions |
+| [Ask from anywhere, connections, search and caching](ask-anywhere.md) | Approved 2026-11-27 (D-045), not built: quoting with notes from a conversation, from another application and from the screen, with the app staying in the menu bar; several connections with one current model, a model for background work, a local server and the Messages and Responses protocols; search by meaning with an embedding model on a saved connection; cached tokens recorded, a stable request order and cache points; what is set aside (browser extension, MCP server, command line, a model inside the app) |
 
 ## Interface
 

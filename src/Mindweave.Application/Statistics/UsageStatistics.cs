@@ -35,16 +35,34 @@ public enum UsagePurpose
 /// <summary>
 /// Tokens as the services reported them. <see cref="Requests"/> counts the requests whose usage was reported (their
 /// tokens are in the sums); <see cref="Unreported"/> the ones whose service returned none, which are counted apart and
-/// never filled in with the app's own estimate.
+/// never filled in with the app's own estimate. <see cref="Cache"/> is the part of the input the provider's cache served.
 /// </summary>
-public readonly record struct TokenCounts(long Input, long Output, int Requests, int Unreported)
+public readonly record struct TokenCounts(long Input, long Output, int Requests, int Unreported, CacheCounts Cache = default)
 {
     public long Total => Input + Output;
 
     public static TokenCounts operator +(TokenCounts left, TokenCounts right) =>
-        new(left.Input + right.Input, left.Output + right.Output, left.Requests + right.Requests, left.Unreported + right.Unreported);
+        new(left.Input + right.Input, left.Output + right.Output, left.Requests + right.Requests, left.Unreported + right.Unreported, left.Cache + right.Cache);
 
     public TokenCounts Add(TokenCounts other) => this + other;
+}
+
+/// <summary>
+/// Cached input as the services reported it (requirements §10.11.4). <see cref="Read"/> is the input read from the cache by
+/// the <see cref="ReadReported"/> requests that reported it, out of their <see cref="ReadOfInput"/> input tokens;
+/// <see cref="Written"/> the input written to it by the <see cref="WriteReported"/> requests that reported that. Requests
+/// that reported nothing are not in either share: not reported is never counted as zero.
+/// </summary>
+public readonly record struct CacheCounts(long Read, long ReadOfInput, int ReadReported, long Written, int WriteReported)
+{
+    /// <summary>The share of input read from the cache, 0 to 1, over the requests that reported it; null when none did.</summary>
+    public double? ReadShare => ReadReported == 0 ? null : ReadOfInput <= 0 ? 0 : Math.Min(1, (double)Read / ReadOfInput);
+
+    public static CacheCounts operator +(CacheCounts left, CacheCounts right) =>
+        new(left.Read + right.Read, left.ReadOfInput + right.ReadOfInput, left.ReadReported + right.ReadReported,
+            left.Written + right.Written, left.WriteReported + right.WriteReported);
+
+    public CacheCounts Add(CacheCounts other) => this + other;
 }
 
 /// <summary>A model as the statistics and prices tell them apart: its name and the host of the service address.</summary>

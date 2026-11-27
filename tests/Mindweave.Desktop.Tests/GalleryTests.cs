@@ -1286,7 +1286,7 @@ public class GalleryTests
         await scene.App.ShellPage.NewWorkspace.SubmitCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => scene.App.Workbench.CurrentWorkspace?.Name.Value == "城市交通");
         held.Finish("以标准轨为主。");
-        var news = scene.App.ShellPage.WorkspaceNews!;
+        var news = scene.App.ShellPage.WorkspaceNews;
         await UiWait.UntilAsync(() => news.HasNews && news.Toasts.Count == 1);
         await NewsSettledAsync(window);
         Capture(window, "g41-workspace-news");
@@ -1333,7 +1333,7 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
-        var news = scene.App.ShellPage.WorkspaceNews!;
+        var news = scene.App.ShellPage.WorkspaceNews;
         var city = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("城市交通"), CancellationToken.None);
         scene.App.Workbench.Workspaces.Add(city);
 
@@ -1400,7 +1400,7 @@ public class GalleryTests
         var marks = scene.App.Services.GetRequiredService<ConversationMarksService>();
         await UiWait.UntilAsync(() => marks.IsUnread(subway.Conversation));
         marks.MarkSeen(subway.Conversation);
-        var news = scene.App.ShellPage.WorkspaceNews!;
+        var news = scene.App.ShellPage.WorkspaceNews;
         await UiWait.UntilAsync(() => !news.HasNews && news.Toasts.Count == 0);
         await OpenConversationAsync(scene.App, window, seed.Root);
         await SettleAsync(window);
@@ -2057,6 +2057,8 @@ public class GalleryTests
     {
         app.Client.PromptTokens = _ => 1_800;
         app.Client.CompletionTokens = _ => 420;
+        app.Client.CacheReadTokens = _ => 1_024;
+        app.Client.CacheWriteTokens = _ => 640;
         var seed = await SeedAsync(app, summaries: true);
         var usage = new UsageSeed(app.Services.GetRequiredService<SqliteDatabase>());
         var random = new Random(20261112);
@@ -2073,7 +2075,11 @@ public class GalleryTests
             for (var q = 0; q < asked; q++)
             {
                 await usage.QuestionAsync(history, at.AddMinutes(q * 7));
-                await usage.RequestAsync(history, "answer", "deepseek-flash", at.AddMinutes(q * 7), random.Next(2_000, 14_000), random.Next(400, 1_800), DeepSeek);
+                // Prompt caching (requirements §10.11.4): DeepSeek reports what it read from its cache, here only for the
+                // last 20 days, as if the older requests were recorded before the app kept the number; GLM reports nothing.
+                var input = random.Next(2_000, 14_000);
+                await usage.RequestAsync(history, "answer", "deepseek-flash", at.AddMinutes(q * 7), input, random.Next(400, 1_800), DeepSeek,
+                    cacheRead: day <= 20 ? input * random.Next(30, 80) / 100 : null);
             }
 
             if (day <= 30 && asked > 0)
@@ -2173,7 +2179,7 @@ public class GalleryTests
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.All(i => !i.IsUnread));
 
         // The hints those answers popped up in the open workspace go with their marks.
-        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews!.Toasts.Count == 0);
+        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews.Toasts.Count == 0);
 
         var nodes = new Dictionary<ConversationId, SummaryNodeId>();
         if (summaries)

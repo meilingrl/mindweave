@@ -60,12 +60,12 @@ public class WorkspaceSwitcherTests
         UiInput.Click(window, Part<Button>(window, "WorkspacePicker"));
         Assert.True(app.ShellPage.IsWorkspaceMenuOpen);
         Assert.Contains("open", Part<Button>(window, "WorkspacePicker").Classes);
-        await UiWait.UntilAsync(() => MenuRows(window).Count == 6);
+        await UiWait.UntilAsync(() => MenuRows(window).Count == 7);
         window.UpdateLayout();
 
         var rows = MenuRows(window);
-        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ImportEntry, UiText.ManageWorkspaces], rows.Select(Label));
-        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ImportEntry, UiText.ManageWorkspaces], rows.Select(r => AutomationProperties.GetName(r)));
+        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ImportEntry, UiText.ManualBackupEntry, UiText.ManageWorkspaces], rows.Select(Label));
+        Assert.Equal(["火车历史", "城市交通", "摄影史", UiText.NewWorkspaceEntry, UiText.ImportEntry, UiText.ManualBackupEntry, UiText.ManageWorkspaces], rows.Select(r => AutomationProperties.GetName(r)));
         var current = rows[0];
         Assert.Equal(trains.Id, Assert.IsType<WorkspaceChoice>(current.DataContext).Workspace.Id);
         Assert.True(Check(current).IsEffectivelyVisible);
@@ -178,7 +178,7 @@ public class WorkspaceSwitcherTests
         // And through it the menu opens and closes.
         peer.Expand();
         Assert.True(app.ShellPage.IsWorkspaceMenuOpen);
-        await UiWait.UntilAsync(() => MenuRows(window).Count == 6);
+        await UiWait.UntilAsync(() => MenuRows(window).Count == 7);
         peer.Collapse();
         Assert.False(app.ShellPage.IsWorkspaceMenuOpen);
         window.Close();
@@ -195,7 +195,7 @@ public class WorkspaceSwitcherTests
         await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
 
         UiInput.Click(window, Part<Button>(window, "WorkspacePicker"));
-        await UiWait.UntilAsync(() => MenuRows(window).Count == 6);
+        await UiWait.UntilAsync(() => MenuRows(window).Count == 7);
         window.UpdateLayout();
         UiInput.Click(window, MenuRows(window).Single(r => Label(r) == "摄影"));
         Assert.False(app.ShellPage.IsWorkspaceMenuOpen);
@@ -301,7 +301,7 @@ public class WorkspaceSwitcherTests
         await app.StartWithWorkspaceAsync("火车历史");
         await app.ConfigureModelAsync();
         var (city, _) = await AddAsync(app, "城市交通", "摄影史");
-        var news = app.ShellPage.WorkspaceNews!;
+        var news = app.ShellPage.WorkspaceNews;
         await OpenMenuAsync(app, window);
         var row = MenuRows(window).Single(r => Label(r) == "城市交通");
         var dot = row.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Ellipse>().Single(e => e.Name == "WorkspaceNewsDot");
@@ -336,8 +336,9 @@ public class WorkspaceSwitcherTests
         Assert.True(scroller.Bounds.Height <= scroller.MaxHeight);
         Assert.True(scroller.Extent.Height > scroller.Viewport.Height);
 
-        // From the last row (管理工作区…) up past 新建工作区… to the last workspace, scrolled into view.
+        // From the last row (管理工作区…) up past the entries above it to the last workspace, scrolled into view.
         Press(window, Key.End, PhysicalKey.End);
+        Press(window, Key.Up, PhysicalKey.ArrowUp);
         Press(window, Key.Up, PhysicalKey.ArrowUp);
         Press(window, Key.Up, PhysicalKey.ArrowUp);
         Press(window, Key.Up, PhysicalKey.ArrowUp);

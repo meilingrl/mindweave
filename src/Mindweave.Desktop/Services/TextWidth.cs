@@ -7,7 +7,7 @@ namespace Mindweave.Desktop.Services;
 /// The text width in effect, shared by the conversation pages (dragging the text's edge) and 设置 › 外观. Restored when the
 /// database opens, kept in the preference store when changed.
 /// </summary>
-public sealed class TextWidth(ITextWidth? store = null) : ObservableObject
+public sealed class TextWidth(ITextWidth store) : ObservableObject
 {
     private double? _pixels = TextWidthService.Default;
 
@@ -23,11 +23,6 @@ public sealed class TextWidth(ITextWidth? store = null) : ObservableObject
 
     public async Task RestoreAsync()
     {
-        if (store is null)
-        {
-            return;
-        }
-
         try
         {
             Pixels = await store.GetAsync(CancellationToken.None);
@@ -43,11 +38,6 @@ public sealed class TextWidth(ITextWidth? store = null) : ObservableObject
     /// <summary>Keeps the width; called once when a drag ends, not at every pointer move.</summary>
     public void Save()
     {
-        if (store is null)
-        {
-            return;
-        }
-
         // One write after another, so the last change made is the one that stays.
         var width = Pixels;
         var previous = Saving;

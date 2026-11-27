@@ -541,10 +541,27 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         events.AddRange(Finish(reason, calls, reasoning));
         if (obj["usage"] is JsonObject counts)
         {
-            events.Add(new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"])));
+            events.Add(UsageOf(counts));
         }
 
         return events;
+    }
+
+    /// <summary>
+    /// The counts of a <c>usage</c> object. Cached input (requirements §10.11.4) comes in several shapes, all already inside
+    /// <c>prompt_tokens</c>: <c>prompt_tokens_details.cached_tokens</c> (OpenAI, GLM, Qwen, OpenRouter),
+    /// <c>prompt_cache_hit_tokens</c> (DeepSeek) and a top-level <c>cached_tokens</c> (Kimi) for what was read;
+    /// <c>prompt_tokens_details.cache_write_tokens</c> (OpenRouter) and <c>cache_creation_input_tokens</c> (Qwen's explicit
+    /// cache) for what was written. A count the service leaves out stays null: not reported is not zero.
+    /// </summary>
+    private static ChatStreamEvent.Usage UsageOf(JsonObject counts)
+    {
+        var details = counts["prompt_tokens_details"] as JsonObject;
+        return new ChatStreamEvent.Usage(
+            Count(counts["prompt_tokens"]),
+            Count(counts["completion_tokens"]),
+            Count(details?["cached_tokens"]) ?? Count(counts["prompt_cache_hit_tokens"]) ?? Count(counts["cached_tokens"]),
+            Count(details?["cache_write_tokens"]) ?? Count(details?["cache_creation_input_tokens"]));
 
         static int? Count(JsonNode? value) => value is JsonValue number && number.TryGetValue<int>(out var n) && n >= 0 ? n : null;
     }
@@ -592,12 +609,8 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
         // Usage comes on the last chunk (or a final chunk without choices); it is requested with stream_options.
         // Moonshot (Kimi) puts it inside the final choice instead (2026-11-05, real service).
-        ChatStreamEvent.Usage? usage = (obj["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts
-            ? new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"]))
-            : null;
+        var usage = (obj["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts ? UsageOf(counts) : null;
         return new Chunk(text, reasoning, finish, usage, tools);
-
-        static int? Count(JsonNode? value) => value is JsonValue number && number.TryGetValue<int>(out var n) && n >= 0 ? n : null;
     }
 
     /// <summary>

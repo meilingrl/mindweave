@@ -164,7 +164,7 @@ public class StorageRecoveryTests
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
         var failing = new RefusingReadingStore(h.ReadingStore) { RefusePositions = true };
-        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromHours(1), h.Health);
+        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, new ReadingStateOptions { SaveDelay = TimeSpan.FromHours(1) }, h.Health, h.Preferences);
 
         reading.SetPosition(sent.Conversation, ViewerSlotKey.Primary, new ReadingPosition(answer.Id, 0, null, 1));
         Assert.True(await reading.FlushAsync());

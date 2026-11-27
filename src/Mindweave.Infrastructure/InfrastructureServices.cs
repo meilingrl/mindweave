@@ -35,6 +35,7 @@ public static class InfrastructureServices
         services.TryAddSingleton(MigrationCatalog.Default);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClock, SystemClock>();
+        services.TryAddSingleton(new SqliteDatabaseOptions()); // Tests shorten the busy wait.
         services.AddSingleton<SqliteDatabase>();
         services.TryAddSingleton<IDatabaseLifecycle>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IStorageProbe>(sp => sp.GetRequiredService<SqliteDatabase>());
@@ -67,6 +68,10 @@ public static class InfrastructureServices
         services.AddSingleton<ISharePageWriter, SharePageWriter>();
         services.AddSingleton<IImportStore, SqliteImportStore>();
         services.AddSingleton<ISharedFileReader, SharedFileReader>();
+        services.AddSingleton<Application.ManualBackup.IManualBackupStore, SqliteManualBackupStore>();
+        services.AddSingleton<Application.ManualBackup.IManualBackupWriter, ManualBackup.ManualBackupPackage>();
+        services.AddSingleton<Application.ManualBackup.IManualBackupReader, ManualBackup.ManualBackupReader>();
+        services.AddSingleton<Application.ManualBackup.IManualBackupImportStore, SqliteManualBackupImportStore>();
         services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
         services.TryAddSingleton(new ChatClientOptions());
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(

@@ -72,8 +72,8 @@ public sealed class SummaryService : ISummaries
     private readonly ISummaryStore _summaries;
     private readonly IConversationStore _conversations;
     private readonly IBranchStore _branches;
-    private readonly IContextSummaryStore? _contextSummaries;
-    private readonly SummaryLinks.SummaryLinkService? _links;
+    private readonly IContextSummaryStore _contextSummaries;
+    private readonly SummaryLinks.SummaryLinkService _links;
     private readonly GenerationCoordinator _generation;
     private readonly ContextBudgets _budgets;
     private readonly StorageHealth _health;
@@ -93,10 +93,13 @@ public sealed class SummaryService : ISummaries
         ModelSettingsService models,
         IClock clock,
         ILogger<SummaryService> logger,
-        IContextSummaryStore? contextSummaries = null,
-        SummaryLinks.SummaryLinkService? links = null,
-        IResourceStore? resources = null)
+        IContextSummaryStore contextSummaries,
+        SummaryLinks.SummaryLinkService links,
+        IResourceStore resources)
     {
+        ArgumentNullException.ThrowIfNull(contextSummaries);
+        ArgumentNullException.ThrowIfNull(links);
+        ArgumentNullException.ThrowIfNull(resources);
         _resources = resources;
         _links = links;
         _summaries = summaries;
@@ -410,7 +413,7 @@ public sealed class SummaryService : ISummaries
         if (saved.RecommendedLink is { } link)
         {
             // Linked to the recommendation's basis in the same commit (requirements §10.3.5): the network and details show it.
-            _links?.RaiseChanged(link.Workspace);
+            _links.RaiseChanged(link.Workspace);
         }
 
         if (!saved.IsCandidate)
@@ -435,7 +438,7 @@ public sealed class SummaryService : ISummaries
         return PromptLibrary.Get("summary-branch-background", ("quote", quote), ("excerpt", excerpt));
     }
 
-    private readonly IResourceStore? _resources;
+    private readonly IResourceStore _resources;
 
     /// <summary>Characters of an attachment's text that stand for it in a summary's input when it has no summary yet.</summary>
     internal const int AttachmentExcerpt = 300;
@@ -447,7 +450,7 @@ public sealed class SummaryService : ISummaries
     private async Task<IReadOnlyList<Message>> WithAttachmentNotesAsync(IReadOnlyList<Message> own, CancellationToken cancellationToken)
     {
         var attached = own.SelectMany(m => ContentBlocks.AttachmentsOf(m.Blocks)).Where(a => a.Text is not null).Select(a => a.Resource).Distinct().ToList();
-        if (_resources is null || attached.Count == 0)
+        if (attached.Count == 0)
         {
             return own;
         }
@@ -468,7 +471,7 @@ public sealed class SummaryService : ISummaries
     {
         own = await WithAttachmentNotesAsync(own, cancellationToken).ConfigureAwait(false);
         // Only this conversation is summarized; its branch background travels as a separate note, not as turns.
-        var stored = _contextSummaries is null ? [] : await _contextSummaries.ListAsync([conversation], cancellationToken).ConfigureAwait(false);
+        var stored = await _contextSummaries.ListAsync([conversation], cancellationToken).ConfigureAwait(false);
         var phrases = ModelPhrases.Current;
         var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text, phrases));
         return ContextPlanner.Plan([], new ContextSegment(conversation, null, own), budget, key => known.TryGetValue(key, out var tokens) ? tokens : null, phrases);

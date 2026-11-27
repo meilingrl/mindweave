@@ -5,6 +5,12 @@ using Mindweave.Core.Reading;
 
 namespace Mindweave.Application.Reading;
 
+public sealed class ReadingStateOptions
+{
+    /// <summary>How long writes of reading positions and drafts trail the last change.</summary>
+    public TimeSpan SaveDelay { get; init; } = TimeSpan.FromMilliseconds(500);
+}
+
 /// <summary>
 /// Owner of reading positions and unsent drafts (architecture §2.2). The newest value of each
 /// (conversation, slot) lives in memory, so a page reopened right after it was left never reads an older
@@ -24,11 +30,11 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
     private readonly HashSet<(ConversationId, ViewerSlotKey)> _dirtyPositions = [];
     private readonly HashSet<(ConversationId, ViewerSlotKey)> _dirtyDrafts = [];
     private readonly SemaphoreSlim _flushing = new(1, 1);
-    private readonly StorageHealth? _health;
+    private readonly StorageHealth _health;
 
     // New-exploration drafts (health check 2026-11-12, requirements-3): one per workspace, kept as a preference, since
     // no conversation exists yet for the draft table to point at.
-    private readonly IPreferenceStore? _preferences;
+    private readonly IPreferenceStore _preferences;
     private readonly Dictionary<Core.Workspaces.WorkspaceId, string> _newDrafts = [];
     private readonly HashSet<Core.Workspaces.WorkspaceId> _dirtyNewDrafts = [];
 
@@ -39,15 +45,18 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
     private readonly Dictionary<(ConversationId, ViewerSlotKey), StorageObligation> _draftObligations = [];
     private bool _scheduled;
 
-    public ReadingStateService(IReadingStateStore store, IClock clock, ILogger<ReadingStateService> logger, TimeSpan? saveDelay = null, StorageHealth? health = null, IPreferenceStore? preferences = null)
+    public ReadingStateService(IReadingStateStore store, IClock clock, ILogger<ReadingStateService> logger, ReadingStateOptions options, StorageHealth health, IPreferenceStore preferences)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(health);
+        ArgumentNullException.ThrowIfNull(preferences);
         _preferences = preferences;
         _store = store;
         _clock = clock;
         _logger = logger;
         _health = health;
-        SaveDelay = saveDelay ?? TimeSpan.FromMilliseconds(500);
-        health?.RegisterRetry(_ => FlushAsync());
+        SaveDelay = options.SaveDelay;
+        health.RegisterRetry(_ => FlushAsync());
     }
 
     public TimeSpan SaveDelay { get; }
@@ -145,11 +154,6 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
             {
                 return known;
             }
-        }
-
-        if (_preferences is null)
-        {
-            return string.Empty;
         }
 
         try
@@ -297,11 +301,6 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
     /// <summary>Writes one new-exploration draft (an empty one removes it); storage refusing it is reported like any draft.</summary>
     private async Task<bool> SaveNewDraftAsync(Core.Workspaces.WorkspaceId workspace, string value)
     {
-        if (_preferences is null)
-        {
-            return true;
-        }
-
         try
         {
             if (value.Length == 0)
@@ -318,7 +317,7 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         catch (StorageWriteException ex)
         {
             LogNewDraftFailed(_logger, ex, workspace);
-            _health?.Report(ex);
+            _health.Report(ex);
             return false;
         }
 #pragma warning disable CA1031 // Any other failure: logged; the in-memory value stays current and pending.
@@ -371,7 +370,7 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         {
             await write().ConfigureAwait(false);
         }
-        catch (StorageWriteException ex) when (_health is not null)
+        catch (StorageWriteException ex)
         {
             LogSaveFailed(_logger, ex, key.Conversation);
             lock (_gate)

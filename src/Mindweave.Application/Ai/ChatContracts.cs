@@ -116,8 +116,13 @@ public abstract record ChatStreamEvent
     /// </summary>
     public sealed record ToolCalls(IReadOnlyList<ChatToolCall> Calls, string? Reasoning) : ChatStreamEvent;
 
-    /// <summary>Token counts the service reported, if it did (usually with the last chunk). Diagnostic only.</summary>
-    public sealed record Usage(int? PromptTokens, int? CompletionTokens) : ChatStreamEvent;
+    /// <summary>
+    /// Token counts the service reported, if it did (usually with the last chunk). Diagnostic only. <paramref name="PromptTokens"/>
+    /// is the whole input, the cached part included; <paramref name="CacheReadTokens"/> and <paramref name="CacheWriteTokens"/>
+    /// are the part of it read from the provider's cache and written to it (requirements §10.11.4). Null means not reported,
+    /// never zero: an adapter whose protocol counts cached input apart adds it into <paramref name="PromptTokens"/>.
+    /// </summary>
+    public sealed record Usage(int? PromptTokens, int? CompletionTokens, int? CacheReadTokens = null, int? CacheWriteTokens = null) : ChatStreamEvent;
 }
 
 public sealed class ChatClientException : Exception

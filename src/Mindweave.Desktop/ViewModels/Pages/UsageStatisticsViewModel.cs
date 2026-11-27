@@ -543,6 +543,9 @@ public sealed partial class ModelUsageRowViewModel : ObservableObject
 
     public string UsageText => UiText.UsageLine(Counts);
 
+    /// <summary>How much of the input the provider's cache served, or that it did not say (requirements §10.11.4).</summary>
+    public string CacheText => UiText.CacheLine(Counts);
+
     public string ShareText { get; }
 
     /// <summary>The model's part of the period's tokens, 0 to 1, for the thin share bar.</summary>

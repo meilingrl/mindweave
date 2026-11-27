@@ -27,7 +27,7 @@ public class RealDataUpgradeTests
         var before = Counts(paths.DatabasePath, out var fromVersion);
         var branches = Branches(paths.DatabasePath);
 
-        await using (var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance))
+        await using (var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions()))
         {
             var opened = await database.OpenAsync(Ct);
             Assert.True(opened.IsReady, $"{opened.Status}: {opened.ErrorDetail}");

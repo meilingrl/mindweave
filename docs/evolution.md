@@ -1,6 +1,6 @@
 # Mindweave evolution directions and engineering guidance
 
-Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, D8, sharing thinking paths, on 2026-11-20, and D9, the free trial, on 2026-11-22.
+Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, D8, sharing thinking paths, on 2026-11-20, D9, the free trial, on 2026-11-22, and D10, sync between devices, on 2026-11-27.
 
 ## Standing and force
 
@@ -71,7 +71,7 @@ Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep
 
 **Where it lands in the architecture, and prerequisites:**
 
-- **Models and protocols:** Keep the protocol adapter boundary (§7.2) and declare capabilities with E4. Adapters such as Responses and Messages are added as new implementations without changing the business model.
+- **Models and protocols:** Keep the protocol adapter boundary (§7.2) and declare capabilities with E4. Adapters such as Responses and Messages are added as new implementations without changing the business model. Adopted by the user on 2026-11-27 (D-045): several connections, a local server entry, Messages and Responses; the design is [ask-anywhere.md](design/ask-anywhere.md).
 - **Import and export:** E5 is the only external format; import from external tools is implemented as a mapping to that format.
 - **Platforms:** Linux relies on Avalonia; the cost is mainly verification and packaging. Mobile is a different interaction design that reuses Core and Application; it is a separate product decision and is not handled as a compatibility item.
 
@@ -81,7 +81,7 @@ Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep
 
 **Method:** Measure first with E6, then optimize; benchmarks go into CI with budgets. The main costs are expected to be, in order: rendering and re-layout of very long Markdown (needs virtualization), context assembly for deep branch trees, and database access (WAL and suitable indexes are usually enough).
 
-**Coupling with existing design:** Provider prompt caching depends on a **stable prefix**. Context assembly should put frozen material first (the ancestors' frozen ranges, reusable context summaries), then recent questions and answers and the current question. This interacts with the compression and context-summary reuse rules of §6 and should be designed together with them, not treated as later tuning.
+**Coupling with existing design:** Provider prompt caching depends on a **stable prefix**. Context assembly should put frozen material first (the ancestors' frozen ranges, reusable context summaries), then recent questions and answers and the current question. This interacts with the compression and context-summary reuse rules of §6 and should be designed together with them, not treated as later tuning. Adopted by the user on 2026-11-27 (D-045): cached tokens are recorded, the order of a request is fixed, and Messages connections get cache points ([ask-anywhere.md](design/ask-anywhere.md); requirements §10.11.4).
 
 ### D5 Agent capabilities
 
@@ -104,7 +104,7 @@ Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep
 
 How answers are written, with and without tools, is [reply quality](design/reply-quality.md) (requirements §10.9; D-043, approved 2026-11-26).
 
-Written as [requirements](requirements.md) §10.4 and [architecture](architecture.md) §15. Phases 1 to 4 are built: resources and attachments, the run loop and local tools, web search and citations, MCP. Phase 5, generated charts and audio, is ahead (§10.4.7). Two questions stay open for later: an embedding service for retrieval by meaning (Q13: not now; look again when local keyword retrieval is not good enough) and the chart format of phase 5 (Q16: Markdown tables and Mermaid first). The other answers are in [the questions of that time](history/design/agent-platform-questions.md) (Q14, confirmed later: [web search](design/web-search.md)). Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
+Written as [requirements](requirements.md) §10.4 and [architecture](architecture.md) §15. Phases 1 to 4 are built: resources and attachments, the run loop and local tools, web search and citations, MCP. Phase 5, generated charts and audio, is ahead (§10.4.7). Two questions stay open for later: retrieval by meaning (Q13: answered on 2026-11-27, D-045: an embedding model on a saved connection, empty by default; requirements §10.11.3) and the chart format of phase 5 (Q16: Markdown tables and Mermaid first). The other answers are in [the questions of that time](history/design/agent-platform-questions.md) (Q14, confirmed later: [web search](design/web-search.md)). Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
 
 ### D6 Long-term vision: map-based exploration
 
@@ -118,7 +118,7 @@ Written as [requirements](requirements.md) §10.4 and [architecture](architectur
 
 ### D7 Asking with multiple quotes
 
-Proposed by the user on 2026-11-05 and added after discussion with Claude.
+Proposed by the user on 2026-11-05 and added after discussion with Claude. The third use below, several quotes asked about inside the current conversation, was adopted on 2026-11-27 (D-045) together with quotes taken from outside the app; the design is [ask-anywhere.md](design/ask-anywhere.md) and the text is requirements §10.11.1. A branch from several quotes and revising a summary with quotes are not adopted yet.
 
 **Goal:** The user can select several passages in the original text one by one; each passage becomes a numbered quote ([1], [2], [3] …), and the user then writes one prompt that refers to these quotes. It solves three things: asking about several points at once, pointing exactly at "which place", and not having to select a large block of unrelated text or paste the rest of the original text by hand in a branch (the burden in requirements §2.2 item 1).
 
@@ -177,7 +177,7 @@ Proposed by the user from 2026-11-19 to 11-20 and added after discussion with Cl
 
 **Relation to other directions from the same discussion.** The same discussion raised three related directions: the summary network and branches themselves (for example, bringing back one or two key points when returning from a branch, answers citing the user's own existing summaries, showing unresolved questions as the edge of the exploration, a short recap when coming back after a few days); presentation forms (the timeline, and the map, see D6); and the look of the summary network (letting the summary network show how thinking flows, the differences between nodes and their order in time). Sharing connects the three: the summary network and branches decide what is in a path, and the presentation form and look decide whether a reader who was not there can understand it. The first of these directions (key points brought back from a branch, answers that use the user's own material, unresolved questions as the edge, coming back after a few days) was adopted by the user on 2026-11-26 (D-044); the design is [return-and-review.md](design/return-and-review.md).
 
-**Decided on 2026-11-24 and 11-25** (see the design): what a share includes and what never leaves it, with only the structure by default; the form of the shared page; import and device copies. **Still open:** when the map is brought in (scenario 2, see D6).
+**Decided on 2026-11-24 and 11-25** (see the design): what a share includes and what never leaves it, with only the structure by default; the form of the shared page; import and the manual backup. **Still open:** when the map is brought in (scenario 2, see D6).
 
 ### D9 Free trial
 
@@ -192,6 +192,18 @@ Adopted by the user on 2026-11-22 (D-034). The work comes later; no schedule is 
 **How to verify:** First the smallest step: the relay with enroll, forward and the two counters, and a trial connection in the app behind a switch, tried with a small prepaid balance. Then reachability from mainland China and the provider's terms.
 
 **Design:** [free-trial.md](design/free-trial.md). When the work starts, requirements §9.4 and architecture §7.4 are changed after the user decides.
+
+### D10 Sync between devices (vision)
+
+Stated by the user on 2026-11-27 (D-047). It is a vision; nothing of it is scheduled.
+
+**What it is.** The user's work is the same on all their devices without their doing anything: a change on one device reaches the others.
+
+**Why the manual backup is not it.** Sharing and the manual backup (D8, [sharing-backup.md](design/sharing-backup.md)) export to a file and import from a file. A careful user who accepts the conflicts and the trouble can make that behave like sync by hand. The product does not ask that of the user and does not call it sync.
+
+**What it needs.** Practical sync is networked: a shared cloud, server or repository that every device reaches. That brings a server side and a client side, with identity, conflicts between devices and the cost of running a service: another architecture than the local application of today.
+
+**Standing.** Mindweave has no server now (requirements §10.1). This direction is neither declared achieved by the manual backup nor ruled out: a server and good sync may be offered later. The stable identities and the exchange format (E5) that sharing uses are what it would build on.
 
 ## 4. How work moves forward
 

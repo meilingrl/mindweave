@@ -2,8 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Conversations;
-using Mindweave.Application.Reading;
 using Mindweave.Application.Startup;
+using Mindweave.Application.Storage;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
 
@@ -46,11 +46,8 @@ public enum ExitStage
 public sealed partial class ExitCoordinator(
     IGenerationExit generation,
     Workbench workbench,
-    IReadingState reading,
     Application.Summaries.ISummaries summaries,
-    IDatabaseLifecycle database,
-    Application.Export.ISummaryExport exports,
-    Application.Share.IShares shares,
+    ISaveBeforeClose save,
     ISystemShell shell,
     ExitOptions options,
     ILogger<ExitCoordinator> logger) : ViewModelBase
@@ -373,19 +370,13 @@ public sealed partial class ExitCoordinator(
     }
 
     /// <summary>
-    /// Step 4: an export or a share still writing its file (so it is not cut off and leaves no temporary file), summary edit drafts
-    /// (including any still inside their autosave delay), message drafts and reading positions, the stopped answers' terminal
-    /// writes that failed, the last location, then the write queue and a best-effort checkpoint. True when nothing the
-    /// user wrote or received is left unsaved; page state alone may degrade.
+    /// Step 4: this view's last location, then everything on the one list of what is saved before the data is closed
+    /// (<see cref="ISaveBeforeClose"/>), which the end of the session runs again. True when nothing the user wrote or
+    /// received is left unsaved; page state alone may degrade.
     /// </summary>
     private async Task<bool> SaveEverythingAsync()
     {
-        await Task.WhenAll(exports.WhenIdleAsync(), shares.WhenIdleAsync());
         await workbench.FlushAsync();
-        var summaryDrafts = await summaries.FlushDraftsAsync();
-        var drafts = await reading.FlushAsync();
-        var answers = await generation.SaveUnsavedAsync();
-        await database.DrainAsync();
-        return summaryDrafts && drafts && answers;
+        return await save.SaveAsync();
     }
 }

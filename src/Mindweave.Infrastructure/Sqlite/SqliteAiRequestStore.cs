@@ -24,9 +24,10 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
             (connection, transaction) => connection.Execute(transaction, """
                 INSERT INTO ai_request (id, task_id, workspace_id, kind, model, base_url, started_at, finished_at, response_ms,
                                         first_text_ms, outcome, http_status, provider_request_id, error_kind, error_detail,
-                                        output_chars, prompt_tokens, completion_tokens, estimated_tokens, purpose)
+                                        output_chars, prompt_tokens, completion_tokens, estimated_tokens, purpose,
+                                        cache_read_tokens, cache_write_tokens)
                 VALUES ($id, $task, $workspace, $owner, $model, $base, $started, $finished, $response, $first, $outcome, $status,
-                        $provider, $kind, $detail, $chars, $prompt, $completion, $estimated, $purpose);
+                        $provider, $kind, $detail, $chars, $prompt, $completion, $estimated, $purpose, $cacheRead, $cacheWrite);
                 """,
                 ("$id", record.Id.ToString("D")),
                 ("$task", record.TaskId?.ToString()),
@@ -47,7 +48,9 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                 ("$prompt", record.PromptTokens),
                 ("$completion", record.CompletionTokens),
                 ("$estimated", record.EstimatedTokens),
-                ("$purpose", record.Purpose)),
+                ("$purpose", record.Purpose),
+                ("$cacheRead", record.CacheReadTokens),
+                ("$cacheWrite", record.CacheWriteTokens)),
             cancellationToken);
     }
 
@@ -64,7 +67,7 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                 using var command = connection.Command(null, $"""
                     SELECT id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome,
                            http_status, provider_request_id, error_kind, error_detail, output_chars, prompt_tokens, completion_tokens,
-                           estimated_tokens, workspace_id, kind, model, base_url, purpose
+                           estimated_tokens, workspace_id, kind, model, base_url, purpose, cache_read_tokens, cache_write_tokens
                     FROM ai_request WHERE {where} ORDER BY started_at, rowid;
                     """, ("$owner", owner));
                 using var reader = command.ExecuteReader();
@@ -92,7 +95,9 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                         workspace is null ? null : new RequestAttribution(WorkspaceId.Parse(workspace), reader.GetString(16)),
                         reader.NullableString(17),
                         reader.NullableString(18),
-                        reader.NullableString(19)));
+                        reader.NullableString(19),
+                        reader.NullableInt64(20) is { } read ? (int)read : null,
+                        reader.NullableInt64(21) is { } written ? (int)written : null));
                 }
 
                 return list;

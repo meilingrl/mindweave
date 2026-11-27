@@ -345,7 +345,7 @@ public class ConversationNewsHintTests
         Assert.True(await app.Services.GetRequiredService<INewsAlerts>().GetInWorkspaceAsync(CancellationToken.None));
         await SidebarItemAsync(app, answered);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Single(i => i.Id == answered).IsUnread);
-        var news = app.ShellPage.WorkspaceNews!;
+        var news = app.ShellPage.WorkspaceNews;
         await Task.Delay(300);
         await news.Loaded;
         Assert.Empty(news.Toasts);

@@ -17,6 +17,47 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.29 · 2026-11-27
+
+- Changed every service the app builds to take its parts as required parameters; a test resolves each registered service (architecture-4, D-042)
+- Changed exit and restore to run one list of what is saved before the data is closed (architecture-5)
+- Fixed the new-answer marks, which the exit did not write, so a restore right after an exit could miss them
+- Fixed a link suggestion test that failed now and then
+- Try: nothing on screen changed; quit and restore as usual
+- Not verified: Linux and Windows before CI
+
+## 0.6.28 · 2026-11-27
+
+- Added the cache line in Statistics › by model: the share of input read from the cache, tokens written to it, and how many requests reported it, or "not reported" ([ask-anywhere.md](design/ask-anywhere.md), prompt caching step 1)
+- Added migration v20: `ai_request.cache_read_tokens` and `cache_write_tokens`
+- Try: `scripts/daily.sh trial`, ask a few questions, then open Statistics › by model
+- Not verified: Windows; providers other than the one in your trial; the request-details line, which is not built. You ran v20 on a copy of your data: integrity and foreign keys were fine, nothing was lost, and real cache numbers were recorded
+
+## 0.6.27 · 2026-11-27
+
+- Added importing a manual backup ([sharing-backup.md](design/sharing-backup.md), increment 3b): "Import…" or a drop takes a `.mwbackup`; it only adds, and the same conversation asked further on two devices is joined by time
+- Fixed a backup saved as `.mwbackup.mwbackup` on macOS
+- Try: `scripts/daily.sh trial`, back up a workspace, then "Import…" the file into a second data folder; ask in the same conversation in both, back one up and import it into the other
+- Not verified: Windows; a real window (a file dropped from Finder); real data from two devices; a very large package
+
+## 0.6.26 · 2026-11-27
+
+- Added saving a manual backup ([sharing-backup.md](design/sharing-backup.md), increment 3a): "Back up to a file…" in a workspace's menu saves everything in the ticked workspaces as one package, with the originals of attachments and a readable page per workspace
+- Try: `scripts/daily.sh trial`, then a workspace's menu › "Back up to a file…", and open the package's pages in a browser
+- Not verified: Windows; a real window and save panel; a very large workspace
+
+## 0.6.25 · 2026-11-27
+
+- Documents: Added the design of sharing step 3, the manual backup ([sharing-backup.md](design/sharing-backup.md), D-046, D-047), and its text in the requirements (v0.35, v0.36) and architecture
+- Try: nothing on screen changed
+- Not verified: nothing new
+
+## 0.6.24 · 2026-11-27
+
+- Documents: Added the design for asking from anywhere, several connections, search by meaning and prompt caching ([ask-anywhere.md](design/ask-anywhere.md), D-045), and its text in the requirements (v0.34) and architecture; moved the decided directions out of the ideas
+- Try: nothing on screen changed
+- Not verified: nothing new
+
 ## 0.6.23 · 2026-11-27
 
 - Documents: Added the design for return and review ([return-and-review.md](design/return-and-review.md), D-044), and its text in the requirements (v0.33, §10.10) and architecture

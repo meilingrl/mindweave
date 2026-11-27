@@ -234,7 +234,7 @@ public class SummaryDraftTests
     }
 
     private static SummaryDrafts Drafts(ChatHarness h, ISummaryStore store) =>
-        new(store, new SystemClock(), h.Health, NullLogger<SummaryDrafts>.Instance, TimeSpan.FromHours(1));
+        new(store, new SystemClock(), h.Health, NullLogger<SummaryDrafts>.Instance, new SummaryDraftOptions { SaveDelay = TimeSpan.FromHours(1) });
 
     private static async Task<(SummaryNodeId Node, SummaryVersionId Current)> SummaryAsync(ChatHarness h)
     {

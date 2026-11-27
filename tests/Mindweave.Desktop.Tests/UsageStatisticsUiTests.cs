@@ -8,6 +8,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Statistics;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
@@ -455,6 +456,47 @@ public class UsageStatisticsUiTests
         Assert.Equal(UiText.PurposeHint(UsagePurpose.Recommendation), row.Hint);
         Assert.StartsWith("推荐：", row.AutomationName, StringComparison.Ordinal);
         Assert.Contains(view.GetVisualDescendants().OfType<Grid>(), g => g.Classes.Contains("purpose-row") && AutomationProperties.GetName(g) == row.AutomationName);
+        window.Close();
+    }
+
+    /// <summary>
+    /// Prompt caching, step 1 (requirements §10.11.4): under each model, the share of input read from the cache, what was
+    /// written, how many requests reported it when not all did, and "not reported" for a service that says nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Each_model_shows_the_share_of_input_read_from_the_cache_or_that_it_was_not_reported()
+    {
+        await using var app = Create();
+        var workspace = await app.StartWithWorkspaceAsync("火车历史");
+        await app.ConfigureModelAsync();
+        var seed = new UsageSeed(app.Services.GetRequiredService<SqliteDatabase>());
+        var c = await seed.ConversationAsync(workspace.Id, Now.AddDays(-2));
+        await seed.RequestAsync(c, "answer", "deepseek-flash", Now.AddDays(-2), 2000, 100, "https://api.deepseek.com", cacheRead: 1500);
+        await seed.RequestAsync(c, "answer", "deepseek-flash", Now.AddDays(-2), 1000, 50, "https://api.deepseek.com");
+        await seed.RequestAsync(c, "answer", "qwen-plus", Now.AddDays(-1), 1000, 10, "https://dashscope.aliyuncs.com/compatible-mode/v1", cacheRead: 0, cacheWrite: 900);
+        await seed.RequestAsync(c, "answer", "glm-5", Now.AddDays(-1), 500, 20, "https://open.bigmodel.cn/api/paas/v4");
+
+        var (window, page, view) = await OpenAsync(app);
+        Assert.Equal(["deepseek-flash", "qwen-plus", "glm-5"], page.Models.Select(m => m.Key.Model));
+        var lines = Texts(view, "ModelCache");
+        Assert.All(lines, l => Assert.True(l.IsEffectivelyVisible));
+        Assert.Equal(
+            ["缓存：输入的 75% 读自缓存 · 2 次请求中 1 次返回", "缓存：输入的 0% 读自缓存 · 写入 900", "缓存：未返回"],
+            lines.Select(l => l.Text));
+
+        var before = CurrentLanguage.Value;
+        CurrentLanguage.Set(UiLanguage.English);
+        try
+        {
+            Assert.Equal(
+                ["Cache: 75% of input read from it · reported by 1 of 2 requests", "Cache: 0% of input read from it · 900 written", "Cache: not reported"],
+                page.Models.Select(m => m.CacheText));
+        }
+        finally
+        {
+            CurrentLanguage.Set(before);
+        }
+
         window.Close();
     }
 

@@ -204,7 +204,7 @@ public class BranchUiTests
         var child = await BranchAsync(app, window, root, "铁路随后");
         window.Close();
 
-        // The data as version 18 holds it.
+        // The data as version 18 holds it: every later migration is undone here (v20 first, then v19).
         using (var connection = new SqliteConnection($"Data Source={app.Paths.DatabasePath}"))
         {
             connection.Open();
@@ -212,6 +212,8 @@ public class BranchUiTests
             command.CommandText = """
                 PRAGMA foreign_keys = OFF;
                 BEGIN;
+                ALTER TABLE ai_request DROP COLUMN cache_read_tokens;
+                ALTER TABLE ai_request DROP COLUMN cache_write_tokens;
                 DROP TABLE import_conversation;
                 DROP TABLE import;
                 CREATE TABLE old_source (

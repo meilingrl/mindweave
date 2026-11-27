@@ -30,7 +30,8 @@ internal static partial class MacFilePanel
         FromRunLoopAsync(() =>
         {
             var panel = Get(objc_getClass("NSSavePanel"), "savePanel");
-            Set(panel, "setNameFieldStringValue:", Text(suggestedFileName));
+            var known = extensions.Count == 0 || SystemKnows(extensions[0]);
+            Set(panel, "setNameFieldStringValue:", Text(extensions.Count == 0 ? suggestedFileName : NameInField(suggestedFileName, extensions[0], known)));
             Set(panel, "setCanCreateDirectories:", true);
             return Run(panel, window, title, extensions) ? PathOf(Get(panel, "URL")) : null;
         });
@@ -49,6 +50,24 @@ internal static partial class MacFilePanel
             var urls = Get(panel, "URLs");
             return [.. Enumerable.Range(0, (int)Get(urls, "count")).Select(i => PathOf(Get(urls, "objectAtIndex:", i))).OfType<string>()];
         });
+
+    /// <summary>
+    /// The name the panel starts with. An extension the system knows (.html, .md) it sees in the name; one it does not know
+    /// (.mwbackup) it takes for part of the name and adds its own after it, so the file would end ".mwbackup.mwbackup".
+    /// Such a name goes in without it, and the panel adds it once.
+    /// </summary>
+    internal static string NameInField(string suggestedFileName, string extension, bool systemKnowsExtension) =>
+        !systemKnowsExtension && suggestedFileName.EndsWith("." + extension, StringComparison.OrdinalIgnoreCase)
+            ? suggestedFileName[..^(extension.Length + 1)]
+            : suggestedFileName;
+
+    /// <summary>Whether macOS has a type of its own (or an app's) for <paramref name="extension"/>, not one made up on the spot.</summary>
+    private static bool SystemKnows(string extension)
+    {
+        NativeLibrary.Load(UniformTypes);
+        var type = Get(objc_getClass("UTType"), "typeWithFilenameExtension:", Text(extension));
+        return type != 0 && (Get(type, "isDynamic") & 0xFF) == 0;
+    }
 
     private static bool Run(nint panel, nint window, string title, IReadOnlyList<string> extensions)
     {

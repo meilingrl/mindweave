@@ -163,6 +163,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>Runs and their steps (phase 2).</summary>
     public IRunStore Runs => _services.GetRequiredService<IRunStore>();
 
+    public IResourceStore Resources => _services.GetRequiredService<IResourceStore>();
+
     public IStatisticsStore StatisticsStore => _services.GetRequiredService<IStatisticsStore>();
 
     /// <summary>设置 › 工具.</summary>
@@ -414,6 +416,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         services.AddSingleton(credentials);
         services.AddSingleton<Application.Tools.ISearchProvider>(Search);
         services.AddSingleton<Application.Tools.IWebPageFetcher>(Pages);
+        services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown()); // The app's own is in Desktop.
         services.AddSingleton(new StorageHealthOptions { RetryInterval = storageRetry ?? TimeSpan.FromMilliseconds(50) });
         services.AddSingleton(TestMcpOptions);
 
@@ -423,6 +426,10 @@ internal sealed class ChatHarness : IAsyncDisposable
         services.AddSingleton(slots is { } count
             ? new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), Slots = count, RetryPause = TimeSpan.FromMilliseconds(20) }
             : new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), RetryPause = TimeSpan.FromMilliseconds(20) });
+        // Reading positions and summary drafts save after a short delay.
+        services.AddSingleton(new ReadingStateOptions { SaveDelay = TimeSpan.FromMilliseconds(20) });
+        services.AddSingleton(new Application.Summaries.SummaryDraftOptions { SaveDelay = TimeSpan.FromMilliseconds(20) });
+
         if (databaseOptions is not null)
         {
             services.AddSingleton(databaseOptions);
@@ -437,27 +444,13 @@ internal sealed class ChatHarness : IAsyncDisposable
             services.AddSingleton(tool);
         }
 
-        // Replaced after: the services write through the (possibly wrapped) store, while Store stays the real one; reading
-        // positions and summary drafts save after a short delay.
+        // Replaced after: the services write through the (possibly wrapped) store, while Store stays the real one.
         services.AddSingleton<SqliteConversationStore>();
         services.Replace(ServiceDescriptor.Singleton<IConversationStore>(sp =>
         {
             var store = sp.GetRequiredService<SqliteConversationStore>();
             return wrapStore?.Invoke(store) ?? store;
         }));
-        services.Replace(ServiceDescriptor.Singleton(sp => new ReadingStateService(
-            sp.GetRequiredService<IReadingStateStore>(),
-            sp.GetRequiredService<IClock>(),
-            sp.GetRequiredService<ILogger<ReadingStateService>>(),
-            TimeSpan.FromMilliseconds(20),
-            sp.GetRequiredService<StorageHealth>(),
-            sp.GetRequiredService<IPreferenceStore>())));
-        services.Replace(ServiceDescriptor.Singleton(sp => new Application.Summaries.SummaryDrafts(
-            sp.GetRequiredService<ISummaryStore>(),
-            sp.GetRequiredService<IClock>(),
-            sp.GetRequiredService<StorageHealth>(),
-            sp.GetRequiredService<ILogger<Application.Summaries.SummaryDrafts>>(),
-            TimeSpan.FromMilliseconds(20))));
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 

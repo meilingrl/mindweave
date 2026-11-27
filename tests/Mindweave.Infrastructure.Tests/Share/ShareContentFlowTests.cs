@@ -185,14 +185,3 @@ public sealed class ShareContentFlowTests : IDisposable
         await ChatHarness.UntilAsync(async () => await h.SummaryService.LatestTaskAsync(id, Ct) is { State: GenerationTaskState.Completed } done && done.Id != before?.Id);
     }
 }
-
-/// <summary>Stands in for the app's Markdown, which Infrastructure does not have: every text is one paragraph.</summary>
-internal sealed class PlainMarkdown : IShareMarkdown
-{
-    public IReadOnlyList<ShareNode> Draw(string markdown, IReadOnlySet<int> citations, IReadOnlyList<ShareMark> marks) =>
-        markdown.Contains('$', StringComparison.Ordinal)
-            ? [new ShareNode("p", [ShareNode.OfText(markdown)]), new ShareNode("mathblock", [], markdown.Trim('$'))]
-            : [new ShareNode("p", [ShareNode.OfText(markdown)])];
-
-    public int? OffsetOf(BranchSource source) => null;
-}

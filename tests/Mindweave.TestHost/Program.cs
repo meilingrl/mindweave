@@ -59,7 +59,7 @@ switch (args[0])
                 Thread.Sleep(Timeout.Infinite);
             }),
         ]);
-        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions());
         await database.OpenAsync(CancellationToken.None);
         return 2;
     }
@@ -73,7 +73,7 @@ switch (args[0])
             .. MigrationCatalog.Default.Migrations,
             Migration.Sql(MigrationCatalog.Default.LatestVersion + 1, "add note", "CREATE TABLE note (id TEXT PRIMARY KEY) STRICT;"),
         ]);
-        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance)
+        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions())
         {
             BeforeBackupForTests = (connection, partial) => SQLitePCL.raw.sqlite3_progress_handler(
                 connection.Handle,
@@ -96,7 +96,7 @@ switch (args[0])
 
     case "commit-then-hang":
     {
-        var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions());
         var result = await database.OpenAsync(CancellationToken.None);
         if (!result.IsReady)
         {
@@ -127,6 +127,7 @@ switch (args[0])
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<ICredentialStore>(new OneKey());
         services.AddSingleton<IChatClient>(new EndlessClient());
+        services.AddSingleton<Mindweave.Application.Share.IShareMarkdown>(new NoMarkdown());
         services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
         services.AddMindweaveInfrastructure(paths);
         services.AddMindweaveApplication();
@@ -155,7 +156,7 @@ switch (args[0])
         // One runtime write runs through its real store; once its statements have run, the process blocks before
         // COMMIT so the test can kill it inside the transaction. The page cache is kept tiny so a larger write spills
         // uncommitted pages into the WAL first, as a big transaction does once it outgrows the cache.
-        await using var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        await using var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions());
         var opened = await database.OpenAsync(CancellationToken.None);
         if (!opened.IsReady)
         {
@@ -252,6 +253,15 @@ internal static class KillPoint
                 return roots;
             },
             CancellationToken.None);
+}
+
+/// <summary>The app's Markdown is in Desktop; nothing here makes a share.</summary>
+internal sealed class NoMarkdown : Mindweave.Application.Share.IShareMarkdown
+{
+    public IReadOnlyList<Mindweave.Application.Share.ShareNode> Draw(string markdown, IReadOnlySet<int> citations, IReadOnlyList<Mindweave.Application.Share.ShareMark> marks) =>
+        throw new NotSupportedException();
+
+    public int? OffsetOf(BranchSource source) => throw new NotSupportedException();
 }
 
 internal sealed class OneKey : ICredentialStore

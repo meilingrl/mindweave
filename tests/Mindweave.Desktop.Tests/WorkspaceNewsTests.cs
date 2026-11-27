@@ -23,7 +23,7 @@ public class WorkspaceNewsTests
         var window = app.ShowWindow();
         var trains = await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
-        var news = app.ShellPage.WorkspaceNews!;
+        var news = app.ShellPage.WorkspaceNews;
         var picker = Find<Button>(window, "WorkspacePicker");
         var badge = Find<Border>(window, "OtherWorkspacesNews");
 
@@ -79,7 +79,7 @@ public class WorkspaceNewsTests
         var window = app.ShowWindow();
         var trains = await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
-        var news = app.ShellPage.WorkspaceNews!;
+        var news = app.ShellPage.WorkspaceNews;
         var held = app.Client.Hold("半句");
         var sent = await app.Services.GetRequiredService<ConversationService>().StartAsync(trains.Id, "火车是怎么发明的？", CancellationToken.None);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));

@@ -18,7 +18,7 @@ public class ReadingStateTests
     {
         await using var h = await ChatHarness.StartAsync();
         var (conversation, answer) = await ConversationAsync(h);
-        using var slow = new ReadingStateService(h.ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromHours(1));
+        using var slow = new ReadingStateService(h.ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, new ReadingStateOptions { SaveDelay = TimeSpan.FromHours(1) }, h.Health, h.Preferences);
         var position = new ReadingPosition(answer, 0, "{\"c\":5}", 1);
 
         slow.SetPosition(conversation, Slot, position);
@@ -101,7 +101,7 @@ public class ReadingStateTests
         await using var h = await ChatHarness.StartAsync();
         var (conversation, answer) = await ConversationAsync(h);
         var failing = new FailingStore(h.ReadingStore) { Fail = true };
-        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromHours(1));
+        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, new ReadingStateOptions { SaveDelay = TimeSpan.FromHours(1) }, h.Health, h.Preferences);
         reading.SetDraft(conversation, Slot, "还没发的问题");
         reading.SetPosition(conversation, Slot, new ReadingPosition(answer, 0, null, 1));
 
@@ -121,7 +121,7 @@ public class ReadingStateTests
         await using var h = await ChatHarness.StartAsync();
         var (conversation, answer) = await ConversationAsync(h);
         var failing = new FailingStore(h.ReadingStore) { FailPositions = true };
-        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromHours(1));
+        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, new ReadingStateOptions { SaveDelay = TimeSpan.FromHours(1) }, h.Health, h.Preferences);
         reading.SetPosition(conversation, Slot, new ReadingPosition(answer, 0, null, 1));
 
         Assert.True(await reading.FlushAsync());

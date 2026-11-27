@@ -64,7 +64,7 @@ internal sealed class UsageSeed(SqliteDatabase database)
     /// </summary>
     public Task RequestAsync(
         ConversationId conversation, string kind, string model, DateTimeOffset at, int? prompt, int? completion,
-        string baseUrl = DefaultBase, string outcome = "completed", int? estimated = null) =>
+        string baseUrl = DefaultBase, string outcome = "completed", int? estimated = null, int? cacheRead = null, int? cacheWrite = null) =>
         database.WriteAsync(
             (c, t) =>
             {
@@ -76,7 +76,7 @@ internal sealed class UsageSeed(SqliteDatabase database)
                     VALUES ($id, $kind, $conv, $target, 'completed', 'seed', $base, 'chat_completions', $model, 'seed/key', '[]', $at, $at, $at,
                             CASE WHEN $kind = 'summary' THEN 0 END);
                     """, ("$id", task), ("$kind", kind), ("$conv", conversation.ToString()), ("$target", target), ("$base", baseUrl), ("$model", model), ("$at", at.Ms()));
-                InsertRequest(c, t, task, null, model, baseUrl, at, prompt, completion, outcome, estimated, null);
+                InsertRequest(c, t, task, null, model, baseUrl, at, prompt, completion, outcome, estimated, null, cacheRead, cacheWrite);
                 return 0;
             },
             CancellationToken.None);
@@ -86,7 +86,7 @@ internal sealed class UsageSeed(SqliteDatabase database)
         database.WriteAsync(
             (c, t) =>
             {
-                InsertRequest(c, t, null, workspace, model, baseUrl, at, prompt, completion, "completed", null, kind);
+                InsertRequest(c, t, null, workspace, model, baseUrl, at, prompt, completion, "completed", null, kind, null, null);
                 return 0;
             },
             CancellationToken.None);
@@ -139,11 +139,11 @@ internal sealed class UsageSeed(SqliteDatabase database)
 
     private static void InsertRequest(
         SqliteConnection c, SqliteTransaction t, string? task, WorkspaceId? workspace, string model, string baseUrl, DateTimeOffset at,
-        int? prompt, int? completion, string outcome, int? estimated, string? kind) =>
+        int? prompt, int? completion, string outcome, int? estimated, string? kind, int? cacheRead, int? cacheWrite) =>
         c.Execute(t, """
             INSERT INTO ai_request (id, task_id, workspace_id, kind, model, base_url, started_at, finished_at, outcome, output_chars,
-                                    prompt_tokens, completion_tokens, estimated_tokens)
-            VALUES ($id, $task, $ws, $kind, $model, $base, $at, $at, $outcome, 0, $prompt, $completion, $estimated);
+                                    prompt_tokens, completion_tokens, estimated_tokens, cache_read_tokens, cache_write_tokens)
+            VALUES ($id, $task, $ws, $kind, $model, $base, $at, $at, $outcome, 0, $prompt, $completion, $estimated, $read, $write);
             """,
             ("$id", Guid.NewGuid().ToString("D")),
             ("$task", task),
@@ -155,5 +155,7 @@ internal sealed class UsageSeed(SqliteDatabase database)
             ("$outcome", outcome),
             ("$prompt", prompt),
             ("$completion", completion),
-            ("$estimated", estimated));
+            ("$estimated", estimated),
+            ("$read", cacheRead),
+            ("$write", cacheWrite));
 }
