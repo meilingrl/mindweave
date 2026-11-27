@@ -64,3 +64,19 @@ Not covered: real Tavily and real pages (see below); clicking a `[n]` link in th
 1. Tavily: with the user's key, click “测试” in settings; then ask a question that needs new information, and see whether the results and citations are reasonable. Check the explanation in the step for 401 (wrong key), 429 (too many requests) and 432 / 433 (credit or usage limit); and whether the credits returned by `include_usage` are 1.
 2. Any model that declares tool calls: whether it cites with [n]; whether the pre-searched material at “开” is used; whether the model reads URLs outside the search results (an approval card should appear).
 3. Real pages: Chinese sites (GBK encoding), pages that are JavaScript-only (the explanation when no body text can be obtained), PDF links, short links that redirect to another domain.
+
+## 6. A long page: its opening and best-matching paragraphs (reply quality Q8)
+
+What requirements §10.9 and architecture §15.4 leave to the implementation (`PagePassages`, used where a result is cut in `AnswerRunner.Run.cs`):
+
+| Choice | What is done |
+| --- | --- |
+| Which results | Only `fetch_page` results mark themselves as prose (`ToolOutput.PassagesFor`), the first read and a read again in the same run (W12). Search results, local results and third-party tools keep their start. A page in which at least 5% of the visible characters are brackets, braces, double quotes, bars or tabs is data (JSON, a table) and keeps its start too |
+| Matched against | The question as searched by the L9 rule (with the title and the branch passage for a short or referring question), in every web setting, and the queries of this run's searches whose results held the page's requested or final address |
+| Paragraphs | Each line with text in it; a line over about 400 estimated tokens is ranked in pieces cut at a sentence end where one is near |
+| Opening | Whole paragraphs from the start up to about 300 estimated tokens (the title, address and fetch time come first); a long first paragraph is cut at the size |
+| Ranking | BM25 over the page's own paragraphs, with the terms of the attachment search (words, lower case; CJK as two-character pieces, a lone character left out; `SearchTerms`) |
+| "Matches well" | A paragraph needs a telling term: one found in at most a quarter of the page's paragraphs, so what the whole page repeats tells nothing apart. Of those, only paragraphs scoring at least a quarter of the best are sent. None: the start, as before |
+| Within the size | Best first while the whole excerpt stays within 2,000 estimated tokens, then in page order. A mark stands at each gap and names the part the next paragraph is in, `【……】（第 9 部分，共 12 部分）` / `[…] (part 9 of 12)`, the parts `search_attachments` reads; `【……】` / `[…]` after the last when the page goes on. The closing line says the page is long, that this is its opening and best-matching paragraphs, and how to read a part or search the stored page |
+
+The page is stored whole as before: a citation is located in the full text, and the result still counts as not sent whole, so `search_attachments` is offered next. Nothing is stored about which paragraphs were sent; the same text and queries give the same excerpt, and it is not changed later in the run (L7 may still shorten it to one line).

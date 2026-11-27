@@ -852,6 +852,10 @@ internal sealed partial class AnswerRunner
             cut = TokenEstimator.Estimate(resultText) > ToolResultTokens;
             content = !cut
                 ? resultText
+                : output.PassagesFor is { } queries && PagePassages.Select(resultText, queries, ToolResultTokens) is { } passages
+                ? passages + T(
+                    $"\n\n(The page is long; the above is its opening and the paragraphs that best match the question, with […] where text is left out. The full page is resource {id}; read a part with {SearchAttachmentsTool.ToolName}'s resource and part, or search it with query.)",
+                    $"\n\n（网页较长，以上是开头和与问题最相关的段落，【……】处有省略。完整网页是资源 {id}，可用 {SearchAttachmentsTool.ToolName} 的 resource 与 part 读取某一部分，或用 query 检索。）")
                 : Start(resultText, ToolResultTokens) + T(
                     $"\n\n(The result is long; the above is only its start. The full result is resource {id}; read it with {SearchAttachmentsTool.ToolName}'s resource and part.)",
                     $"\n\n（结果较长，以上只是开头。完整结果是资源 {id}，可用 {SearchAttachmentsTool.ToolName} 的 resource 与 part 读取。）");

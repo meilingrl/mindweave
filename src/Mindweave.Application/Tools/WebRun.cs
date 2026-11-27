@@ -16,6 +16,7 @@ public sealed partial class WebRun
     private readonly Lock _gate = new();
     private readonly HashSet<string> _allowed = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ToolOutput> _pages = new(StringComparer.Ordinal);
+    private readonly List<(string Key, string Query)> _foundBy = [];
 
     public WebRun(WebSearchMode mode, string question, IEnumerable<string?>? userTexts = null)
     {
@@ -32,8 +33,36 @@ public sealed partial class WebRun
     /// <summary>The question as the user typed it.</summary>
     public string Question { get; }
 
-    /// <summary>The 开 search's query (decision W1, L9); null searches <see cref="Question"/>.</summary>
+    /// <summary>
+    /// The question as searched (L9): the 开 search's query (decision W1), and what a long page's paragraphs are matched
+    /// against with the searches that led to it (Q8); null: <see cref="Question"/>.
+    /// </summary>
     public string? PreSearch { get; init; }
+
+    /// <summary>
+    /// What a page's paragraphs are matched against (requirements §10.9, Q8): the question as searched, then the queries of
+    /// this run's searches that found the page at any of <paramref name="urls"/>, in the order they were made.
+    /// </summary>
+    public IReadOnlyList<string> PassageQueries(params Uri?[] urls)
+    {
+        var keys = urls.Select(Normalize).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        lock (_gate)
+        {
+            return [PreSearch is { Length: > 0 } asked ? asked : Question, .. _foundBy.Where(f => keys.Contains(f.Key)).Select(f => f.Query).Distinct(StringComparer.Ordinal)];
+        }
+    }
+
+    /// <summary>A search with <paramref name="query"/> found <paramref name="url"/>.</summary>
+    public void FoundBy(Uri url, string query)
+    {
+        if (Normalize(url) is { } key && !string.IsNullOrWhiteSpace(query))
+        {
+            lock (_gate)
+            {
+                _foundBy.Add((key, query));
+            }
+        }
+    }
 
     /// <summary>A question shorter than this many characters searches with its context (L9).</summary>
     public const int ShortQuestion = 30;

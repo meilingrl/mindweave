@@ -242,13 +242,13 @@ internal static class EvalScenarios
             },
         },
 
-        new("long-page", "网络", "长网页深处的细节：读到它，标出处", [new("南溟航天研究院的 2025 年度报告里，青鸾-7 卫星的设计寿命是几年？", WebSearchMode.On)],
-            new EvalExpectation { Contains = [["9 年", "9年", "九年"]], UsesTools = [Fetch], Cites = true })
+        new("long-page", "网络", "长网页深处的细节：取网页时就拿到它，标出处", [new("南溟航天研究院的 2025 年度报告里，青鸾-7 卫星的设计寿命是几年？", WebSearchMode.On)],
+            new EvalExpectation { Contains = [["9 年", "9年", "九年"]], UsesTools = [Fetch], Cites = true, FirstResultHas = (Fetch, ["设计寿命为 9 年"]) })
         {
+            // Q8: the page comes as its opening and the paragraphs that match, so the first read already holds the figure.
             Script = c =>
             {
                 c.CallTool(Fetch, Url(ReportUrl));
-                c.CallTool(Attachments, Query("青鸾-7 设计寿命"));
                 c.Reply("年度报告说，青鸾-7 气象卫星的设计寿命为 9 年[1]。");
             },
         },

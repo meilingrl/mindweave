@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
@@ -60,14 +61,14 @@ internal static partial class EvalRunner
         string? parent = null;
         string? quote = null;
         var approvals = new List<string>();
-        var (searchesBefore, fetchedBefore) = (0, 0);
+        var (searchesBefore, fetchedBefore, requestsBefore) = (0, 0, 0);
         var watch = new Stopwatch();
         TimeSpan? firstText = null;
         var timedOut = false;
         foreach (var turn in scenario.Turns)
         {
             approvals.Clear();
-            (searchesBefore, fetchedBefore) = (h.Search.Searches.Count, h.Pages.Fetched.Count);
+            (searchesBefore, fetchedBefore, requestsBefore) = (h.Search.Searches.Count, h.Pages.Fetched.Count, SentRequests(h).Count);
             var attachments = turn.WithAttachments ? setup.Attachments : [];
             var options = new SendOptions(turn.Mode);
             if (turn.BranchOn is { } pick)
@@ -108,6 +109,7 @@ internal static partial class EvalRunner
             FirstText = firstText,
             ParentAnswer = parent,
             Quote = quote,
+            Sent = FirstResults(SentRequests(h).Skip(requestsBefore)),
         };
         if (scenario.Summarize)
         {
@@ -118,6 +120,35 @@ internal static partial class EvalRunner
     }
 
     private static string Excerpt(string text) => text.Length > 80 ? text[..80] + "…" : text;
+
+    /// <summary>The requests sent so far: the real service's, else the fake model's.</summary>
+    private static System.Collections.Concurrent.ConcurrentQueue<ChatRequest> SentRequests(ChatHarness h) =>
+        h.ActiveClient is EvalBudgetedClient real ? real.Requests : h.Client.Requests;
+
+    /// <summary>Each tool result in the requests, as it was first sent, with the tool that was called for it.</summary>
+    internal static IReadOnlyList<EvalSent> FirstResults(IEnumerable<ChatRequest> requests)
+    {
+        var sent = new List<EvalSent>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var request in requests)
+        {
+            var tools = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var call in request.Turns.Where(t => t.ToolCalls is not null).SelectMany(t => t.ToolCalls!))
+            {
+                tools.TryAdd(call.Id, call.Name);
+            }
+
+            foreach (var turn in request.Turns.Where(t => t.Role == ChatRole.Tool && t.ToolCallId is not null))
+            {
+                if (seen.Add(turn.ToolCallId!))
+                {
+                    sent.Add(new EvalSent(tools.GetValueOrDefault(turn.ToolCallId!, "?"), turn.Content));
+                }
+            }
+        }
+
+        return sent;
+    }
 
     /// <summary>
     /// Summarizes the conversation and measures that instead of the last answer: the summary request's numbers, its time to
@@ -367,6 +398,15 @@ internal static partial class EvalRunner
         {
             var terms = EvalText.KeyTerms(text);
             checks.Add(new EvalCheck("列出关键术语", terms > 0, terms == 0 ? "没有术语列表" : $"{terms} 个术语"));
+        }
+
+        if (expect.FirstResultHas is { } has)
+        {
+            var first = o.Sent.FirstOrDefault(r => r.Tool == has.Tool);
+            checks.Add(new EvalCheck(
+                $"第一次 {has.Tool} 的结果含有 {string.Join("／", has.Words)}",
+                first is not null && has.Words.Any(w => first.Content.Contains(w, StringComparison.OrdinalIgnoreCase)),
+                first is null ? $"没有调用 {has.Tool}" : $"结果约 {first.Content.Length} 字"));
         }
 
         checks.AddRange(expect.Extra.Select(extra => extra(o)));
