@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Last discussed: 2026-11-26 (quoting and connections are agreed; search by meaning is agreed; the section on prompt caching waits for the owner's confirmation).
+**Status:** agreed by the owner on 2026-11-27 for the four topics discussed (quoting, several connections and local models, search by meaning, prompt caching). Not yet in the requirements or the architecture: that text follows as separate commits the owner confirms. Discussed 2026-11-25 to 2026-11-27.
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -78,6 +78,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-26 | The section on search by meaning in §7 is agreed as written, Claude's calls included (owner). |
 | 2026-11-26 | Prompt caching: the first increment has all three steps, in this order (owner): record and show cached tokens; stop changing the start of the request; mark the cache points for Messages. |
 | 2026-11-26 | On a Messages connection the cache is kept for one hour (owner). Claude added: this is the default of a setting on the connection (off, 5 minutes, 1 hour), and Mindweave sends no requests on its own to keep a cache alive. |
+| 2026-11-27 | The section on prompt caching in §7 is agreed as written, Claude's calls included, and with it the whole draft (owner). |
 
 ## 6. Set aside
 
@@ -346,9 +347,9 @@ Three steps, each usable when merged:
 
 Requirement and architecture text follows as a separate commit that the owner confirms: requirements §9.6 (which says that vector search is not introduced), §10.4.4 (the two tools), §7 (title search), and evolution D5, where Q13 is marked as answered.
 
-### Prompt caching for branch trees (C2; waiting for the owner to confirm this section)
+### Prompt caching for branch trees (C2; agreed by the owner, 2026-11-27)
 
-The owner's decisions are in §5. Everything else in this section is Claude's call, and the owner can change it.
+The owner's decisions are in §5. The rest of this section was proposed by Claude and agreed with it.
 
 #### What was found (code at f9edc39)
 
