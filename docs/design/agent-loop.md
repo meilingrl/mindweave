@@ -203,5 +203,5 @@ Done in four steps in the order of section 5, one commit per item; the five item
 
 **To do (not in this scope):** both items were done in reply quality increment 1 (2026-11-27), and wait for a real evaluation:
 
-- Attachment digest requests were truncated by the output limit on reasoning models (step 4 `tight-context`): a long attachment was digested in segments as large as the input space allowed, which left the first request too little output. Every digest request now leaves the whole digest allowance (8,192 tokens) for output (`AttachmentDigestOutputTests`).
+- Attachment digest requests were truncated by the output limit on reasoning models (step 4 `tight-context`): a long attachment was digested in segments as large as the input space allowed, which left the first request too little output. Every digest request now leaves the whole digest allowance for output. The first real comparison (2026-11-27, [reply-quality-20261127](../reviews/reply-quality-20261127/README.md)) still saw a digest cut off at 8,192 tokens, so digests follow the rule of the other summaries: 16,384 tokens of output (in a small window, all but 4,000 tokens of input) and one more request after a cut-off (`AttachmentDigestOutputTests`).
 - Run prompt version 3 dropped “依据附件时写出名称” (name the attachment when relying on it); version 4 has it again (step 4 `attachment-long`).

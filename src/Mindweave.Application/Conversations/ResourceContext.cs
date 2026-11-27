@@ -27,8 +27,14 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
     /// <summary>Version of the attachment summary prompt: a summary is reused only for the same version.</summary>
     public const string SummaryPromptVersion = "1";
 
-    /// <summary>Output asked for one summary request (room for reasoning models, as for context summaries).</summary>
-    public const int SummaryOutputTokens = 8_192;
+    /// <summary>Output asked for one summary request: the same room for reasoning models as context summaries have.</summary>
+    public const int SummaryOutputTokens = ContextCompressor.SummaryOutputTokens;
+
+    /// <summary>
+    /// Input a digest request keeps in a window too small for the whole <see cref="SummaryOutputTokens"/> as well: the rest
+    /// of the window goes to output.
+    /// </summary>
+    private const int DigestInputFloor = 4_000;
 
     /// <summary>
     /// The candidates of every attachment in <paramref name="items"/>, in order. Chunks of the current question's attachments
@@ -105,10 +111,12 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         var phrases = ModelPhrases.Current;
         var name = attachment.NameIn(phrases);
         var instructions = PromptLibrary.Get("attachment-digest");
-        // Each request leaves the whole digest allowance for output: a reasoning model spends part of it before writing,
-        // and a segment as large as the input space allows left it too little (docs/design/agent-loop.md §8).
+        // Each request leaves the whole digest allowance for output, or all but a small input in a small window: a reasoning
+        // model spends part of it before writing, and a segment as large as the input space allows left it too little
+        // (docs/design/agent-loop.md §8).
         var budget = ContextBudget.For(model);
-        budget = budget with { OutputReserve = Math.Max(budget.OutputReserve, SummaryOutputTokens) };
+        var output = Math.Clamp(budget.Capacity - budget.Margin - DigestInputFloor, ContextCompressor.MinimumSummaryOutputTokens, SummaryOutputTokens);
+        budget = budget with { OutputReserve = Math.Max(budget.OutputReserve, output) };
         var room = Math.Max(2_000, budget.Available - TokenEstimator.Estimate(instructions) - 200);
 
         string summary;
@@ -281,22 +289,44 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
     {
         var turns = new[] { new ChatTurn(ChatRole.System, instructions), new ChatTurn(ChatRole.User, material) };
         var output = ContextCompressor.SummaryOutputCap(model, ChatTurns.Estimate(turns));
-        (string? Text, string? Problem) result;
-        try
+        var chat = new ChatRequest(model with { MaxOutputTokens = Math.Min(output, SummaryOutputTokens) }, turns);
+        var name = attachment.NameIn(ModelPhrases.Current);
+
+        // As for context summaries: an output that did not finish normally is never used, and is asked for once more; this
+        // re-sends an internal step of the running task, never the user's question. Moderation would stop it again.
+        string? problem = null;
+        for (var attempt = 1; attempt <= ContextCompressor.SummaryAttempts; attempt++)
         {
-            result = await request(new ChatRequest(model with { MaxOutputTokens = Math.Min(output, SummaryOutputTokens) }, turns)).ConfigureAwait(false);
-        }
-        catch (ChatClientException ex)
-        {
-            throw new ContextCompressionException(T(
-                $"The request failed while making a digest of the attachment \"{attachment.NameIn(ModelPhrases.Current)}\": {ex.Message}",
-                $"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时请求失败：{ex.Message}"), ex);
+            (string? Text, string? Problem) result;
+            try
+            {
+                result = await request(chat).ConfigureAwait(false);
+            }
+            catch (ChatClientException ex)
+            {
+                throw new ContextCompressionException(T(
+                    $"The request failed while making a digest of the attachment \"{name}\": {ex.Message}",
+                    $"为附件《{name}》生成摘要时请求失败：{ex.Message}"), ex);
+            }
+
+            stop.ThrowIfCancellationRequested();
+            if (result.Text is { } text)
+            {
+                return text;
+            }
+
+            problem = result.Problem;
+            if (problem == GenerationRequests.FilteredProblem)
+            {
+                throw new ContextCompressionException(T(
+                    $"While making a digest of the attachment \"{name}\", the service did not return complete content ({problem}).",
+                    $"为附件《{name}》生成摘要时服务没有返回完整内容（{problem}）。"));
+            }
         }
 
-        stop.ThrowIfCancellationRequested();
-        return result.Text ?? throw new ContextCompressionException(T(
-            $"While making a digest of the attachment \"{attachment.NameIn(ModelPhrases.Current)}\", the service did not return complete content ({result.Problem}).",
-            $"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时服务没有返回完整内容（{result.Problem}）。"));
+        throw new ContextCompressionException(T(
+            $"While making a digest of the attachment \"{name}\", the service did not return complete content ({problem}), after {Plural(ContextCompressor.SummaryAttempts, "attempt", "attempts")}.",
+            $"为附件《{name}》生成摘要时服务没有返回完整内容（{problem}），已尝试 {ContextCompressor.SummaryAttempts} 次。"));
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Summarized resource {Resource} ({Tokens} estimated tokens)")]

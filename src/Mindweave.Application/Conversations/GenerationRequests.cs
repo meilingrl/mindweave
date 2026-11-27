@@ -182,7 +182,7 @@ public sealed partial class GenerationRequests
 
         var output = ConversationRules.WithoutInlineReasoning(text.ToString());
         var problem = completed is null ? T("The answer stream did not end normally.", "回答流未正常结束。")
-            : completed.Filtered ? T("The service's content moderation stopped the output; nothing was saved.", "服务的内容审核中止了输出，未保存。")
+            : completed.Filtered ? FilteredProblem
             : completed.Truncated ? T("The output was cut off at its limit; nothing was saved.", "输出达到上限被截断，未保存。")
             : output.Length == 0 ? T("The service returned empty content.", "服务返回了空内容。")
             : null;
@@ -193,6 +193,9 @@ public sealed partial class GenerationRequests
 
         return problem is null ? (output, null) : (null, problem);
     }
+
+    /// <summary>The reason <see cref="RequestCompleteTextAsync"/> gives when content moderation stopped the output: asking again would only be stopped again.</summary>
+    internal static string FilteredProblem => T("The service's content moderation stopped the output; nothing was saved.", "服务的内容审核中止了输出，未保存。");
 
     /// <summary>Diagnostics only: a failed trace write is logged and does not count as a storage failure.</summary>
     internal async Task RecordAsync(AiRequestRecord record)
