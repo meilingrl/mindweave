@@ -46,4 +46,7 @@ public interface IConversationMarks
     /// its hints where they are and how many (2026-11-10).
     /// </summary>
     Task<IReadOnlyDictionary<WorkspaceId, IReadOnlyList<ConversationId>>> UnreadByWorkspaceAsync(IReadOnlyCollection<WorkspaceId> workspaces, CancellationToken cancellationToken);
+
+    /// <summary>Writes the newest marks if they changed since the last successful write; never faults.</summary>
+    Task FlushAsync();
 }

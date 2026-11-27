@@ -81,6 +81,7 @@ public static class CompositionRoot
         services.AddSingleton<Application.Share.IShareMarkdown, Markdown.ShareMarkdown>();
         services.AddSingleton<Application.Share.IShareContents, Application.Share.ShareContentService>();
         services.AddSingleton<Application.ManualBackup.IManualBackups, Application.ManualBackup.ManualBackupService>();
+        services.AddSingleton<Application.Storage.ISaveBeforeClose, Application.Storage.SaveBeforeClose>(); // Needs the manual backups above.
         services.AddSingleton<ShareRequests>();
         services.AddSingleton<ISharePrompt>(sp => sp.GetRequiredService<ShareRequests>());
         services.AddSingleton<BackupRequests>();

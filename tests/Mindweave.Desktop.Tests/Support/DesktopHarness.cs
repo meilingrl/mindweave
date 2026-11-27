@@ -139,11 +139,7 @@ public sealed class DesktopHarness : IAsyncDisposable
     {
         await Root.Exit.Running;
         await Workbench.LastLocationSave;
-        await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
-        await Services.GetRequiredService<ReadingStateService>().FlushAsync();
-        await Services.GetRequiredService<ConversationMarksService>().FlushAsync();
-        await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
-        await DisposeProvidersAsync();
+        await EndSessionAsync();
         Session = NewSession();
         await StartAsync();
     }
@@ -164,11 +160,8 @@ public sealed class DesktopHarness : IAsyncDisposable
             }),
             root => CompositionRoot.BuildView(root, _overrides));
 
-    private async Task DisposeProvidersAsync()
-    {
-        await Session.View.DisposeAsync();
-        await Session.Root.DisposeAsync();
-    }
+    /// <summary>Ends the session as the application does: generation stops (no time limit here), everything is saved by the exit's list, the database closes.</summary>
+    private Task EndSessionAsync() => AppSession.EndAsync(Session.Root, Session.View, Timeout.InfiniteTimeSpan);
 
     public async ValueTask DisposeAsync()
     {
@@ -176,11 +169,7 @@ public sealed class DesktopHarness : IAsyncDisposable
         {
             // A test that closed its window started the exit sequence; let it finish before tearing down under it.
             await Root.Exit.Running;
-            await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
-            await Services.GetRequiredService<ReadingStateService>().FlushAsync();
-            await Services.GetRequiredService<ConversationMarksService>().FlushAsync();
-            await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
-            await DisposeProvidersAsync();
+            await EndSessionAsync();
         }
 
         SqliteConnection.ClearAllPools();

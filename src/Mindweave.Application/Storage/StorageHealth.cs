@@ -206,7 +206,7 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
         _stop.Dispose();
     }
 
-    /// <summary>Runs every registered retry once, in order, now; the last-resort pass before the database closes.</summary>
+    /// <summary>Runs every registered retry once, in order, now.</summary>
     public async Task RetryKeptAsync()
     {
         foreach (var retry in Retries())
