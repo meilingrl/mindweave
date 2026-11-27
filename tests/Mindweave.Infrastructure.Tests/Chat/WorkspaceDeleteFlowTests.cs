@@ -170,7 +170,8 @@ public class WorkspaceDeleteFlowTests
             await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
         });
         var deletion = new WorkspaceDeletionService(
-            h.Workspaces, backup, h.Health, h.Generation, Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceDeletionService>.Instance);
+            h.Workspaces, backup, h.Health, h.Generation, Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceDeletionService>.Instance,
+            h.NameCache, h.Recommendations, h.Links, h.LinkSuggestions, h.Blobs, h.Reading);
 
         var outcome = await deletion.DeleteAsync(h.Workspace, Ct);
 

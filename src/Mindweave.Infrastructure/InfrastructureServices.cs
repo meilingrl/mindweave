@@ -35,6 +35,7 @@ public static class InfrastructureServices
         services.TryAddSingleton(MigrationCatalog.Default);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClock, SystemClock>();
+        services.TryAddSingleton(new SqliteDatabaseOptions()); // Tests shorten the busy wait.
         services.AddSingleton<SqliteDatabase>();
         services.TryAddSingleton<IDatabaseLifecycle>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IStorageProbe>(sp => sp.GetRequiredService<SqliteDatabase>());

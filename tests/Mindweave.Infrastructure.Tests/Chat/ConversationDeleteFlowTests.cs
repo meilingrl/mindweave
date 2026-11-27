@@ -343,7 +343,7 @@ public class ConversationDeleteFlowTests
     }
 
     private static Application.Conversations.ConversationDeletionService Deletion(ChatHarness h, IDatabaseBackup backup) =>
-        new(h.Archive, backup, h.Health, h.Generation, h.Conversations, Microsoft.Extensions.Logging.Abstractions.NullLogger<Application.Conversations.ConversationDeletionService>.Instance);
+        new(h.Archive, backup, h.Health, h.Generation, h.Conversations, Microsoft.Extensions.Logging.Abstractions.NullLogger<Application.Conversations.ConversationDeletionService>.Instance, h.Blobs);
 
     /// <summary>The branch and the archived grandchild <see cref="WorkspaceSeed.FillAsync"/> made under <paramref name="root"/>.</summary>
     private static async Task<(ConversationId Child, ConversationId Grandchild)> ChildrenAsync(ChatHarness h, ConversationId root)

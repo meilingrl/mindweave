@@ -34,13 +34,14 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     private SqliteWriteQueue? _writer;
     private int _disposed;
 
-    public SqliteDatabase(AppPaths paths, MigrationCatalog catalog, TimeProvider time, ILogger<SqliteDatabase> logger, SqliteDatabaseOptions? options = null)
+    public SqliteDatabase(AppPaths paths, MigrationCatalog catalog, TimeProvider time, ILogger<SqliteDatabase> logger, SqliteDatabaseOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         _paths = paths;
         _catalog = catalog;
         _logger = logger;
         _backups = new SqliteBackupFiles(paths, time, logger);
-        _busyTimeoutMs = (int)(options ?? new SqliteDatabaseOptions()).BusyTimeout.TotalMilliseconds;
+        _busyTimeoutMs = (int)options.BusyTimeout.TotalMilliseconds;
     }
 
     /// <summary>

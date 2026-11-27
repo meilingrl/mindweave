@@ -59,7 +59,7 @@ switch (args[0])
                 Thread.Sleep(Timeout.Infinite);
             }),
         ]);
-        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions());
         await database.OpenAsync(CancellationToken.None);
         return 2;
     }
@@ -73,7 +73,7 @@ switch (args[0])
             .. MigrationCatalog.Default.Migrations,
             Migration.Sql(MigrationCatalog.Default.LatestVersion + 1, "add note", "CREATE TABLE note (id TEXT PRIMARY KEY) STRICT;"),
         ]);
-        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance)
+        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions())
         {
             BeforeBackupForTests = (connection, partial) => SQLitePCL.raw.sqlite3_progress_handler(
                 connection.Handle,
@@ -96,7 +96,7 @@ switch (args[0])
 
     case "commit-then-hang":
     {
-        var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions());
         var result = await database.OpenAsync(CancellationToken.None);
         if (!result.IsReady)
         {
@@ -155,7 +155,7 @@ switch (args[0])
         // One runtime write runs through its real store; once its statements have run, the process blocks before
         // COMMIT so the test can kill it inside the transaction. The page cache is kept tiny so a larger write spills
         // uncommitted pages into the WAL first, as a big transaction does once it outgrows the cache.
-        await using var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        await using var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance, new SqliteDatabaseOptions());
         var opened = await database.OpenAsync(CancellationToken.None);
         if (!opened.IsReady)
         {

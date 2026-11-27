@@ -69,7 +69,7 @@ public sealed class ReadOnlyStartupTests : IDisposable
     }
 
     private static StartupCoordinator Coordinator(SqliteDatabase database, IConversationStore conversations) =>
-        new(database, new SqliteWorkspaceStore(database), conversations, new SystemClock(), new SqliteLocationStore(database, new SystemClock()), NullLogger<StartupCoordinator>.Instance);
+        new(database, new SqliteWorkspaceStore(database), conversations, new SystemClock(), new SqliteLocationStore(database, new SystemClock()), NullLogger<StartupCoordinator>.Instance, new NoResources());
 
     private async Task SeedAsync()
     {

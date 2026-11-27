@@ -4,6 +4,12 @@ using Mindweave.Core.Summaries;
 
 namespace Mindweave.Application.Summaries;
 
+public sealed class SummaryDraftOptions
+{
+    /// <summary>How long the autosave of a summary edit trails the last keystroke.</summary>
+    public TimeSpan SaveDelay { get; init; } = TimeSpan.FromSeconds(1);
+}
+
 /// <summary>What an edit session opened on: a draft to continue, a draft whose baseline is no longer current, or none.</summary>
 public abstract record DraftRead(long Generation, long Revision)
 {
@@ -36,13 +42,14 @@ public sealed partial class SummaryDrafts : IDisposable
     private readonly Lock _lock = new();
     private readonly Dictionary<SummaryNodeId, Record> _records = [];
 
-    public SummaryDrafts(ISummaryStore store, IClock clock, StorageHealth health, ILogger<SummaryDrafts> logger, TimeSpan? saveDelay = null)
+    public SummaryDrafts(ISummaryStore store, IClock clock, StorageHealth health, ILogger<SummaryDrafts> logger, SummaryDraftOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         _store = store;
         _clock = clock;
         _health = health;
         _logger = logger;
-        SaveDelay = saveDelay ?? TimeSpan.FromSeconds(1);
+        SaveDelay = options.SaveDelay;
         health.RegisterRetry(_ => FlushAsync());
     }
 

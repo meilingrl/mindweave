@@ -133,9 +133,9 @@ internal sealed partial class AnswerRunner(
         using var checkpointStop = new CancellationTokenSource();
         var checkpoints = CheckpointLoopAsync(live, checkpointStop.Token);
 
-        if (work.Run is { } run && _requests.Runs is { } services)
+        if (work.Run is { } run)
         {
-            var ending = await RunAsync(work, run, services, request, key.Secret!, stop).ConfigureAwait(false);
+            var ending = await RunAsync(work, run, _requests.Runs, request, key.Secret!, stop).ConfigureAwait(false);
             if (ending.State is MessageState.Complete or MessageState.Stopped && run.Scope.Sources.All.Count > 0)
             {
                 // 出处 (requirements §10.4.5, L11): the numbers the text cites that name a source of this run, web or local, located in it.

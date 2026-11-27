@@ -24,8 +24,8 @@ public sealed partial class GenerationRequests
     private readonly StorageHealth _health;
     private readonly IClock _clock;
     private readonly ILogger<GenerationRequests> _logger;
-    private readonly ContextCompressor? _compressor;
-    private readonly ResourceContext? _resources;
+    private readonly ContextCompressor _compressor;
+    private readonly ResourceContext _resources;
 
     public GenerationRequests(
         IConversationStore store,
@@ -36,10 +36,13 @@ public sealed partial class GenerationRequests
         StorageHealth health,
         IClock clock,
         ILogger<GenerationRequests> logger,
-        ContextCompressor? compressor = null,
-        ResourceContext? resources = null,
-        Runs.RunServices? runs = null)
+        ContextCompressor compressor,
+        ResourceContext resources,
+        Runs.RunServices runs)
     {
+        ArgumentNullException.ThrowIfNull(compressor);
+        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(runs);
         Runs = runs;
         _resources = resources;
         _store = store;
@@ -53,8 +56,8 @@ public sealed partial class GenerationRequests
         _compressor = compressor;
     }
 
-    /// <summary>Run steps and tool results (phase 2); null where runs are not wired (an answer then never has tools).</summary>
-    internal Runs.RunServices? Runs { get; }
+    /// <summary>Run steps and tool results (phase 2).</summary>
+    internal Runs.RunServices Runs { get; }
 
     internal IClock Clock => _clock;
 
@@ -69,8 +72,7 @@ public sealed partial class GenerationRequests
     /// </summary>
     internal async Task<PreparedContext> PrepareCompressedAsync(GenerationTaskRecord task, ContextPlan plan, ContextBudget? budget, string apiKey, CancellationToken stop)
     {
-        var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
-        return await compressor.PrepareAsync(task, plan, budget ?? await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), apiKey, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
+        return await _compressor.PrepareAsync(task, plan, budget ?? await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), apiKey, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -82,10 +84,10 @@ public sealed partial class GenerationRequests
     internal async Task<(PreparedContext Prepared, ContextPlan Plan)> PrepareContextAsync(
         GenerationTaskRecord task, ContextPlan plan, ContextBudget? budget, ContextInputs? inputs, string apiKey, CancellationToken stop)
     {
-        var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
+        var compressor = _compressor;
         budget ??= await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false);
         IReadOnlyDictionary<MessageId, TurnMaterials>? materials = null;
-        if (_resources is not null && plan.Resources.Count > 0)
+        if (plan.Resources.Count > 0)
         {
             if (inputs is not null)
             {
@@ -122,10 +124,10 @@ public sealed partial class GenerationRequests
 
     /// <summary>Records how the task sent its attachments (for the answer's note); only after the context was prepared.</summary>
     internal Task RecordResourceInputAsync(GenerationTaskId task, ContextPlan plan) =>
-        _resources is null || plan.Resources.Count == 0 ? Task.CompletedTask : _resources.RecordAsync(task, plan);
+        plan.Resources.Count == 0 ? Task.CompletedTask : _resources.RecordAsync(task, plan);
 
     /// <summary>Records which summaries a task sent; only called after <see cref="PrepareCompressedAsync"/> succeeded.</summary>
-    internal Task RecordCompressedInputAsync(GenerationTaskId task, IReadOnlyList<Guid> ids) => _compressor!.RecordTaskInputAsync(task, ids);
+    internal Task RecordCompressedInputAsync(GenerationTaskId task, IReadOnlyList<Guid> ids) => _compressor.RecordTaskInputAsync(task, ids);
 
     /// <summary>
     /// One request whose output the program uses directly: only a normal, non-empty finish counts (D-015); a cut-off

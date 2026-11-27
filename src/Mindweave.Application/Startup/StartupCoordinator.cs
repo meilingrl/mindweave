@@ -32,7 +32,7 @@ public sealed partial class StartupCoordinator(
     IClock clock,
     ILocationStore locations,
     ILogger<StartupCoordinator> logger,
-    Resources.IResources? resources = null)
+    Resources.IResources resources)
 {
     public async Task<StartupOutcome> StartAsync(CancellationToken cancellationToken)
     {
@@ -99,10 +99,7 @@ public sealed partial class StartupCoordinator(
 
         // Unsent attachments no draft holds and originals nothing names go, as do leftover temporary files (architecture
         // §15.2). In the background: it never delays the window and its failure is only logged.
-        if (resources is not null)
-        {
-            _ = Task.Run(() => resources.CleanUpAsync(CancellationToken.None), CancellationToken.None);
-        }
+        _ = Task.Run(() => resources.CleanUpAsync(CancellationToken.None), CancellationToken.None);
 
         var all = await workspaces.ListAsync(cancellationToken).ConfigureAwait(false);
         if (all.Count == 0)

@@ -90,7 +90,7 @@ public sealed partial class ResourceService(
     StorageHealth health,
     IClock clock,
     ILogger<ResourceService> logger,
-    IImageProcessor? images = null) : IResources
+    IImageProcessor images) : IResources
 {
     /// <summary>The producer of a scaled image derivative.</summary>
     public const string ScaledImageProducer = "image-scale/1";
@@ -220,7 +220,7 @@ public sealed partial class ResourceService(
             return null;
         }
 
-        if (images?.ScaleForSending(original, ResourceLimits.SentImageLongSide) is not { } encoded)
+        if (images.ScaleForSending(original, ResourceLimits.SentImageLongSide) is not { } encoded)
         {
             return new ImageForSending(resource.MediaType, original);
         }
@@ -246,13 +246,10 @@ public sealed partial class ResourceService(
     /// A sweep after something was deleted, best effort: a failure is logged and never changes the outcome of the delete
     /// that ran it; whatever it left is removed by a later sweep.
     /// </summary>
-    public static async Task SweepQuietlyAsync(IResourceBlobStore? blobs, ILogger logger)
+    public static async Task SweepQuietlyAsync(IResourceBlobStore blobs, ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(blobs);
         ArgumentNullException.ThrowIfNull(logger);
-        if (blobs is null)
-        {
-            return;
-        }
 
         try
         {
@@ -350,29 +347,17 @@ public sealed partial class ResourceService(
         }
 
         // The bytes decide the type: a ".jpg" that is really a PNG is stored as a PNG; one that is no image is refused.
-        string actual;
-        if (images is not null)
-        {
-            if (images.Probe(bytes) is not { } info)
-            {
-                return new ResourceCreateResult(ResourceCreateStatus.NotReadable);
-            }
-
-            if (info.Pixels > ResourceLimits.MaxImagePixels)
-            {
-                return new ResourceCreateResult(ResourceCreateStatus.TooLarge);
-            }
-
-            actual = info.MediaType;
-        }
-        else if (FileTypes.ImageTypeOf(bytes) is { } signature)
-        {
-            actual = signature;
-        }
-        else
+        if (images.Probe(bytes) is not { } info)
         {
             return new ResourceCreateResult(ResourceCreateStatus.NotReadable);
         }
+
+        if (info.Pixels > ResourceLimits.MaxImagePixels)
+        {
+            return new ResourceCreateResult(ResourceCreateStatus.TooLarge);
+        }
+
+        var actual = info.MediaType;
 
         return await StoreAsync(workspace, conversation, bytes, actual, ResourceOrigin.Image, NameWithType(name, actual), null, draft, cancellationToken).ConfigureAwait(false);
     }
