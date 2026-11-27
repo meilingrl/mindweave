@@ -20,14 +20,14 @@ namespace Mindweave.Desktop.ViewModels.Conversations;
 public sealed partial class ConversationListViewModel : ViewModelBase, IDisposable
 {
     private readonly IConversations _conversations;
-    private readonly IConversationMarks? _marks;
+    private readonly IConversationMarks _marks;
     private readonly Workbench _workbench;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
-    private readonly ConversationDeletionRequests? _deletionPrompt;
-    private readonly ISummaries? _summaries;
-    private readonly IStorageStatus? _storage;
-    private readonly ISharePrompt? _share;
+    private readonly ConversationDeletionRequests _deletionPrompt;
+    private readonly ISummaries _summaries;
+    private readonly IStorageStatus _storage;
+    private readonly ISharePrompt _share;
     private readonly IUiDispatcher _dispatcher;
     private WorkspaceId? _shown;
 
@@ -38,28 +38,24 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         IConversations conversations,
         Workbench workbench,
         IUiDispatcher dispatcher,
-        IConversationMarks? marks = null,
-        ConversationDeletionRequests? deletion = null,
-        ISummaries? summaries = null,
-        IStorageStatus? storage = null,
-        ISharePrompt? share = null)
+        IConversationMarks marks,
+        ConversationDeletionRequests deletion,
+        ISummaries summaries,
+        IStorageStatus storage,
+        ISharePrompt share)
     {
+        ArgumentNullException.ThrowIfNull(marks);
+        ArgumentNullException.ThrowIfNull(deletion);
+        ArgumentNullException.ThrowIfNull(storage);
         _share = share;
         _conversations = conversations;
         _summaries = summaries;
         _storage = storage;
         _dispatcher = dispatcher;
-        if (storage is not null)
-        {
-            IsStoragePaused = storage.IsBlocked;
-            storage.Changed += OnStorageChanged;
-        }
-
+        IsStoragePaused = storage.IsBlocked;
+        storage.Changed += OnStorageChanged;
         _deletionPrompt = deletion;
-        if (deletion is not null)
-        {
-            deletion.Completed += OnDeletionCompleted;
-        }
+        deletion.Completed += OnDeletionCompleted;
 
         _marks = marks;
         _workbench = workbench;
@@ -67,40 +63,27 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ActivityChanged += OnActivityChanged;
-        if (_marks is not null)
-        {
-            _marks.Changed += OnMarksChanged;
-        }
+        _marks.Changed += OnMarksChanged;
 
         _workbench.PropertyChanged += OnWorkbenchChanged;
-        _marks?.SetViewing(Shown());
+        _marks.SetViewing(Shown());
     }
 
     /// <summary>Stops listening to the services; the view it belongs to is being replaced.</summary>
     public void Dispose()
     {
-        if (_storage is not null)
-        {
-            _storage.Changed -= OnStorageChanged;
-        }
-
-        if (_deletionPrompt is not null)
-        {
-            _deletionPrompt.Completed -= OnDeletionCompleted;
-        }
+        _storage.Changed -= OnStorageChanged;
+        _deletionPrompt.Completed -= OnDeletionCompleted;
 
         _conversations.ConversationChanged -= OnConversationChanged;
         _conversations.ActivityChanged -= OnActivityChanged;
-        if (_marks is not null)
-        {
-            _marks.Changed -= OnMarksChanged;
-        }
+        _marks.Changed -= OnMarksChanged;
 
         _workbench.PropertyChanged -= OnWorkbenchChanged;
     }
 
     /// <summary>Raised on worker threads; the rows' menus follow the pause on the UI thread.</summary>
-    private void OnStorageChanged(object? sender, EventArgs e) => _dispatcher.Post(() => IsStoragePaused = _storage!.IsBlocked);
+    private void OnStorageChanged(object? sender, EventArgs e) => _dispatcher.Post(() => IsStoragePaused = _storage.IsBlocked);
 
     /// <summary>
     /// The dialog deleted or archived the selection (or chose 改为归档): nothing of it is left to act on. A dialog opened
@@ -304,7 +287,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         if (_workbench.CurrentWorkspace is { } workspace && HasSelection)
         {
             SelectionNotice = null;
-            _deletionPrompt?.Open(workspace.Id, [.. Selection.Select(i => i.Id)]);
+            _deletionPrompt.Open(workspace.Id, [.. Selection.Select(i => i.Id)]);
         }
     }
 
@@ -430,7 +413,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
     private Task SummarizeRowAsync(ConversationItemViewModel item)
     {
         RowNotice = null;
-        if (_summaries is null || !item.CanSummarize)
+        if (!item.CanSummarize)
         {
             return Task.CompletedTask;
         }
@@ -441,7 +424,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
 
     private async Task SummarizeAsync(ConversationItemViewModel item)
     {
-        var outcome = await _summaries!.SummarizeAsync(item.Id, CancellationToken.None);
+        var outcome = await _summaries.SummarizeAsync(item.Id, CancellationToken.None);
         if (outcome.Rejection is { } rejection)
         {
             RowNotice = UiText.RowNotice(item.Title, UiText.SummarizeRejected(rejection));
@@ -483,7 +466,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         RowNotice = null;
         if (item.CanDelete && _workbench.CurrentWorkspace is { } workspace)
         {
-            _deletionPrompt?.Open(workspace.Id, [item.Id]);
+            _deletionPrompt.Open(workspace.Id, [item.Id]);
         }
     }
 
@@ -494,7 +477,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         RowNotice = null;
         if (_workbench.CurrentWorkspace is { } workspace)
         {
-            _share?.Open(workspace.Id, item.Id);
+            _share.Open(workspace.Id, item.Id);
         }
     }
 
@@ -512,7 +495,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         else if (e.PropertyName == nameof(Workbench.CurrentPage))
         {
             // Seen as soon as it is on screen: the row loses its dot now, not at the next reload.
-            _marks?.SetViewing(Shown());
+            _marks.SetViewing(Shown());
             UpdateSelection();
             UpdateMarks();
         }
@@ -603,7 +586,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
             return ConversationMark.Answering;
         }
 
-        if (_marks?.IsSummarizing(item.Id) == true)
+        if (_marks.IsSummarizing(item.Id))
         {
             return ConversationMark.Summarizing;
         }
@@ -613,7 +596,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
             return ConversationMark.NeedsAttention;
         }
 
-        return _marks?.IsUnread(item.Id) == true ? ConversationMark.Unread : ConversationMark.None;
+        return _marks.IsUnread(item.Id) ? ConversationMark.Unread : ConversationMark.None;
     }
 
     private ConversationId? Shown() => (_workbench.CurrentPage?.Route as ConversationRoute)?.Id;
