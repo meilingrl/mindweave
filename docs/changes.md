@@ -17,6 +17,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.22 · 2026-11-27
+
+- Documents: Added the design for reply quality ([reply-quality.md](design/reply-quality.md), D-043), and its text in the requirements (v0.32, §10.9) and architecture
+- Try: nothing on screen changed
+- Not verified: nothing new
+
 ## 0.6.21 · 2026-11-27
 
 - Changed the checkpoint of an answer being written: it updates only the blocks that changed (performance-9, D-042); the stored rows are the same

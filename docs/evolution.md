@@ -102,6 +102,8 @@ Adopted by the user on 2026-11-27 (D-042). The design is [diagnostics-and-upkeep
 
 #### Agent platform (from the discussion of 2026-11-13)
 
+How answers are written, with and without tools, is [reply quality](design/reply-quality.md) (requirements §10.9; D-043, approved 2026-11-26).
+
 Written as [requirements](requirements.md) §10.4 and [architecture](architecture.md) §15. Phases 1 to 4 are built: resources and attachments, the run loop and local tools, web search and citations, MCP. Phase 5, generated charts and audio, is ahead (§10.4.7). Two questions stay open for later: an embedding service for retrieval by meaning (Q13: not now; look again when local keyword retrieval is not good enough) and the chart format of phase 5 (Q16: Markdown tables and Mermaid first). The other answers are in [the questions of that time](history/design/agent-platform-questions.md) (Q14, confirmed later: [web search](design/web-search.md)). Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
 
 ### D6 Long-term vision: map-based exploration
