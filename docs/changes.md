@@ -17,6 +17,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.33 · 2026-11-28
+
+- Fixed fetching the model list from Anthropic's own service (api.anthropic.com), which failed on a missing version header; other services are unchanged
+- Try: Settings › Model connection with an Anthropic key and the address `https://api.anthropic.com/v1`, then fetch the model list
+- Not verified: Windows and Linux before CI; the full desktop suite on the fix's own branch (run here at the merge)
+
 ## 0.6.32 · 2026-11-28
 
 - Added 新建分支 (New branch) on the conversation page and in a sidebar row's menu: a branch that continues the conversation from its end, with all of it so far as context and nothing added later (requirements v0.37 §6.2)

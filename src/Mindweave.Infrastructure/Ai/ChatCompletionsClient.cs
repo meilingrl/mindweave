@@ -204,8 +204,20 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.ModelListTimeout);
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"{baseUrl.TrimEnd('/')}/models"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        var anthropic = IsAnthropic(baseUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"{baseUrl.TrimEnd('/')}/models{(anthropic ? "?limit=1000" : string.Empty)}"));
+        if (anthropic)
+        {
+            // Anthropic's OpenAI-compatible layer covers chat completions only; its model list is Anthropic's own API, which
+            // takes the key and a version header of its own and lists 20 models a page unless asked for more (2026-11-28).
+            request.Headers.Add("x-api-key", apiKey);
+            request.Headers.Add("anthropic-version", AnthropicVersion);
+        }
+        else
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
         try
         {
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
@@ -234,6 +246,13 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             throw new ChatClientException(GenerationErrorKind.InvalidResponse, "The model list is not valid JSON.", ex);
         }
     }
+
+    /// <summary>The version of Anthropic's own API asked for when listing its models.</summary>
+    internal const string AnthropicVersion = "2023-06-01";
+
+    /// <summary>Anthropic's own service (its OpenAI-compatible layer lives under the same host).</summary>
+    private static bool IsAnthropic(string baseUrl) =>
+        Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) && string.Equals(uri.Host, "api.anthropic.com", StringComparison.OrdinalIgnoreCase);
 
     private async Task<HttpResponseMessage> SendAsync(ChatRequest request, string apiKey, CancellationToken cancellationToken)
     {

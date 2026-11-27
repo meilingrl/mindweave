@@ -79,7 +79,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | new branch and double-click rename, 0.6.32 | 2026-11-28 | passed: Core 943, Architecture 39, Infrastructure 1393 + 23 skipped, Desktop 994 + 103 skipped, 0 failed |
+| macOS full run | the Anthropic model list, 0.6.33 | 2026-11-28 | passed: Core 943, Architecture 39, Infrastructure 1395 + 22 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | 3e90875 (0.6.29) | 2026-11-27 | passed: 3329 passed, 0 failed, 128 skipped of 3457; Credential Manager test ran |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
