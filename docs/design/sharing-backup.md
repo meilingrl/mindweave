@@ -183,7 +183,7 @@ Neither has a migration. Each merge states how to try it, what was run and what 
 
 ## 11. Text that changed with this note
 
-The requirements and architecture rows were written as their own commit and confirmed by the owner on 2026-11-27 (requirements v0.31).
+The requirements and architecture rows were written as their own commit and confirmed by the owner on 2026-11-27 (requirements v0.31). The renaming to manual backup, with "automatic backup" as the documents' name for the backups the app makes by itself, followed as requirements v0.32, which the owner accepted on 2026-11-27.
 
 | Where | Change |
 | --- | --- |
