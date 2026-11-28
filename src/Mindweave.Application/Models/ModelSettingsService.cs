@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Storage;
@@ -72,7 +73,13 @@ public static class ServiceAddress
 /// <summary>What removing the model key did: removed, or not, because this many requests use it and the user was not asked yet.</summary>
 public sealed record KeyRemoval(bool Removed, int RequestsUsingKey);
 
-public sealed record ConnectionTestResult(bool Succeeded, Mindweave.Core.Conversations.GenerationErrorKind? Error, string? Detail);
+
+/// <summary>The outcome of 测试连接; a failure carries its details (D2 §2.1): time, model, status, request ID, duration and text.</summary>
+public sealed record ConnectionTestResult(
+    bool Succeeded,
+    Mindweave.Core.Conversations.GenerationErrorKind? Error,
+    string? Detail,
+    Diagnostics.FailureDetails? Details = null);
 
 /// <summary>
 /// The one active connection and model (first version manages a single configuration). Keys go to the
@@ -81,13 +88,15 @@ public sealed record ConnectionTestResult(bool Succeeded, Mindweave.Core.Convers
 /// with an empty reference, which reads as not configured. An empty reference is stored, never a missing one, so nothing
 /// stored changes shape.
 /// </summary>
-public sealed class ModelSettingsService(
+public sealed partial class ModelSettingsService(
     IModelSettingsStore store,
     ICredentialStore credentials,
     IChatClient client,
     IClock clock,
     RetiredCredentials retired,
-    Conversations.GenerationCoordinator generation) : IModelSettings
+    Conversations.GenerationCoordinator generation,
+    Diagnostics.KnownSecrets secrets,
+    ILogger<ModelSettingsService> logger) : IModelSettings
 {
     public event EventHandler? Changed;
 
@@ -242,31 +251,56 @@ public sealed class ModelSettingsService(
     /// <summary>Explicit connection test: one very short generation, which the provider may bill.</summary>
     public async Task<ConnectionTestResult> TestAsync(string baseUrl, string model, string? typedKey, CancellationToken cancellationToken)
     {
+        var started = clock.UtcNow;
+        var name = model.Trim();
+        var normalized = NormalizeBaseUrl(baseUrl);
+        int? status = null;
+        string? requestId = null;
+        ConnectionTestResult result;
         try
         {
-            var normalized = NormalizeBaseUrl(baseUrl);
             var key = await KeyForAsync(normalized, typedKey, cancellationToken).ConfigureAwait(false);
-            var snapshot = new ModelSnapshot("connection-test", normalized, ChatProtocol.ChatCompletions, model.Trim(), "connection-test", MaxOutputTokens: 16, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
+            secrets.Add(key); // A typed key never passes the key store; the log scrubs it all the same (D2).
+            var snapshot = new ModelSnapshot("connection-test", normalized, ChatProtocol.ChatCompletions, name, "connection-test", MaxOutputTokens: 16, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
             var request = new ChatRequest(snapshot, [new ChatTurn(ChatRole.User, "Reply with the single word OK.")]);
+            result = Failed(Core.Conversations.GenerationErrorKind.InvalidResponse, "The stream ended without completing.");
             await foreach (var item in client.StreamAsync(request, key, cancellationToken).ConfigureAwait(false))
             {
-                if (item is ChatStreamEvent.Completed)
+                if (item is ChatStreamEvent.ResponseStarted response)
                 {
-                    return new ConnectionTestResult(true, null, null);
+                    (status, requestId) = (response.HttpStatus, response.ProviderRequestId);
+                }
+                else if (item is ChatStreamEvent.Completed)
+                {
+                    result = new ConnectionTestResult(true, null, null);
+                    break;
                 }
             }
-
-            return new ConnectionTestResult(false, Core.Conversations.GenerationErrorKind.InvalidResponse, "The stream ended without completing.");
         }
         catch (ChatClientException ex)
         {
-            return new ConnectionTestResult(false, ex.Kind, ex.Message);
+            (status, requestId) = (ex.HttpStatus ?? status, ex.ProviderRequestId ?? requestId);
+            result = Failed(ex.Kind, ex.Message);
         }
         catch (CredentialUnavailableException ex)
         {
-            return new ConnectionTestResult(false, Core.Conversations.GenerationErrorKind.CredentialUnavailable, ex.Message);
+            result = Failed(Core.Conversations.GenerationErrorKind.CredentialUnavailable, ex.Message);
         }
+
+        // Low finding observability-8: a connection test leaves a trace, without the key or the address's path.
+        var host = Host(normalized);
+        var outcome = result.Succeeded ? "succeeded" : $"failed ({result.Error})";
+        var took = (long)(clock.UtcNow - started).TotalMilliseconds;
+        LogTested(logger, host, name, outcome, status, took);
+        return result;
+
+        ConnectionTestResult Failed(Core.Conversations.GenerationErrorKind kind, string detail) =>
+            new(false, kind, detail, new Diagnostics.FailureDetails(started, name, status, requestId, clock.UtcNow - started, Diagnostics.Redaction.Scrub(detail)));
     }
+
+    /// <summary>Only the host of a service address goes into the log.</summary>
+    private static string Host(string normalizedBaseUrl) =>
+        Uri.TryCreate(normalizedBaseUrl, UriKind.Absolute, out var uri) ? uri.Authority : "?";
 
     /// <summary>Absolute http(s) URL without trailing slash; plain http only for this machine.</summary>
     public static string NormalizeBaseUrl(string raw)
@@ -305,4 +339,7 @@ public sealed class ModelSettingsService(
         var key = saved is not { CredentialRef: { Length: > 0 } reference } ? null : await credentials.ReadAsync(reference, cancellationToken).ConfigureAwait(false);
         return key ?? throw new ModelSettingsException(ModelSettingsProblem.MissingKey);
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Connection test to {Host}, model {Model}: {Outcome}, status {Status}, {Milliseconds} ms")]
+    private static partial void LogTested(ILogger logger, string host, string model, string outcome, int? status, long milliseconds);
 }

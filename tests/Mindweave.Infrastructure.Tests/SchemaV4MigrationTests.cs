@@ -57,6 +57,8 @@ public sealed class SchemaV4MigrationTests : IDisposable
         services.AddSingleton<IChatClient>(new FakeChatClient());
         services.AddSingleton<ICredentialStore>(new MemoryCredentialStore());
         services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown());
+        services.AddSingleton(new Application.AppEnvironment( // The desktop's composition makes it; the diagnostic package needs it.
+            _dir.Paths.Channel, "0.0.0", _dir.Paths.DataDirectory, _dir.Paths.DatabasePath, _dir.Paths.BackupDirectory, _dir.Paths.LogDirectory, 0));
         services.AddMindweaveInfrastructure(_dir.Paths);
         services.AddMindweaveApplication();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

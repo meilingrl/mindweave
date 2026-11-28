@@ -66,10 +66,9 @@ public sealed partial class SettingsHomeView : UserControl
         if (DataContext is SettingsHomeViewModel page)
         {
             page.Refresh();
-            if (page.PendingScroll is not null || page.FocusesLanguage)
-            {
-                _ = SettleAsync(page);
-            }
+
+            // Always: a link may ask for a section just after this view is shown (the workbench sets it once it navigated).
+            _ = SettleAsync(page);
         }
     }
 
@@ -92,6 +91,16 @@ public sealed partial class SettingsHomeView : UserControl
             page.PendingScroll = null;
             Scroller.Offset = new Vector(Scroller.Offset.X, wanted);
             page.ScrollOffset = Scroller.Offset.Y;
+        }
+
+        if (page.PendingSection is { } section)
+        {
+            page.PendingSection = null;
+            JumpTo(section switch
+            {
+                Navigation.SettingsSection.WebSearch => WebSearchSection,
+                _ => ModelSection,
+            });
         }
 
         if (page.FocusesLanguage)

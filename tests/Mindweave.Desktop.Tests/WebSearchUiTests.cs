@@ -272,7 +272,9 @@ public class WebSearchUiTests
         Assert.Equal(WebSearchMode.On, await app.Services.GetRequiredService<IWebSearchSettings>().GetDefaultModeAsync(CancellationToken.None));
         app.Search.Fails(SearchFailureKind.QuotaExhausted, "搜索服务的额度已用完。");
         await web.TestCommand.ExecuteAsync(null);
-        Assert.Equal(("搜索服务的额度已用完。", true), (web.Status, web.StatusIsError));
+        Assert.Equal(("搜索服务的额度已用完。", true), (web.Failure?.Headline, web.StatusIsError)); // The failure block (D2 §2.1).
+        Assert.Null(web.Status);
+        Assert.Equal(UiText.SearchFailureAdvice(Application.Tools.SearchFailureKind.QuotaExhausted), web.Failure!.Advice);
         window.UpdateLayout();
         Find<StackPanel>(window, "WebSearchSection").BringIntoView();
         window.UpdateLayout();

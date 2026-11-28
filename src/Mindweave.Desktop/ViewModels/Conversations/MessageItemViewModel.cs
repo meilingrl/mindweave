@@ -308,6 +308,57 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial string? ErrorDetail { get; private set; }
 
+    /// <summary>Reads the request record of a failed answer (D2 §2.1); null where there is none to read (an import).</summary>
+    public Func<MessageId, CancellationToken, Task<Application.Diagnostics.FailureDetails?>>? FailureRecord { get; init; }
+
+    /// <summary>Opens the part of 设置 that fixes a failure.</summary>
+    public Action<Navigation.SettingsSection>? OpenSettings { get; init; }
+
+    /// <summary>
+    /// The failure block under a failed or interrupted answer (D2 §2.1): the state as before, what to do, and details. Made
+    /// when first asked for and again when the state or the error changes.
+    /// </summary>
+    public FailureViewModel? Failure
+    {
+        get
+        {
+            if (!IsProblem)
+            {
+                return _failure = null;
+            }
+
+            return _failure ??= NewFailure();
+        }
+    }
+
+    private FailureViewModel? _failure;
+
+    partial void OnStateChanged(MessageState value) => ResetFailure();
+
+    partial void OnErrorKindChanged(GenerationErrorKind? value) => ResetFailure();
+
+    partial void OnErrorDetailChanged(string? value) => ResetFailure();
+
+    private void ResetFailure()
+    {
+        _failure = null;
+        OnPropertyChanged(nameof(Failure));
+    }
+
+    private FailureViewModel NewFailure()
+    {
+        var kind = ErrorKind;
+        var fixable = kind is { } k && UiText.FixedInModelConnection(k) && OpenSettings is not null;
+        var record = FailureRecord;
+        return new FailureViewModel(
+            StateLabel ?? string.Empty,
+            State == MessageState.Failed && kind is { } advised ? UiText.FailureAdvice(advised) : null,
+            UiText.OpenModelConnection,
+            fixable ? () => OpenSettings!(Navigation.SettingsSection.ModelConnection) : null,
+            Application.Diagnostics.FailureDetails.Kept(CompletedAt, null, ErrorDetail),
+            record is null ? null : ct => record(Id, ct));
+    }
+
     /// <summary>Set by the page: whether this is the conversation's last answer and may be retried.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RetryLabel), nameof(CanRetryQuietly), nameof(CanRetryInNotice), nameof(HasActions))]

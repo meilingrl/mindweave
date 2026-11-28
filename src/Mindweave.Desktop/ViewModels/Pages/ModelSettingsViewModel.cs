@@ -196,6 +196,13 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
     [ObservableProperty]
     public partial bool StatusIsError { get; private set; }
 
+    /// <summary>A failed connection test or model list, as the failure block (D2 §2.1); in place of <see cref="Status"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFailure))]
+    public partial FailureViewModel? Failure { get; private set; }
+
+    public bool HasFailure => Failure is not null;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(DiscoverCommand), nameof(TestCommand), nameof(RemoveKeyCommand), nameof(ConfirmKeyRemovalCommand))]
     public partial bool IsBusy { get; private set; }
@@ -431,7 +438,14 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
     private Task TestAsync() => RunAsync(async () =>
     {
         var result = await _settings.TestAsync(BaseUrl, Model, ApiKey, CancellationToken.None);
-        Report(result.Succeeded ? UiText.TestSucceeded : UiText.TestFailed(result.Error, result.Detail), isError: !result.Succeeded);
+        if (result.Succeeded)
+        {
+            Report(UiText.TestSucceeded, isError: false);
+        }
+        else
+        {
+            ReportFailure(result.Error, result.Details ?? Application.Diagnostics.FailureDetails.Kept(DateTimeOffset.UtcNow, Model, result.Detail));
+        }
     });
 
     private bool IsIdle() => !IsBusy;
@@ -490,6 +504,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
     {
         IsBusy = true;
         Status = null;
+        Failure = null;
         try
         {
             await action();
@@ -500,7 +515,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
         }
         catch (ChatClientException ex)
         {
-            Report(UiText.TestFailed(ex.Kind, ex.Message), isError: true);
+            ReportFailure(ex.Kind, Application.Diagnostics.FailureDetails.Of(ex, DateTimeOffset.UtcNow, null, TimeSpan.Zero) with { Duration = null });
         }
         catch (CredentialUnavailableException ex)
         {
@@ -519,7 +534,16 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
 
     private void Report(string message, bool isError)
     {
+        Failure = null;
         Status = message;
         StatusIsError = isError;
+    }
+
+    /// <summary>The page is already where the fix is, so the block has no link; it says what to do and holds the details.</summary>
+    private void ReportFailure(Core.Conversations.GenerationErrorKind? kind, Application.Diagnostics.FailureDetails details)
+    {
+        Status = null;
+        StatusIsError = true;
+        Failure = new FailureViewModel(UiText.ConnectionFailed(kind), kind is { } k ? UiText.FailureAdvice(k) : null, details: details);
     }
 }

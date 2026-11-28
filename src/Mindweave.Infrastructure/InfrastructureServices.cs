@@ -47,6 +47,10 @@ public static class InfrastructureServices
         services.AddSingleton<IConversationStore, SqliteConversationStore>();
         services.TryAddSingleton<IModelSettingsStore, SqliteModelSettingsStore>();
         services.AddSingleton<IAiRequestStore, SqliteAiRequestStore>();
+        services.AddSingleton<IFailureDetailsSource, SqliteFailureDetailsSource>();
+        services.AddSingleton<IRequestList, SqliteRequestList>();
+        services.AddSingleton<IDiagnosticFacts, Diagnostics.DiagnosticFacts>();
+        services.AddSingleton<IDiagnosticPackageWriter, Diagnostics.DiagnosticPackageWriter>();
         services.AddSingleton<IStatisticsStore, SqliteStatisticsStore>();
         services.TryAddSingleton<IRecommendationStore, SqliteRecommendationStore>();
         services.AddSingleton<ISummaryLinkStore, SqliteSummaryLinkStore>();
@@ -73,6 +77,7 @@ public static class InfrastructureServices
         services.AddSingleton<Application.ManualBackup.IManualBackupReader, ManualBackup.ManualBackupReader>();
         services.AddSingleton<Application.ManualBackup.IManualBackupImportStore, SqliteManualBackupImportStore>();
         services.TryAddSingleton(sp => CredentialStores.ForPlatform(paths.Channel, sp.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton<KnownSecrets>(); // The composition gives its own to the file log first.
         services.TryAddSingleton(new ChatClientOptions());
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(
             new HttpClient(ChatCompletionsClient.CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan },
@@ -87,6 +92,9 @@ public static class InfrastructureServices
 
         // Third-party tools (phase 4, architecture §15.14): the MCP library is used only behind this.
         services.TryAddSingleton<Application.Tools.Mcp.IMcpConnector>(_ => new Tools.Mcp.SdkMcpConnector(paths));
+
+        // Last: whichever key store is registered (a test's own included), its keys reach the log scrub.
+        CredentialStores.RecordKeys(services);
         return services;
     }
 }

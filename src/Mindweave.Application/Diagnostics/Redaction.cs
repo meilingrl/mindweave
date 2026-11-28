@@ -12,14 +12,22 @@ public static partial class Redaction
     public const string Mask = "[redacted]";
 
     /// <summary>Shorter values are not treated as secrets; masking them would garble ordinary text.</summary>
-    private const int MinSecretLength = 8;
+    public const int MinSecretLength = 8;
 
-    public static string Scrub(string text, string? knownSecret = null)
+    public static string Scrub(string text, string? knownSecret = null) =>
+        Scrub(text, knownSecret is null ? [] : [knownSecret]);
+
+    /// <summary>Removes each of <paramref name="knownSecrets"/> (pass the longest first), then every credential-shaped token.</summary>
+    public static string Scrub(string text, IReadOnlyList<string> knownSecrets)
     {
         ArgumentNullException.ThrowIfNull(text);
-        if (knownSecret is { Length: >= MinSecretLength })
+        ArgumentNullException.ThrowIfNull(knownSecrets);
+        foreach (var secret in knownSecrets)
         {
-            text = text.Replace(knownSecret, Mask, StringComparison.Ordinal);
+            if (secret is { Length: >= MinSecretLength })
+            {
+                text = text.Replace(secret, Mask, StringComparison.Ordinal);
+            }
         }
 
         text = BearerToken().Replace(text, "${scheme} " + Mask);

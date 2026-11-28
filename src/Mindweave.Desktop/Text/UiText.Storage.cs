@@ -45,6 +45,11 @@ public static partial class UiText
     public static string BackupsLabel => T("Backups", "备份");
     public static string ChannelLabel => T("Data channel", "数据通道");
     public static string OpenDataFolder => T("Open data location", "打开数据位置");
+    public static string LogFolderLabel => T("Log", "日志");
+    public static string OpenLogFolder => T("Open log folder", "打开日志文件夹");
+    public static string LogFolderHint => T(
+        "One file per day, the last 14 days. It holds errors and timings, never conversation text or keys.",
+        "每天一个文件，保留最近 14 天。记录错误与耗时，不含对话内容和密钥。");
     public static string Retry => T("Retry", "重试");
     public static string Exit => T("Quit", "退出");
     public static string RestoreThis => T("Restore this backup…", "恢复此备份…");

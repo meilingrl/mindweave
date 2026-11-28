@@ -156,6 +156,9 @@ public sealed class ChatClientException : Exception
     /// <summary>How long the service asked to wait before trying again (<c>Retry-After</c>), when it said.</summary>
     public TimeSpan? RetryAfter { get; init; }
 
+    /// <summary>The service's own ID of the request it refused, when it sent one (D2: shown in a failure's details).</summary>
+    public string? ProviderRequestId { get; init; }
+
     /// <summary>
     /// Whether trying the same request again may well succeed (docs/design/agent-loop.md L5): the connection failed or stalled,
     /// the service failed (5xx) or asked to slow down (429). Never a refused key, a used-up quota (402), a refused request or

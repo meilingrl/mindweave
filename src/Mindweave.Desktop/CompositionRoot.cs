@@ -39,10 +39,12 @@ public static class CompositionRoot
     {
         ArgumentNullException.ThrowIfNull(paths);
         var services = new ServiceCollection();
+        var secrets = new Application.Diagnostics.KnownSecrets(); // Keys read or written this session, scrubbed from the log.
+        services.AddSingleton(secrets);
         services.AddLogging(builder =>
         {
             builder.SetMinimumLevel(LogLevel.Information);
-            builder.AddProvider(logging ?? new FileLoggerProvider(paths.LogDirectory, TimeProvider.System));
+            builder.AddProvider(logging ?? new FileLoggerProvider(paths.LogDirectory, TimeProvider.System, secrets));
         });
         AddOverrides(services, overrides, view: false);
         services.AddMindweaveInfrastructure(paths);

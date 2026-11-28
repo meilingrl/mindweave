@@ -14,6 +14,9 @@ public sealed class CopyButton : Button
 {
     public static readonly StyledProperty<string?> TextProperty = AvaloniaProperty.Register<CopyButton, string?>(nameof(Text));
 
+    /// <summary>A word beside the icon ("Copy details"); without it the button is the icon alone.</summary>
+    public static readonly StyledProperty<string?> LabelProperty = AvaloniaProperty.Register<CopyButton, string?>(nameof(Label));
+
     /// <summary>How long the check stays after a copy.</summary>
     internal static readonly TimeSpan ConfirmationTime = TimeSpan.FromSeconds(1.5);
 
@@ -37,10 +40,39 @@ public sealed class CopyButton : Button
         set => SetValue(TextProperty, value);
     }
 
+    public string? Label
+    {
+        get => GetValue(LabelProperty);
+        set => SetValue(LabelProperty, value);
+    }
+
     /// <summary>True for a moment after a successful copy, while the check is shown.</summary>
     internal bool ShowsCopied { get; private set; }
 
     protected override Type StyleKeyOverride => typeof(Button);
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == LabelProperty)
+        {
+            Content = null; // The icon leaves the button before it joins the row (one logical parent at a time).
+            if (Label is { } label)
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 5,
+                    Children = { _icon, new TextBlock { Text = label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
+                };
+                Avalonia.Automation.AutomationProperties.SetName(this, label);
+            }
+            else
+            {
+                Content = _icon;
+            }
+        }
+    }
 
     protected override async void OnClick()
     {
@@ -77,7 +109,7 @@ public sealed class CopyButton : Button
         _revert.Stop();
         ShowsCopied = copied;
         PseudoClasses.Set(":copied", copied);
-        ToolTip.SetTip(this, copied ? UiText.Copied : UiText.Copy);
+        ToolTip.SetTip(this, copied ? UiText.Copied : Label ?? UiText.Copy);
         UpdateIcon();
     }
 

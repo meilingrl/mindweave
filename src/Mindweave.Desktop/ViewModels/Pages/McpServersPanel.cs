@@ -346,6 +346,16 @@ public sealed partial class McpServerItem : ViewModelBase
 
     public bool HasStandardError => IsProblem && StandardError.Length > 0;
 
+    /// <summary>
+    /// A failed or halted server, as the failure block (D2 §2.1): its error, what to check, and its recent output in the
+    /// details. The same block stays while the error and the output are the same, so details opened stay open.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFailure))]
+    public partial FailureViewModel? Failure { get; private set; }
+
+    public bool HasFailure => Failure is not null;
+
     public ObservableCollection<McpToolItem> Tools { get; } = [];
 
     /// <summary>More tools than this and the expanded list gets a filter box.</summary>
@@ -434,8 +444,22 @@ public sealed partial class McpServerItem : ViewModelBase
     {
         var status = _connections.StatusOf(Server.Id);
         State = status.State;
-        Error = status.Error?.ToString();
-        StandardError = string.Join("\n", status.StandardError);
+        var error = status.Error?.ToString();
+        var output = string.Join("\n", status.StandardError);
+        if (!IsProblem || string.IsNullOrEmpty(error))
+        {
+            Failure = null;
+        }
+        else if (Failure is null || error != Error || output != StandardError)
+        {
+            Failure = new FailureViewModel(
+                error,
+                Server.Kind == McpServerKind.Command ? UiText.McpCommandFailureAdvice : UiText.McpHttpFailureAdvice,
+                extra: output.Length > 0 ? [new FailureLine(UiText.McpStandardError, Environment.NewLine + output)] : null);
+        }
+
+        Error = error;
+        StandardError = output;
         _ = ReloadToolsAsync(status.Tools);
     }
 

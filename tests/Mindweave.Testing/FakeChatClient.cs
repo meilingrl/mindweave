@@ -204,8 +204,8 @@ public sealed class FakeChatClient : IChatClient
         _scripts.Enqueue(new Script(null, before, kind, detail));
 
     /// <summary>The next answer fails as a service that answered with <paramref name="httpStatus"/> (and <c>Retry-After</c>) does.</summary>
-    public void FailWithStatus(GenerationErrorKind kind, int? httpStatus, TimeSpan? retryAfter = null) =>
-        _scripts.Enqueue(new Script(null, [], kind, "simulated", HttpStatus: httpStatus, RetryAfter: retryAfter));
+    public void FailWithStatus(GenerationErrorKind kind, int? httpStatus, TimeSpan? retryAfter = null, string detail = "simulated", string? requestId = null) =>
+        _scripts.Enqueue(new Script(null, [], kind, detail, HttpStatus: httpStatus, RetryAfter: retryAfter, RequestId: requestId));
 
     /// <summary>The next answer asks for one call of <paramref name="tool"/> and is then cut off at its output limit.</summary>
     public void CutOffCalling(string tool, string arguments) =>
@@ -363,7 +363,7 @@ public sealed class FakeChatClient : IChatClient
 
         if (script.FailWith is { } kind)
         {
-            throw new ChatClientException(kind, script.Detail!, httpStatus: script.HttpStatus) { RetryAfter = script.RetryAfter };
+            throw new ChatClientException(kind, script.Detail!, httpStatus: script.HttpStatus) { RetryAfter = script.RetryAfter, ProviderRequestId = script.RequestId };
         }
 
         if (script.Calls is { } calls)
@@ -442,5 +442,5 @@ public sealed class FakeChatClient : IChatClient
         }
     }
 
-    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null, bool NoEnd = false, IReadOnlyList<ChatToolCall>? Calls = null, string? Reasoning = null, int? HttpStatus = null, TimeSpan? RetryAfter = null);
+    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null, bool NoEnd = false, IReadOnlyList<ChatToolCall>? Calls = null, string? Reasoning = null, int? HttpStatus = null, TimeSpan? RetryAfter = null, string? RequestId = null);
 }

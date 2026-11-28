@@ -229,6 +229,20 @@ public class ChatCompletionsClientTests
         Assert.DoesNotContain(Key, error.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>D2 §2.1: a refused request keeps the service's own request ID, so a failure's details can name it.</summary>
+    [Fact]
+    public async Task A_refused_request_keeps_the_services_request_id()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests) { Content = new StringContent("{\"error\":{\"message\":\"slow down\"}}") };
+            response.Headers.Add("x-request-id", "req_refused_42");
+            return response;
+        })));
+
+        Assert.Equal((429, "req_refused_42"), (error.HttpStatus, error.ProviderRequestId));
+    }
+
     [Fact]
     public async Task An_error_event_inside_the_stream_fails_the_answer()
     {

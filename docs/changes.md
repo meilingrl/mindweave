@@ -17,6 +17,16 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.36 · 2026-11-28
+
+- Added one failure block wherever a request fails (an answer, a summary, a tool step, 测试连接 and the model list, 网络搜索 › 测试, an MCP server): what failed, what to do, a link to the setting that fixes it, Details (time, model, status, request ID, duration, the service's text) and Copy details, which carries no conversation text and no key (D-042 §2.1)
+- Added a "Log" row with an Open button under Settings › Data and storage › 位置
+- Added to the log: a start line (version, commit, channel, system, schema, interface language), one line per storage pause, and one line per connection or web search test; every key the key store passes is scrubbed from it (D-042 §2.2)
+- Added the request list and the diagnostic package behind the diagnostics page (summary, requests, settings and logs from allowed fields only, keys scrubbed, the home folder written as ~); the page itself comes later
+- Changed a failed request to keep the service's request ID, which was lost on errors
+- Try: set a model with a wrong key and ask, then open Details in the answer's notice; 设置 › 测试连接 with a wrong key shows the same block
+- Not verified: Windows and Linux before CI; a real window; a real service's error responses (tested with a fake client), and which services send a request ID on errors
+
 ## 0.6.35 · 2026-11-28
 
 - Added 移除密钥 (Remove key) beside 测试连接 in Settings › Model connection; when requests are using the key, it asks first and stops them (D-042 §2.3)
