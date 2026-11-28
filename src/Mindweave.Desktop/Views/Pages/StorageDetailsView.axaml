@@ -15,7 +15,7 @@
       <!-- 位置 -->
       <TextBlock Classes="section-heading" Text="{x:Static t:UiText.LocationSection}" />
       <Border Classes="card settings">
-        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" MinWidth="96" />
             <ColumnDefinition Width="*" />
@@ -36,6 +36,17 @@
                                ToolTip.Tip="{Binding Environment.DatabasePath}" />
           <TextBlock Grid.Row="2" Classes="field-label" Text="{x:Static t:UiText.SchemaVersionLabel}" />
           <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Environment.SchemaVersion}" />
+          <!-- D2: the log folder, for a report of a problem. -->
+          <TextBlock Grid.Row="3" Classes="field-label" Text="{x:Static t:UiText.LogFolderLabel}" />
+          <SelectableTextBlock Grid.Row="3" Grid.Column="1" Name="LogFolder" Classes="path" Text="{Binding Environment.LogDirectory}"
+                               ToolTip.Tip="{x:Static t:UiText.LogFolderHint}" />
+          <Button Grid.Row="3" Grid.Column="2" Name="OpenLogFolder" Classes="quiet" Command="{Binding OpenLogFolderCommand}"
+                  ToolTip.Tip="{x:Static t:UiText.LogFolderHint}" AutomationProperties.Name="{x:Static t:UiText.OpenLogFolder}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconFolder}" />
+              <TextBlock Text="{x:Static t:UiText.OpenFolder}" />
+            </StackPanel>
+          </Button>
         </Grid>
       </Border>
 
@@ -91,7 +102,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding SizeText}" />
                     <Button Grid.Column="1" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static t:UiText.RestoreBackup}"
-                            IsVisible="{Binding IsBackup}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
+                            IsVisible="{Binding IsRestorable}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
                             Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}"
                             AutomationProperties.Name="{Binding RestoreName}" AutomationProperties.HelpText="{Binding Hint}" />
                     <Button Grid.Column="2" Name="DeleteBackupButton" Classes="quiet small danger" Content="{x:Static t:UiText.DeleteBackup}"

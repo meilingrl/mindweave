@@ -78,6 +78,12 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     public MemoryCredentialStore Credentials { get; } = new();
 
+    /// <summary>How long the harness lets the key store take before a call fails as unavailable.</summary>
+    public static TimeSpan CredentialWait { get; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>Replaced keys waiting to be deleted (D2 §2.3).</summary>
+    public RetiredCredentials RetiredKeys => _services.GetRequiredService<RetiredCredentials>();
+
     public FakeChatClient Client { get; } = new();
 
     /// <summary>The search service (phase 3): scripted hits, no network.</summary>
@@ -88,6 +94,16 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     /// <summary>设置 › 工具 › 网络搜索.</summary>
     public Application.Preferences.IWebSearchSettings WebSearch => _services.GetRequiredService<Application.Preferences.IWebSearchSettings>();
+
+    /// <summary>An answer's or a task's last failed request (D2 §2.1).</summary>
+    public Application.Diagnostics.IFailureDetailsSource Failures => _services.GetRequiredService<Application.Diagnostics.IFailureDetailsSource>();
+
+    /// <summary>Any registered service (D2's diagnostics are reached this way rather than by a property each).</summary>
+    public T Get<T>()
+        where T : notnull => _services.GetRequiredService<T>();
+
+    /// <summary>The keys the log scrubs (D2).</summary>
+    public Application.Diagnostics.KnownSecrets Secrets => _services.GetRequiredService<Application.Diagnostics.KnownSecrets>();
 
     /// <summary>The client the coordinator uses: the fake unless a real one was supplied.</summary>
     public IChatClient ActiveClient { get; }
@@ -413,12 +429,15 @@ internal sealed class ChatHarness : IAsyncDisposable
 
         // Added first: the app's defaults for these are only registered where nothing is yet.
         services.AddSingleton(client);
-        services.AddSingleton(credentials);
+        // Limited as the platform store is, with a short wait (D2 §2.3: 30 s in the app).
+        services.AddSingleton(global::Mindweave.Infrastructure.Credentials.CredentialStores.Limited(credentials, CredentialWait, TimeProvider.System));
         services.AddSingleton<Application.Tools.ISearchProvider>(Search);
         services.AddSingleton<Application.Tools.IWebPageFetcher>(Pages);
         services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown()); // The app's own is in Desktop.
         services.AddSingleton(new StorageHealthOptions { RetryInterval = storageRetry ?? TimeSpan.FromMilliseconds(50) });
         services.AddSingleton(TestMcpOptions);
+        services.AddSingleton(new Application.AppEnvironment(
+            paths.Channel, "1.2.3", paths.DataDirectory, paths.DatabasePath, paths.BackupDirectory, paths.LogDirectory, Sqlite.Migrations.MigrationCatalog.Default.LatestVersion, "abcdef1"));
 
         // The background's 30 s wait runs on a clock that stands still unless a test moves it.
         services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });

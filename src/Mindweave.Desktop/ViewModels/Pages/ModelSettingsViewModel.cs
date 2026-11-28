@@ -196,9 +196,69 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
     [ObservableProperty]
     public partial bool StatusIsError { get; private set; }
 
+    /// <summary>A failed connection test or model list, as the failure block (D2 §2.1); in place of <see cref="Status"/>.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(DiscoverCommand), nameof(TestCommand))]
+    [NotifyPropertyChangedFor(nameof(HasFailure))]
+    public partial FailureViewModel? Failure { get; private set; }
+
+    public bool HasFailure => Failure is not null;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(DiscoverCommand), nameof(TestCommand), nameof(RemoveKeyCommand), nameof(ConfirmKeyRemovalCommand))]
     public partial bool IsBusy { get; private set; }
+
+    /// <summary>The saved connection names a key (found or not), so 移除密钥 is offered (D2 §2.3).</summary>
+    [ObservableProperty]
+    public partial bool CanRemoveKey { get; private set; }
+
+    /// <summary>Requests use the key: the user is asked whether to stop them and remove it.</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmingKeyRemoval { get; private set; }
+
+    /// <summary>How many requests the removal would stop, in words.</summary>
+    [ObservableProperty]
+    public partial string? KeyRemovalQuestion { get; private set; }
+
+    /// <summary>移除密钥: at once when no request uses the key, otherwise after the user's yes.</summary>
+    [RelayCommand(CanExecute = nameof(IsIdle))]
+    private Task RemoveKeyAsync() => RemoveSavedKeyAsync(stopRequests: false);
+
+    [RelayCommand(CanExecute = nameof(IsIdle))]
+    private Task ConfirmKeyRemovalAsync() => RemoveSavedKeyAsync(stopRequests: true);
+
+    [RelayCommand]
+    private void CancelKeyRemoval()
+    {
+        IsConfirmingKeyRemoval = false;
+        KeyRemovalQuestion = null;
+    }
+
+    private Task RemoveSavedKeyAsync(bool stopRequests) => RunAsync(async () =>
+    {
+        IsConfirmingKeyRemoval = false;
+        KeyRemovalQuestion = null;
+        KeyRemoval removal;
+        try
+        {
+            removal = await _settings.RemoveKeyAsync(stopRequests, CancellationToken.None);
+        }
+        catch (CredentialUnavailableException ex)
+        {
+            // The key and the settings are as they were (D2 §2.6).
+            Report(UiText.ModelKeyRemoveFailed(ex.Message), isError: true);
+            return;
+        }
+
+        if (!removal.Removed)
+        {
+            KeyRemovalQuestion = UiText.ModelKeyInUse(removal.RequestsUsingKey);
+            IsConfirmingKeyRemoval = true;
+            return;
+        }
+
+        await LoadAsync();
+        Report(UiText.ModelKeyRemoved, isError: false);
+    });
 
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private Task SaveAsync() => RunAsync(async () =>
@@ -378,7 +438,14 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
     private Task TestAsync() => RunAsync(async () =>
     {
         var result = await _settings.TestAsync(BaseUrl, Model, ApiKey, CancellationToken.None);
-        Report(result.Succeeded ? UiText.TestSucceeded : UiText.TestFailed(result.Error, result.Detail), isError: !result.Succeeded);
+        if (result.Succeeded)
+        {
+            Report(UiText.TestSucceeded, isError: false);
+        }
+        else
+        {
+            ReportFailure(result.Error, result.Details ?? Application.Diagnostics.FailureDetails.Kept(DateTimeOffset.UtcNow, Model, result.Detail));
+        }
     });
 
     private bool IsIdle() => !IsBusy;
@@ -403,8 +470,14 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
         ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         OutputLimit = saved.MaxOutputTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         _shownValues = (Name, BaseUrl, Model, ContextWindow, OutputLimit, DeclaresToolCalls, DeclaresImageInput);
+        CanRemoveKey = saved.CredentialRef.Length > 0;
         HasSavedKey = await _settings.SavedKeyExistsAsync(CancellationToken.None);
-        if (!HasSavedKey)
+        if (!CanRemoveKey)
+        {
+            // The key was removed: the connection is not set up until one is entered.
+            Report(UiText.ModelKeyNotSet, isError: false);
+        }
+        else if (!HasSavedKey)
         {
             // A restored backup can point at a key replaced and deleted since: say so instead of "saved".
             Report(UiText.SavedKeyMissing, isError: true);
@@ -431,6 +504,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
     {
         IsBusy = true;
         Status = null;
+        Failure = null;
         try
         {
             await action();
@@ -441,7 +515,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
         }
         catch (ChatClientException ex)
         {
-            Report(UiText.TestFailed(ex.Kind, ex.Message), isError: true);
+            ReportFailure(ex.Kind, Application.Diagnostics.FailureDetails.Of(ex, DateTimeOffset.UtcNow, null, TimeSpan.Zero) with { Duration = null });
         }
         catch (CredentialUnavailableException ex)
         {
@@ -460,7 +534,16 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
 
     private void Report(string message, bool isError)
     {
+        Failure = null;
         Status = message;
         StatusIsError = isError;
+    }
+
+    /// <summary>The page is already where the fix is, so the block has no link; it says what to do and holds the details.</summary>
+    private void ReportFailure(Core.Conversations.GenerationErrorKind? kind, Application.Diagnostics.FailureDetails details)
+    {
+        Status = null;
+        StatusIsError = true;
+        Failure = new FailureViewModel(UiText.ConnectionFailed(kind), kind is { } k ? UiText.FailureAdvice(k) : null, details: details);
     }
 }

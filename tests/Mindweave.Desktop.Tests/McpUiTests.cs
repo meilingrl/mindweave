@@ -129,6 +129,12 @@ public class McpUiTests
         await UiWait.UntilAsync(() => server.State == McpServerState.Failed, timeoutMs: 20_000);
         Assert.True(server.HasError);
         Assert.Contains("fatal: cannot start", server.StandardError, StringComparison.Ordinal);
+
+        // The failure block (D2 §2.1): the error, what to check, and the recent output in the details, to copy.
+        await UiWait.UntilAsync(() => server.Failure is not null);
+        Assert.Equal(server.Error, server.Failure!.Headline);
+        Assert.Equal(UiText.McpCommandFailureAdvice, server.Failure.Advice);
+        Assert.Contains("fatal: cannot start", server.Failure.CopyText, StringComparison.Ordinal);
         window.Close();
     }
 

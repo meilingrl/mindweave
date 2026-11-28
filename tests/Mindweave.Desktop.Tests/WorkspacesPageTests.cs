@@ -28,7 +28,7 @@ public class WorkspacesPageTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var (city, photos) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
         app.Client.Reply("1863 年，伦敦。");
         await SummaryNetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, city.Id, "第一条地铁在哪里？");
@@ -86,7 +86,7 @@ public class WorkspacesPageTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var (city, _) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
         var conversations = app.Services.GetRequiredService<ConversationService>();
         app.Client.Reply("1863 年，伦敦。");

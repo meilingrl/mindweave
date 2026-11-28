@@ -70,19 +70,32 @@ public static class ServiceAddress
         && Uri.Compare(saved, current, UriComponents.SchemeAndServer, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
 }
 
-public sealed record ConnectionTestResult(bool Succeeded, Mindweave.Core.Conversations.GenerationErrorKind? Error, string? Detail);
+/// <summary>What removing the model key did: removed, or not, because this many requests use it and the user was not asked yet.</summary>
+public sealed record KeyRemoval(bool Removed, int RequestsUsingKey);
+
+
+/// <summary>The outcome of 测试连接; a failure carries its details (D2 §2.1): time, model, status, request ID, duration and text.</summary>
+public sealed record ConnectionTestResult(
+    bool Succeeded,
+    Mindweave.Core.Conversations.GenerationErrorKind? Error,
+    string? Detail,
+    Diagnostics.FailureDetails? Details = null);
 
 /// <summary>
 /// The one active connection and model (first version manages a single configuration). Keys go to the
 /// credential store under a new reference each time they change; the old reference is deleted only once no
-/// unfinished task still uses it (MW-C15).
+/// unfinished task still uses it (MW-C15). The key can be removed (D2 §2.3): the connection keeps its address and model
+/// with an empty reference, which reads as not configured. An empty reference is stored, never a missing one, so nothing
+/// stored changes shape.
 /// </summary>
 public sealed partial class ModelSettingsService(
     IModelSettingsStore store,
-    IConversationStore conversations,
     ICredentialStore credentials,
     IChatClient client,
     IClock clock,
+    RetiredCredentials retired,
+    Conversations.GenerationCoordinator generation,
+    Diagnostics.KnownSecrets secrets,
     ILogger<ModelSettingsService> logger) : IModelSettings
 {
     public event EventHandler? Changed;
@@ -109,11 +122,11 @@ public sealed partial class ModelSettingsService(
         }
     }
 
-    /// <summary>The frozen snapshot new tasks are accepted with, or null when nothing is configured.</summary>
+    /// <summary>The frozen snapshot new tasks are accepted with, or null when nothing is configured or the key was removed.</summary>
     public async Task<ModelSnapshot?> GetActiveSnapshotAsync(CancellationToken cancellationToken)
     {
         var settings = await store.GetActiveAsync(cancellationToken).ConfigureAwait(false);
-        return settings is null
+        return settings is null || settings.CredentialRef.Length == 0
             ? null
             : new ModelSnapshot(settings.ModelConfigId, settings.BaseUrl, settings.Protocol, settings.Model, settings.CredentialRef, settings.MaxOutputTokens, settings.Capabilities);
     }
@@ -142,21 +155,17 @@ public sealed partial class ModelSettingsService(
         var connectionId = existing?.ConnectionId ?? Guid.CreateVersion7().ToString("D");
         // A saved key belongs to the service it was saved for: another host needs its own key.
         var credentialRef = existing is not null && ServiceAddress.SameService(existing.BaseUrl, baseUrl) ? existing.CredentialRef : null;
-        var retired = (await store.RetiredCredentialRefsAsync(cancellationToken).ConfigureAwait(false)).ToList();
+        string? replaced = null;
 
         if (!string.IsNullOrWhiteSpace(input.NewApiKey))
         {
             var newRef = $"{connectionId}/{Guid.CreateVersion7():D}";
             await credentials.WriteAsync(newRef, input.NewApiKey.Trim(), cancellationToken).ConfigureAwait(false);
-            if (existing?.CredentialRef is { } replaced)
-            {
-                retired.Add(replaced);
-            }
-
+            replaced = existing?.CredentialRef;
             credentialRef = newRef;
         }
 
-        if (credentialRef is null)
+        if (string.IsNullOrEmpty(credentialRef))
         {
             throw new ModelSettingsException(ModelSettingsProblem.MissingKey);
         }
@@ -180,43 +189,52 @@ public sealed partial class ModelSettingsService(
                 clock.UtcNow,
                 cancellationToken)
             .ConfigureAwait(false);
-        await store.SetRetiredCredentialRefsAsync(retired, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(replaced))
+        {
+            await retired.RetireAsync(replaced, cancellationToken).ConfigureAwait(false);
+        }
+
         Changed?.Invoke(this, EventArgs.Empty);
-        await CleanUpRetiredCredentialsAsync(cancellationToken).ConfigureAwait(false);
+        await retired.CleanUpAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Deletes replaced keys that no unfinished task references any more. Safe to call any time.</summary>
-    public async Task CleanUpRetiredCredentialsAsync(CancellationToken cancellationToken)
+    /// <summary>How many unfinished requests use the saved key: what removing it would stop.</summary>
+    public async Task<int> RequestsUsingKeyAsync(CancellationToken cancellationToken) =>
+        await store.GetActiveAsync(cancellationToken).ConfigureAwait(false) is { CredentialRef: { Length: > 0 } reference }
+            ? generation.CountUsing(reference)
+            : 0;
+
+    /// <summary>
+    /// Removes the saved key (D2 §2.3). While requests use it nothing happens unless <paramref name="stopRequests"/>: they
+    /// are counted for the user to decide. Otherwise those requests are stopped, the item is deleted from the system's key
+    /// store, and only then is the connection marked as without a key: a store that is locked or does not answer throws
+    /// <see cref="CredentialUnavailableException"/> and leaves the key and the settings as they were.
+    /// </summary>
+    public async Task<KeyRemoval> RemoveKeyAsync(bool stopRequests, CancellationToken cancellationToken)
     {
-        var retired = await store.RetiredCredentialRefsAsync(cancellationToken).ConfigureAwait(false);
-        if (retired.Count == 0)
+        if (await store.GetActiveAsync(cancellationToken).ConfigureAwait(false) is not { CredentialRef: { Length: > 0 } reference } existing)
         {
-            return;
+            return new KeyRemoval(Removed: true, RequestsUsingKey: 0);
         }
 
-        var inUse = await conversations.CredentialRefsInUseAsync(cancellationToken).ConfigureAwait(false);
-        var active = (await store.GetActiveAsync(cancellationToken).ConfigureAwait(false))?.CredentialRef;
-        var keep = new List<string>();
-        foreach (var reference in retired)
+        if (generation.CountUsing(reference) is var count && count > 0)
         {
-            if (inUse.Contains(reference) || reference == active)
+            if (!stopRequests)
             {
-                keep.Add(reference);
-                continue;
+                return new KeyRemoval(Removed: false, RequestsUsingKey: count);
             }
 
-            try
-            {
-                await credentials.DeleteAsync(reference, cancellationToken).ConfigureAwait(false);
-            }
-            catch (CredentialUnavailableException ex)
-            {
-                LogCleanupDeferred(logger, ex);
-                keep.Add(reference);
-            }
+            await generation.StopUsingAsync(reference).ConfigureAwait(false);
         }
 
-        await store.SetRetiredCredentialRefsAsync(keep, cancellationToken).ConfigureAwait(false);
+        await credentials.DeleteAsync(reference, cancellationToken).ConfigureAwait(false);
+        await store.SaveActiveAsync(existing with { CredentialRef = string.Empty }, clock.UtcNow, cancellationToken).ConfigureAwait(false);
+
+        // A task accepted between the stop and the delete still names the reference; when it ends it finds no key and says
+        // so. Retired, the reference is deleted again then: harmless, as the item is gone.
+        await retired.RetireAsync(reference, cancellationToken).ConfigureAwait(false);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return new KeyRemoval(Removed: true, RequestsUsingKey: 0);
     }
 
     /// <summary>
@@ -233,31 +251,56 @@ public sealed partial class ModelSettingsService(
     /// <summary>Explicit connection test: one very short generation, which the provider may bill.</summary>
     public async Task<ConnectionTestResult> TestAsync(string baseUrl, string model, string? typedKey, CancellationToken cancellationToken)
     {
+        var started = clock.UtcNow;
+        var name = model.Trim();
+        var normalized = NormalizeBaseUrl(baseUrl);
+        int? status = null;
+        string? requestId = null;
+        ConnectionTestResult result;
         try
         {
-            var normalized = NormalizeBaseUrl(baseUrl);
             var key = await KeyForAsync(normalized, typedKey, cancellationToken).ConfigureAwait(false);
-            var snapshot = new ModelSnapshot("connection-test", normalized, ChatProtocol.ChatCompletions, model.Trim(), "connection-test", MaxOutputTokens: 16, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
+            secrets.Add(key); // A typed key never passes the key store; the log scrubs it all the same (D2).
+            var snapshot = new ModelSnapshot("connection-test", normalized, ChatProtocol.ChatCompletions, name, "connection-test", MaxOutputTokens: 16, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
             var request = new ChatRequest(snapshot, [new ChatTurn(ChatRole.User, "Reply with the single word OK.")]);
+            result = Failed(Core.Conversations.GenerationErrorKind.InvalidResponse, "The stream ended without completing.");
             await foreach (var item in client.StreamAsync(request, key, cancellationToken).ConfigureAwait(false))
             {
-                if (item is ChatStreamEvent.Completed)
+                if (item is ChatStreamEvent.ResponseStarted response)
                 {
-                    return new ConnectionTestResult(true, null, null);
+                    (status, requestId) = (response.HttpStatus, response.ProviderRequestId);
+                }
+                else if (item is ChatStreamEvent.Completed)
+                {
+                    result = new ConnectionTestResult(true, null, null);
+                    break;
                 }
             }
-
-            return new ConnectionTestResult(false, Core.Conversations.GenerationErrorKind.InvalidResponse, "The stream ended without completing.");
         }
         catch (ChatClientException ex)
         {
-            return new ConnectionTestResult(false, ex.Kind, ex.Message);
+            (status, requestId) = (ex.HttpStatus ?? status, ex.ProviderRequestId ?? requestId);
+            result = Failed(ex.Kind, ex.Message);
         }
         catch (CredentialUnavailableException ex)
         {
-            return new ConnectionTestResult(false, Core.Conversations.GenerationErrorKind.CredentialUnavailable, ex.Message);
+            result = Failed(Core.Conversations.GenerationErrorKind.CredentialUnavailable, ex.Message);
         }
+
+        // Low finding observability-8: a connection test leaves a trace, without the key or the address's path.
+        var host = Host(normalized);
+        var outcome = result.Succeeded ? "succeeded" : $"failed ({result.Error})";
+        var took = (long)(clock.UtcNow - started).TotalMilliseconds;
+        LogTested(logger, host, name, outcome, status, took);
+        return result;
+
+        ConnectionTestResult Failed(Core.Conversations.GenerationErrorKind kind, string detail) =>
+            new(false, kind, detail, new Diagnostics.FailureDetails(started, name, status, requestId, clock.UtcNow - started, Diagnostics.Redaction.Scrub(detail)));
     }
+
+    /// <summary>Only the host of a service address goes into the log.</summary>
+    private static string Host(string normalizedBaseUrl) =>
+        Uri.TryCreate(normalizedBaseUrl, UriKind.Absolute, out var uri) ? uri.Authority : "?";
 
     /// <summary>Absolute http(s) URL without trailing slash; plain http only for this machine.</summary>
     public static string NormalizeBaseUrl(string raw)
@@ -293,10 +336,10 @@ public sealed partial class ModelSettingsService(
             throw new ModelSettingsException(ModelSettingsProblem.MissingKey);
         }
 
-        var key = saved is null ? null : await credentials.ReadAsync(saved.CredentialRef, cancellationToken).ConfigureAwait(false);
+        var key = saved is not { CredentialRef: { Length: > 0 } reference } ? null : await credentials.ReadAsync(reference, cancellationToken).ConfigureAwait(false);
         return key ?? throw new ModelSettingsException(ModelSettingsProblem.MissingKey);
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Credential cleanup deferred: credential store unavailable")]
-    private static partial void LogCleanupDeferred(ILogger logger, Exception exception);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Connection test to {Host}, model {Model}: {Outcome}, status {Status}, {Milliseconds} ms")]
+    private static partial void LogTested(ILogger logger, string host, string model, string outcome, int? status, long milliseconds);
 }

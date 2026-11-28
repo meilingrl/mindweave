@@ -40,6 +40,20 @@
             </StackPanel>
           </Button>
         </Panel>
+        <!-- 新建分支: a branch that goes on from the end, with no passage to pick (a received empty one is continued by asking). -->
+        <Button Name="ContinueInBranchButton" Classes="quiet" Command="{Binding ContinueInBranchCommand}" Margin="0,0,2,0"
+                ToolTip.Tip="{x:Static t:UiText.ContinueInBranchTip}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsOpen" />
+              <Binding Path="!IsUnexplored" />
+            </MultiBinding>
+          </Button.IsVisible>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconBranch}" />
+            <TextBlock Text="{x:Static t:UiText.ContinueInBranch}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
         <!-- An archived conversation is never summarized directly (D-021). -->
         <Button Name="RestoreAndSummarizeButton" Classes="quiet" Command="{Binding Lifecycle.RestoreAndSummarizeCommand}" IsVisible="{Binding IsArchived}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">
@@ -164,10 +178,10 @@
           <TextBlock Name="SummaryNotice" Text="{Binding Summary.SummaryNotice}" />
         </DockPanel>
       </Border>
-      <Border Classes="notice error" IsVisible="{Binding Summary.SummaryProblem, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Border Classes="notice error" IsVisible="{Binding Summary.HasSummaryFailure}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="!" />
-          <TextBlock Name="SummaryProblem" Text="{Binding Summary.SummaryProblem}" />
+          <vv:FailureBlock Name="SummaryProblem" DataContext="{Binding Summary.SummaryFailure}" />
         </DockPanel>
       </Border>
     </StackPanel>
@@ -270,7 +284,9 @@
                               <SelectableTextBlock Classes="run-step-title" Text="{Binding Title}" TextWrapping="Wrap" />
                             </DockPanel>
                             <SelectableTextBlock Classes="run-step-outcome" Classes.problem="{Binding IsProblem}" Text="{Binding Outcome}" TextWrapping="Wrap"
-                                                 IsVisible="{Binding Outcome, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                 IsVisible="{Binding ShowsOutcome}" />
+                            <!-- A failed step: the failure block (D2 §2.1), quiet inside the step. -->
+                            <vv:FailureBlock Classes="run-step-failure" DataContext="{Binding Failure}" IsVisible="{Binding $parent[Border].((vm:RunStepItem)DataContext).HasFailure}" />
                             <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}" ClipToBounds="False">
                               <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -388,8 +404,8 @@
                 <!-- A failure: the error and its retry together, in one notice under the answer. -->
                 <Border Name="ErrorNotice" Classes="notice error" HorizontalAlignment="Left" IsVisible="{Binding IsProblem}" Margin="0,2,0,0">
                   <DockPanel>
-                    <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
-                      <Button Name="ErrorRetryButton" DockPanel.Dock="Right" Classes="quiet" Margin="12,0,0,0" IsVisible="{Binding CanRetryInNotice}"
+                    <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Top" />
+                      <Button Name="ErrorRetryButton" DockPanel.Dock="Right" Classes="quiet" Margin="12,-3,0,0" VerticalAlignment="Top" IsVisible="{Binding CanRetryInNotice}"
                               ToolTip.Tip="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).StorageNotice}" ToolTip.ShowOnDisabled="True"
                               Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -397,14 +413,9 @@
                           <TextBlock Text="{Binding RetryLabel}" VerticalAlignment="Center" />
                         </StackPanel>
                       </Button>
-                      <!-- The service's own message under the category (health check 2026-11-12, a11y-3): selectable, so it can
-                           be read by keyboard and screen reader and copied, not only hovered with a mouse. -->
-                      <StackPanel Spacing="2" MaxWidth="640">
-                        <TextBlock Name="ErrorText" Text="{Binding StateLabel}" TextWrapping="Wrap" />
-                        <SelectableTextBlock Name="ErrorDetailText" Classes="caption" Text="{Binding ErrorDetail}" TextWrapping="Wrap"
-                                             IsVisible="{Binding ErrorDetail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                             AutomationProperties.Name="{Binding ErrorDetail}" />
-                      </StackPanel>
+                      <!-- The failure block (D2 §2.1): the state, what to do with a link to the fix, and details with the service's
+                           own message, selectable and copyable (health check 2026-11-12, a11y-3). -->
+                      <vv:FailureBlock Name="AnswerFailure" DataContext="{Binding Failure}" MaxWidth="640" />
                   </DockPanel>
                 </Border>
                 <!-- The answer's own actions, quiet, in one row right under it: copy, retry or regenerate, its state, its time. -->

@@ -65,8 +65,15 @@ internal sealed partial class UiExceptionGuard : IDisposable
             return;
         }
 
-        LogCaught(_logger, e.Exception);
         e.Handled = true;
+        if (Markdown.RenderGuard.FallBackWhereBroken(e.Exception))
+        {
+            // A message's formula or formatting broke its layout: that message now shows as plain text, with a note, and
+            // nothing else stopped (D2 §2.5). Logged there, without the message's text.
+            return;
+        }
+
+        LogCaught(_logger, e.Exception);
         try
         {
             _shell()?.ShowRestoreNotice(UiText.UnexpectedError, isError: true);

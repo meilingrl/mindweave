@@ -365,7 +365,7 @@ public sealed class TransactionKillTests : IDisposable
             }
 
             var store = new SqliteConversationStore(database);
-            var startup = new StartupCoordinator(database, new SqliteWorkspaceStore(database), store, new SystemClock(), new SqliteLocationStore(database, new SystemClock()), NullLogger<StartupCoordinator>.Instance, new NoResources());
+            var startup = new StartupCoordinator(database, new SqliteWorkspaceStore(database), store, new SystemClock(), new SqliteLocationStore(database, new SystemClock()), NullLogger<StartupCoordinator>.Instance, new NoResources(), new Application.Credentials.RetiredCredentials(new SqliteModelSettingsStore(database), store, new Testing.MemoryCredentialStore(), NullLogger<Application.Credentials.RetiredCredentials>.Instance));
             var outcome = await startup.StartAsync(Ct);
             Assert.True(outcome is StartupOutcome.ReadyToWork, outcome is StartupOutcome.NeedsRecovery r ? $"{r.Result.Status}: {r.Result.ErrorDetail}" : outcome.ToString());
             return database;

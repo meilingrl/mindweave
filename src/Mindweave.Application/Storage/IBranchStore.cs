@@ -16,6 +16,13 @@ public interface IBranchStore
     /// </summary>
     Task<Conversation> CreateAsync(ConversationId parent, ConversationId child, BranchSelection selection, DateTimeOffset at, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Creates a continuation of <paramref name="parent"/>: a child that left from its last message with no sentence, and may
+    /// use all of it (with its own frozen ancestor ranges). Of an empty parent it is a branch with its parent only. Throws
+    /// <see cref="BranchRejectedException"/> when the parent is missing or hidden, or an answer in it has not finished.
+    /// </summary>
+    Task<Conversation> ContinueAsync(ConversationId parent, ConversationId child, DateTimeOffset at, CancellationToken cancellationToken);
+
     Task<BranchSource?> GetSourceAsync(ConversationId child, CancellationToken cancellationToken);
 
     /// <summary>Branches created from <paramref name="parent"/>, oldest first: the entries shown under its answers.</summary>

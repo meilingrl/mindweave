@@ -3,6 +3,7 @@ using System.Globalization;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Summaries;
 using Mindweave.Desktop.SummaryNetwork;
+using Mindweave.Testing;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -194,7 +195,8 @@ public class TimelineLayoutTests
 
         Assert.Equal(nodes.Count, positions.Count);
         TestContext.Current.TestOutputHelper?.WriteLine($"timeline of 1,000 dots: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms");
-        Assert.True(elapsed < TimeSpan.FromMilliseconds(100), $"Arranging 1,000 dots took {elapsed.TotalMilliseconds:F1} ms (budget 100 ms).");
+        var budget = PerfBudget.Ms(100);
+        Assert.True(elapsed < budget, $"Arranging 1,000 dots took {elapsed.TotalMilliseconds:F1} ms (budget {budget.TotalMilliseconds} ms).");
     }
 
     /// <summary>

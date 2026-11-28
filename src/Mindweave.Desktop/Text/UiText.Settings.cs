@@ -175,9 +175,10 @@ public static partial class UiText
         "Found " + Plural(count, "model", "models") + ".",
         string.Format(CultureInfo.CurrentCulture, "找到 {0} 个模型。", count));
 
-    public static string TestFailed(GenerationErrorKind? kind, string? detail) => T(
-        $"Connection failed: {(kind.HasValue ? ErrorKind(kind.Value) : "unknown error")}{(string.IsNullOrWhiteSpace(detail) ? string.Empty : $" ({detail})")}",
-        $"连接失败：{(kind is { } k ? ErrorKind(k) : "未知错误")}{(string.IsNullOrWhiteSpace(detail) ? string.Empty : $"（{detail}）")}");
+    /// <summary>The failure block's first line for a failed test or model list (D2 §2.1); the service's text is in its details.</summary>
+    public static string ConnectionFailed(GenerationErrorKind? kind) => T(
+        $"Connection failed: {(kind.HasValue ? ErrorKind(kind.Value) : "unknown error")}",
+        $"连接失败：{(kind is { } k ? ErrorKind(k) : "未知错误")}");
 
     public static string SettingsProblem(ModelSettingsProblem problem) => problem switch
     {
@@ -200,6 +201,28 @@ public static partial class UiText
             $"上下文容量应在 {ModelSettingsInput.MinContextWindow:N0} 到 {ModelSettingsInput.MaxContextWindow:N0} token 之间，不清楚可留空。"),
         _ => T("The settings are not valid.", "设置无效。"),
     };
+
+    /// <summary>移除密钥 of the model connection (D2 §2.3), as the web search key has.</summary>
+    public static string RemoveModelKey => T("Remove key", "移除密钥");
+    public static string ModelKeyRemoved => T(
+        "Key removed. The model connection is not set up until you enter a key and save.",
+        "密钥已移除。填写密钥并保存之前，模型连接处于未配置状态。");
+
+    /// <summary>The connection is saved without a key: it was removed.</summary>
+    public static string ModelKeyNotSet => T(
+        "No key is saved, so the model connection is not set up. Enter the key and save.",
+        "没有保存密钥，模型连接尚未配置。请填写密钥并保存。");
+
+    /// <summary>Asked before removing a key that requests are using.</summary>
+    public static string ModelKeyInUse(int count) => T(
+        Plural(count, "request is", "requests are") + " using this key. Removing the key stops " + (count == 1 ? "it" : "them") + "; what has arrived is kept.",
+        string.Format(CultureInfo.CurrentCulture, "有 {0} 个请求正在使用这个密钥。移除会停止它们，已收到的内容保留。", count));
+    public static string StopAndRemoveKey => T("Stop them and remove", "停止并移除");
+    public static string KeepKey => T("Cancel", "取消");
+
+    public static string ModelKeyRemoveFailed(string detail) => T(
+        $"The key couldn’t be removed: the system’s key store is unavailable ({detail}). Unlock it and try again; the key is still saved.",
+        $"未能移除密钥：系统的密钥存储不可用（{detail}）。请解锁后重试；密钥仍然保存着。");
 
     public static string CredentialUnavailable(string detail) => T(
         $"The system credential service is unavailable. Unlock it and try again ({detail}). The key will not be saved in plain text instead.",

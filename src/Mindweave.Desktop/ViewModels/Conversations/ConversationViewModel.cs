@@ -36,6 +36,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     private readonly IStorageStatus _storage;
     private readonly ISummaries? _summaries;
     private readonly IWorkbenchNavigator _navigator;
+    private readonly Application.Diagnostics.IFailureDetailsSource? _failures;
     private readonly IUiDispatcher _dispatcher;
     private readonly TimeProvider _time;
     private readonly ViewerSlotKey _slot;
@@ -67,13 +68,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         ISummaries? summaries = null,
         TimeProvider? time = null,
         IConversationDeletion? deletion = null,
-        IConversationDeletionPrompt? deletionPrompt = null,
+        ConversationDeletionRequests? deletionPrompt = null,
         Application.Resources.IResources? resources = null,
         Application.Models.IModelSettings? models = null,
         WebSearchSwitch? webSearch = null,
-        TextWidth? textWidth = null)
+        TextWidth? textWidth = null,
+        Application.Diagnostics.IFailureDetailsSource? failures = null)
         : base(route)
     {
+        _failures = failures;
         TextWidth = textWidth;
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(context);
@@ -103,7 +106,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
         // Before the first storage state is taken: a page opened while storage is paused tells the summary part at once.
-        Summary = new ConversationSummaryPanel(Id, summaries, _navigator, () => IsStorageBlocked, () => _disposed);
+        Summary = new ConversationSummaryPanel(Id, summaries, _navigator, () => IsStorageBlocked, () => _disposed, failures);
         _storage.Changed += OnStorageStateChanged;
         IsStorageBlocked = _storage.IsBlocked;
         Composer.IsStoragePaused = IsStorageBlocked;
@@ -301,6 +304,18 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     public async Task CreateBranchAsync(BranchSelection selection)
     {
         var outcome = await _conversations.CreateBranchAsync(Id, selection, CancellationToken.None);
+        BranchNotice = outcome.Rejection is { } rejection ? UiText.BranchRejected(rejection) : null;
+        if (outcome.Accepted)
+        {
+            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Child)) { From = this });
+        }
+    }
+
+    /// <summary>新建分支: a branch that continues from the end of this conversation; it opens unless the reader went elsewhere meanwhile.</summary>
+    [RelayCommand]
+    private async Task ContinueInBranchAsync()
+    {
+        var outcome = await _conversations.ContinueInBranchAsync(Id, CancellationToken.None);
         BranchNotice = outcome.Rejection is { } rejection ? UiText.BranchRejected(rejection) : null;
         if (outcome.Accepted)
         {
@@ -651,6 +666,10 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         {
             IsBranchPaused = IsStorageBlocked,
             IsReceived = IsReceived,
+
+            // D2 §2.1: a failed answer's details come from its request record; an imported answer has none here.
+            FailureRecord = _failures is { } failures && !IsReceived ? failures.ForAnswerAsync : null,
+            OpenSettings = _navigator.OpenSettings,
         };
         item.PropertyChanged += (_, e) =>
         {

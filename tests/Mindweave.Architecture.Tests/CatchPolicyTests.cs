@@ -19,6 +19,7 @@ public class CatchPolicyTests
     {
         ["Mindweave.Application/Recommendations/RecommendationService.cs::RecommendationService.ExecuteAfterAsync"] = "Waits for the previous request, whose own run logs its outcome.",
         ["Mindweave.Application/Recommendations/RecommendationService.cs::RecommendationService.ForgetAsync"] = "Waits for the run, which logged its failure; forgetting must finish.",
+        ["Mindweave.Application/Storage/StorageHealth.cs::StorageHealth.RecoverAsync"] = "A failed check is counted (low finding observability-6): the pause's first failure was logged, its counts are when it ends.",
         ["Mindweave.Desktop/Program.cs::Program.ShowStartupFailure"] = "Even the startup failure window failed; the console line written before is all there is.",
         ["Mindweave.Desktop/Services/UiExceptionGuard.cs::UiExceptionGuard.OnRefreshFailed"] = "The failure is logged before the notice; between two sessions the shell may be gone.",
         ["Mindweave.Desktop/Services/UiExceptionGuard.cs::UiExceptionGuard.OnUnhandledException"] = "The exception is logged before the notice; between two sessions the shell may be gone.",

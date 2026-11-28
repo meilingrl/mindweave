@@ -21,11 +21,17 @@ public partial class SeamTests
             "GenerationRequests.cs",
             "ModelSettingsService.cs",
 
+            // Deletes replaced model keys once nothing uses them (D2 §2.3); never reads one.
+            "RetiredCredentials.cs",
+
             // The search service's key (phase 3, decision W14): read only for a search request or 测试.
             "WebSearchSettings.cs",
 
             // A third-party server's environment and header values (phase 4, decision M3): read only to start or connect it.
             "McpServerSettings.cs",
+
+            // Every stored key, read only to scrub an exported log of it (D2 §2.2); no value leaves the process.
+            "StoredKeys.cs",
         };
 
         Assert.Empty(SourceFiles("src").Where(f => !allowed.Contains(Path.GetFileName(f)) && File.ReadAllText(f).Contains("ICredentialStore", StringComparison.Ordinal)).Select(Path.GetFileName));

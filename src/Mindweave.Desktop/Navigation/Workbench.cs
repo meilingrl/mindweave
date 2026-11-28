@@ -128,6 +128,15 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
         Changed();
     }
 
+    public void OpenSettings(SettingsSection section)
+    {
+        Navigate(new NavigationRequest(MainSection.Settings, SettingsHomeRoute.Instance));
+        if (CurrentPage is ViewModels.Pages.SettingsHomeViewModel settings)
+        {
+            settings.PendingSection = section;
+        }
+    }
+
     public void Push(ContentRoute route)
     {
         ArgumentNullException.ThrowIfNull(route);

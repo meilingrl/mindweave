@@ -18,6 +18,14 @@ public sealed record RunStepItem(string Title, string Outcome, string Meta, bool
 {
     public bool HasLinks => Links.Count > 0;
 
+    /// <summary>A failed step as the failure block (D2 §2.1): its error, then when, how long and where, to copy.</summary>
+    public FailureViewModel? Failure { get; init; }
+
+    public bool HasFailure => Failure is not null;
+
+    /// <summary>The plain outcome line: a result, a refusal, or nothing when the failure block says it.</summary>
+    public bool ShowsOutcome => Failure is null && !string.IsNullOrEmpty(Outcome);
+
     /// <summary>
     /// The steps of an answer from its blocks (calls paired with their results by call ID) and, when known, its stored
     /// steps for times and states. <paramref name="openResult"/> opens a stored result; <paramref name="openSummary"/> a summary.
@@ -75,9 +83,21 @@ public sealed record RunStepItem(string Title, string Outcome, string Meta, bool
                 }
             }
 
-            items.Add(new RunStepItem(call.Summary, outcome, meta, result?.Status is ToolResultStatus.Failed or ToolResultStatus.Denied, links));
+            items.Add(new RunStepItem(call.Summary, outcome, meta, result?.Status is ToolResultStatus.Failed or ToolResultStatus.Denied, links)
+            {
+                Failure = result?.Status == ToolResultStatus.Failed ? StepFailure(outcome, step) : null,
+            });
         }
 
         return items;
+    }
+
+    private static FailureViewModel StepFailure(string outcome, RunStepRecord? step)
+    {
+        var detail = step?.ErrorDetail is { } text && text != outcome ? text : null;
+        return new FailureViewModel(
+            outcome.Length > 0 ? outcome : UiText.RunStepFailed,
+            details: step is null ? null : new Application.Diagnostics.FailureDetails(step.FinishedAt ?? step.StartedAt, null, null, null, step.Duration, detail),
+            extra: step?.Target is { } host ? [new FailureLine(UiText.FailureHostLabel, host)] : null);
     }
 }

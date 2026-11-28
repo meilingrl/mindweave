@@ -76,7 +76,12 @@ internal sealed class RequestTrace
         }
     }
 
-    public void Fail(ChatClientException ex) => _status ??= ex.HttpStatus;
+    public void Fail(ChatClientException ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        _status ??= ex.HttpStatus;
+        _providerRequestId ??= ex.ProviderRequestId;
+    }
 
     public AiRequestRecord Finish(bool stopped, GenerationErrorKind? error, string? detail) =>
         new(

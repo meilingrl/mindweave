@@ -128,6 +128,8 @@ switch (args[0])
         services.AddSingleton<ICredentialStore>(new OneKey());
         services.AddSingleton<IChatClient>(new EndlessClient());
         services.AddSingleton<Mindweave.Application.Share.IShareMarkdown>(new NoMarkdown());
+        services.AddSingleton(new Mindweave.Application.AppEnvironment( // The desktop's composition makes it; the diagnostic package needs it.
+            paths.Channel, "0.0.0", paths.DataDirectory, paths.DatabasePath, paths.BackupDirectory, paths.LogDirectory, 0));
         services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
         services.AddMindweaveInfrastructure(paths);
         services.AddMindweaveApplication();

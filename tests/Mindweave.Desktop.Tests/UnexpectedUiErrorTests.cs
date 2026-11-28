@@ -121,7 +121,10 @@ public class UnexpectedUiErrorTests
         Assert.Same(failure, reported);
     }
 
-    /// <summary>Health check 2026-11-12, a11y-3: the service's message is shown and selectable, not only a hover tooltip.</summary>
+    /// <summary>
+    /// Health check 2026-11-12, a11y-3: the service's message is shown and selectable, not only a hover tooltip. Since D2 it is
+    /// in the failure block's details, which open with one press.
+    /// </summary>
     [AvaloniaFact]
     public async Task A_failed_answer_shows_the_services_message_as_selectable_text()
     {
@@ -136,11 +139,16 @@ public class UnexpectedUiErrorTests
         await draft.Composer.SendCommand.ExecuteAsync(null);
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].IsProblem);
+        await UiWait.StoredAsync(page, 1, Core.Conversations.MessageState.Failed);
+        await UiWait.AnswersRenderedAsync(window);
         window.UpdateLayout();
 
-        var detail = window.GetVisualDescendants().OfType<Avalonia.Controls.SelectableTextBlock>().Single(t => t.Name == "ErrorDetailText" && t.IsEffectivelyVisible);
-        Assert.True(detail.IsEffectivelyVisible);
-        Assert.Equal("HTTP 400: model xyz does not exist", detail.Text);
+        var failure = page.Messages[1].Failure!;
+        failure.IsOpen = true;
+        await failure.Loaded;
+        window.UpdateLayout();
+        var detail = window.GetVisualDescendants().OfType<Avalonia.Controls.SelectableTextBlock>().Single(t => t.Name == "FailureDetailsText" && t.IsEffectivelyVisible);
+        Assert.Contains("HTTP 400: model xyz does not exist", detail.Text, StringComparison.Ordinal);
     }
 
     /// <summary>Low finding tests-6: every error kind has its own wording, never the generic fallback.</summary>

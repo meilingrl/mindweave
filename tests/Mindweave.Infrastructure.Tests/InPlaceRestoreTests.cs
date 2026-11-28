@@ -95,8 +95,12 @@ public sealed class InPlaceRestoreTests : IDisposable
         Assert.Equal(leftover.Files.Sum(f => new FileInfo(f).Length), leftover.SizeBytes);
     }
 
+    /// <summary>
+    /// The restored backup still exists and holds exactly the data being upgraded, so it stands for the upgrade backup:
+    /// no second copy is made (gap-schema-6, D-042).
+    /// </summary>
     [Fact]
-    public async Task An_older_schema_backup_is_restored_and_then_upgraded_with_its_own_upgrade_backup()
+    public async Task An_older_schema_backup_is_restored_and_then_upgraded_without_a_second_copy()
     {
         var older = new MigrationCatalog(MigrationCatalog.Default.Migrations.Where(m => m.Version < Current));
         await using (var old = _dir.Database(older))
@@ -116,10 +120,11 @@ public sealed class InPlaceRestoreTests : IDisposable
 
         Assert.True(result.Restored, $"{result.Failure}: {result.Detail}");
         Assert.Equal(Current - 1, result.Open.FoundVersion);
-        Assert.NotNull(result.Open.BackupPath);
+        Assert.Equal(olderBackup, result.Open.BackupPath);
+        Assert.Equal(new DataUpgrade(Current - 1, Current, olderBackup, BackupMadeNow: false), result.Open.Upgrade);
         Assert.Equal(["from older"], await NamesAsync(database));
         Assert.Equal(Current, await database.ReadAsync(c => c.Scalar<long>(null, "PRAGMA user_version;"), Ct));
-        Assert.Contains(database.ListBackups(), b => b.Reason == BackupReason.Migration && b.SchemaVersion == Current - 1 && b.Path != olderBackup);
+        Assert.DoesNotContain(database.ListBackups(), b => b.Reason == BackupReason.Migration && b.Path != olderBackup);
     }
 
     [Theory]

@@ -20,9 +20,18 @@ public sealed partial class ConversationSummaryPanel : ViewModelBase
     private readonly IWorkbenchNavigator _navigator;
     private readonly Func<bool> _isStorageBlocked;
     private readonly Func<bool> _isDisposed;
+    private readonly Application.Diagnostics.IFailureDetailsSource? _failures;
+    private (GenerationTaskId Id, GenerationTaskState State)? _failedTask;
 
-    internal ConversationSummaryPanel(ConversationId conversation, ISummaries? summaries, IWorkbenchNavigator navigator, Func<bool> isStorageBlocked, Func<bool> isDisposed)
+    internal ConversationSummaryPanel(
+        ConversationId conversation,
+        ISummaries? summaries,
+        IWorkbenchNavigator navigator,
+        Func<bool> isStorageBlocked,
+        Func<bool> isDisposed,
+        Application.Diagnostics.IFailureDetailsSource? failures = null)
     {
+        _failures = failures;
         _conversation = conversation;
         _summaries = summaries;
         _navigator = navigator;
@@ -49,9 +58,12 @@ public sealed partial class ConversationSummaryPanel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(StopSummaryCommand))]
     public partial GenerationTaskId? RunningSummary { get; private set; }
 
-    /// <summary>Why the last summary attempt left nothing (failed, stopped or interrupted), shown with a retry.</summary>
+    /// <summary>Why the last summary attempt left nothing (failed, stopped or interrupted), as a failure block (D2 §2.1).</summary>
     [ObservableProperty]
-    public partial string? SummaryProblem { get; private set; }
+    [NotifyPropertyChangedFor(nameof(HasSummaryFailure))]
+    public partial FailureViewModel? SummaryFailure { get; private set; }
+
+    public bool HasSummaryFailure => SummaryFailure is not null;
 
     /// <summary>Why "summarize" was refused just now.</summary>
     [ObservableProperty]
@@ -116,12 +128,38 @@ public sealed partial class ConversationSummaryPanel : ViewModelBase
         SummaryEntryText = entry is null ? null : UiText.SummaryEntry(entry.Node.DisplayName);
         SummaryMarkersText = entry is null ? null : UiText.Markers(entry.Markers) is { Length: > 0 } markers ? markers : null;
         RunningSummary = task is { State: GenerationTaskState.Queued or GenerationTaskState.Running } ? task.Id : null;
-        SummaryProblem = task is { State: GenerationTaskState.Failed or GenerationTaskState.Stopped or GenerationTaskState.Interrupted or GenerationTaskState.Cancelled }
-            ? UiText.SummaryFailed(task)
-            : null;
+        ShowFailure(task is { State: GenerationTaskState.Failed or GenerationTaskState.Stopped or GenerationTaskState.Interrupted or GenerationTaskState.Cancelled } ? task : null);
         if (RunningSummary is not null)
         {
             SummaryNotice = null;
         }
+    }
+
+    /// <summary>The same block stays while the same attempt is shown, so details opened stay open across reloads.</summary>
+    private void ShowFailure(SummaryTaskStatus? task)
+    {
+        var key = task is null ? ((GenerationTaskId, GenerationTaskState)?)null : (task.Id, task.State);
+        if (key == _failedTask && (task is null) == (SummaryFailure is null))
+        {
+            return;
+        }
+
+        _failedTask = key;
+        if (task is null)
+        {
+            SummaryFailure = null;
+            return;
+        }
+
+        var failed = task.State == GenerationTaskState.Failed;
+        var fixable = failed && task.Error is { } kind && UiText.FixedInModelConnection(kind);
+        var failures = _failures;
+        SummaryFailure = new FailureViewModel(
+            UiText.SummaryFailed(task),
+            failed && task.Error is { } advised ? UiText.FailureAdvice(advised) : null,
+            UiText.OpenModelConnection,
+            fixable ? () => _navigator.OpenSettings(SettingsSection.ModelConnection) : null,
+            Application.Diagnostics.FailureDetails.Kept(task.CreatedAt, null, task.Detail),
+            failures is null || !failed ? null : ct => failures.ForTaskAsync(task.Id, ct));
     }
 }

@@ -90,10 +90,11 @@ public class ModelSettingsTests
         Assert.True(h.Credentials.Items.ContainsKey(oldRef));
         held.Finish();
         await h.WaitForAnswerAsync(sent.Answer!.Value);
-        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
-        await h.Models.CleanUpRetiredCredentialsAsync(Ct);
-        Assert.False(h.Credentials.Items.ContainsKey(oldRef));
+
+        // D2 §2.7 scenario 7: the end of the task cleans up, without another save.
+        await ChatHarness.UntilAsync(() => !h.Credentials.Items.ContainsKey(oldRef));
         Assert.Equal("sk-new", Assert.Single(h.Credentials.Items).Value);
+        Assert.Empty(await h.Settings.RetiredCredentialRefsAsync(Ct));
     }
 
     private static IEnumerable<string> Rows(Microsoft.Data.Sqlite.SqliteConnection c)

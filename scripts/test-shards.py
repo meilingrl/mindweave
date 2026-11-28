@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runs one xUnit v3 test assembly as several processes at once (docs/design/testing.md).
 
-    scripts/test-shards.py run DLL --shards N [--only I] [--timings FILE] [--results DIR] [-- RUNNER-ARGS...]
+    scripts/test-shards.py run DLL --shards N [--only I] [--timings FILE] [--results DIR] [--hang SECONDS] [-- RUNNER-ARGS...]
     scripts/test-shards.py record TRX-DIR --assembly NAME --out FILE
 
 Avalonia's headless tests run on one UI thread per process, so the desktop tests cannot run in parallel inside one
@@ -15,6 +15,10 @@ RUNNER-ARGS go to every shard (for example `-trait- Category=Quarantine`).
 With `--only I` (0 to N-1) it runs just shard I. CI uses this to give each shard a machine of its own: the same
 commit lists the same classes and reads the same timings on every machine of one system, so the N runs together
 cover every class exactly once.
+
+With `--hang SECONDS` a test that runs longer than that is named and its shard is ended and fails, so a hanging test
+costs minutes and says which it was instead of running into the job's time limit unnamed (CI uses 300; tests-7 in
+docs/design/diagnostics-and-upkeep.md). The runner reports it (`-longRunning`); this script ends the shard.
 
 `record` sums the per-class durations of NAME's tests in the TRX files under TRX-DIR and writes them to FILE.
 """
@@ -32,6 +36,8 @@ import xml.etree.ElementTree as ET
 # A name part starts with a letter of any script or "_": a class named in Chinese is a class too.
 CLASS_NAME = re.compile(r"[^\W\d][\w`]*(\.[^\W\d][\w`+]*)+")
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
+# What the xUnit v3 runner writes with -longRunning: [Long Running Test] 'Namespace.Class.Method', Elapsed: 00:05:02
+LONG_RUNNING = re.compile(r"\[Long Running Test\] '(?P<name>[^']+)'")
 
 
 def runner(dll):
@@ -87,9 +93,12 @@ def run(args):
             cmd += ["-class", c]
         if args.results:
             cmd += ["-trx", os.path.join(args.results, f"shard-{i}.trx")]
+        if args.hang:
+            cmd += ["-longRunning", str(args.hang)]
         log = open(os.path.join(logs, f"shard-{i}.log"), "w", encoding="utf-8")
         procs.append((i, shard, log, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)))
 
+    hung = watch(procs) if args.hang else {}
     failed = 0
     for i, shard, log, proc in procs:
         code = proc.wait()
@@ -97,9 +106,14 @@ def run(args):
         with open(log.name, encoding="utf-8", errors="replace") as f:
             lines = f.read().splitlines()
         summary = next((l.strip() for l in reversed(lines) if "Total:" in l), "no summary")
-        state = "passed" if code == 0 else "FAILED"
+        state = "passed" if code == 0 and i not in hung else "FAILED"
         print(f"shard {i} ({len(shard['classes'])} classes, ~{shard['seconds']:.0f} s): {state} - {summary}")
-        if code != 0:
+        if i in hung:
+            for name in hung[i]:
+                print(f"    HUNG: {name} ran longer than {args.hang} s; the shard was ended")
+                if os.environ.get("GITHUB_ACTIONS") == "true":
+                    print(f"::error title=Hung test::{name} ran longer than {args.hang} s")
+        if code != 0 or i in hung:
             failed += 1
             # The failure and the first lines of its message and stack: on CI the log file is gone after the job.
             shown = 0
@@ -111,6 +125,36 @@ def run(args):
             print(f"    log: {log.name}")
     print(f"test-shards: {len(shards)} shards in {time.monotonic() - started:.0f} s, {failed} failed")
     sys.exit(1 if failed else 0)
+
+
+def watch(procs):
+    """Follows the shards' logs until they end; a shard whose runner reports a test running too long is ended.
+
+    Returns the hung tests by shard. A hanging test never ends on its own, so its process is killed; the other tests
+    of that shard are not run, which the shard's failure says.
+    """
+    hung = {}
+    offsets = {i: 0 for i, _, _, _ in procs}
+    while True:
+        running = 0
+        for i, _, log, proc in procs:
+            done = proc.poll() is not None
+            with open(log.name, "rb") as f:
+                f.seek(offsets[i])
+                data = f.read()
+            # Only whole lines: a name cut in half would not match, so the rest is read again with its end next time.
+            cut = data.rfind(b"\n") + 1
+            offsets[i] += cut
+            names = [m.group("name") for m in LONG_RUNNING.finditer(data[:cut].decode("utf-8", errors="replace"))]
+            if names and not done:
+                hung.setdefault(i, [])
+                hung[i] += [n for n in names if n not in hung[i]]
+                proc.kill()
+                done = True
+            running += not done
+        if not running:
+            return hung
+        time.sleep(1)
 
 
 def record(args):
@@ -157,6 +201,7 @@ def main():
     p.add_argument("--only", type=int)
     p.add_argument("--timings")
     p.add_argument("--results")
+    p.add_argument("--hang", type=int, help="end a shard whose test runs longer than this many seconds")
     p.set_defaults(func=run)
     r = sub.add_parser("record")
     r.add_argument("trx_dir")

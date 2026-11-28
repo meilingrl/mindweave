@@ -534,15 +534,27 @@ public sealed partial class ConversationService : IConversations
     /// Creates a branch conversation from a passage of a finished answer (§6.2). The child, its source and its
     /// frozen ancestor ranges are stored together; nothing is asked yet.
     /// </summary>
-    public async Task<BranchOutcome> CreateBranchAsync(ConversationId parent, BranchSelection selection, CancellationToken cancellationToken)
+    public Task<BranchOutcome> CreateBranchAsync(ConversationId parent, BranchSelection selection, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(selection);
         var child = ConversationId.New();
-        if (BranchRules.CheckSelection(selection) is { } invalid)
-        {
-            return new BranchOutcome(invalid, child);
-        }
+        return BranchRules.CheckSelection(selection) is { } invalid
+            ? Task.FromResult(new BranchOutcome(invalid, child))
+            : StoreBranchAsync(parent, child, () => _branches.CreateAsync(parent, child, selection, _clock.UtcNow, cancellationToken));
+    }
 
+    /// <summary>
+    /// Creates a branch that continues the conversation from its end, with no sentence to start from: it may use all of the
+    /// conversation as it is now, and nothing added to it later. Nothing is asked yet.
+    /// </summary>
+    public Task<BranchOutcome> ContinueInBranchAsync(ConversationId parent, CancellationToken cancellationToken)
+    {
+        var child = ConversationId.New();
+        return StoreBranchAsync(parent, child, () => _branches.ContinueAsync(parent, child, _clock.UtcNow, cancellationToken));
+    }
+
+    private async Task<BranchOutcome> StoreBranchAsync(ConversationId parent, ConversationId child, Func<Task> store)
+    {
         if (_health.IsBlocked)
         {
             return new BranchOutcome(BranchRejection.StorageUnavailable, child);
@@ -550,7 +562,7 @@ public sealed partial class ConversationService : IConversations
 
         try
         {
-            await _branches.CreateAsync(parent, child, selection, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+            await store().ConfigureAwait(false);
         }
         catch (BranchRejectedException ex)
         {

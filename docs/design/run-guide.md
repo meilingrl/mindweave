@@ -4,7 +4,7 @@ How to build, run and test Mindweave.
 
 ## Requirements
 
-- .NET SDK 10 (`global.json` pins major version 10 and allows newer feature bands). macOS (Apple silicon or Intel) or Windows 11 x64.
+- .NET SDK 10 (`global.json` names the 10.0.4xx feature band and allows only newer patches; packages come from nuget.org only, `nuget.config`). macOS (Apple silicon or Intel) or Windows 11 x64.
 - The URL, model name and API key of a service compatible with OpenAI Chat Completions (for example DeepSeek). Without one, the app still opens and existing content can be browsed; only asking questions does not work.
 
 ## Build and test

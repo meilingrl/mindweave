@@ -15,7 +15,8 @@ public abstract record StartupOutcome
 
     public sealed record NeedsFirstWorkspace : StartupOutcome;
 
-    public sealed record ReadyToWork(IReadOnlyList<Workspace> Workspaces, PageLocation? LastLocation) : StartupOutcome;
+    /// <param name="Upgrade">The data was upgraded on the way (gap-schema-4): the workbench says so once.</param>
+    public sealed record ReadyToWork(IReadOnlyList<Workspace> Workspaces, PageLocation? LastLocation, DataUpgrade? Upgrade = null) : StartupOutcome;
 }
 
 /// <summary>What an in-app restore led to: the page to show, and whether the backup is the data now.</summary>
@@ -32,35 +33,64 @@ public sealed partial class StartupCoordinator(
     IClock clock,
     ILocationStore locations,
     ILogger<StartupCoordinator> logger,
-    Resources.IResources resources)
+    Resources.IResources resources,
+    Credentials.RetiredCredentials retiredKeys)
 {
-    public async Task<StartupOutcome> StartAsync(CancellationToken cancellationToken)
+    public Task<StartupOutcome> StartAsync(CancellationToken cancellationToken) => StartAsync(null, cancellationToken);
+
+    /// <param name="upgrading">Told when the data is about to be upgraded, so the start-up page can say so (gap-schema-4).</param>
+    public async Task<StartupOutcome> StartAsync(IProgress<DataUpgradeStarting>? upgrading, CancellationToken cancellationToken)
     {
-        var result = await database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var result = await WithProgressAsync(upgrading, () => database.OpenAsync(cancellationToken)).ConfigureAwait(false);
         return await ContinueAfterOpenAsync(result, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>The backups the recovery page offers.</summary>
-    public IReadOnlyList<BackupInfo> ListBackups() => database.ListBackups();
+    /// <summary>What the recovery page offers: the backups and the databases earlier restores replaced (gap-schema-5).</summary>
+    public IReadOnlyList<BackupInfo> ListBackups() => database.ListRestorable();
 
-    public async Task<StartupOutcome> RestoreAsync(BackupInfo backup, CancellationToken cancellationToken)
+    public Task<StartupOutcome> RestoreAsync(BackupInfo backup, CancellationToken cancellationToken) => RestoreAsync(backup, null, cancellationToken);
+
+    public async Task<StartupOutcome> RestoreAsync(BackupInfo backup, IProgress<DataUpgradeStarting>? upgrading, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(backup);
         LogRestoring(logger, backup.Path);
-        var result = await database.RestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+        var result = await WithProgressAsync(upgrading, () => database.RestoreAsync(backup, cancellationToken)).ConfigureAwait(false);
         return await ContinueAfterOpenAsync(result, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task<InPlaceRestoreOutcome> RestoreInPlaceAsync(BackupInfo backup, string keptCopy, CancellationToken cancellationToken) =>
+        RestoreInPlaceAsync(backup, keptCopy, null, cancellationToken);
 
     /// <summary>
     /// Restoring from inside the running application (2026-11-12): the database is replaced (or, after a failure, the
     /// previous one put back) and then continues exactly as a start would.
     /// </summary>
-    public async Task<InPlaceRestoreOutcome> RestoreInPlaceAsync(BackupInfo backup, string keptCopy, CancellationToken cancellationToken)
+    public async Task<InPlaceRestoreOutcome> RestoreInPlaceAsync(BackupInfo backup, string keptCopy, IProgress<DataUpgradeStarting>? upgrading, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(backup);
         LogRestoring(logger, backup.Path);
-        var result = await database.RestoreInPlaceAsync(backup, keptCopy, cancellationToken).ConfigureAwait(false);
+        var result = await WithProgressAsync(upgrading, () => database.RestoreInPlaceAsync(backup, keptCopy, cancellationToken)).ConfigureAwait(false);
         return new InPlaceRestoreOutcome(await ContinueAfterOpenAsync(result.Open, cancellationToken).ConfigureAwait(false), result);
+    }
+
+    /// <summary>Forwards the database's upgrade signal to <paramref name="upgrading"/> while <paramref name="open"/> runs.</summary>
+    private async Task<T> WithProgressAsync<T>(IProgress<DataUpgradeStarting>? upgrading, Func<Task<T>> open)
+    {
+        if (upgrading is null)
+        {
+            return await open().ConfigureAwait(false);
+        }
+
+        void OnUpgrade(object? sender, DataUpgradeStarting step) => upgrading.Report(step);
+        database.UpgradeStarting += OnUpgrade;
+        try
+        {
+            return await open().ConfigureAwait(false);
+        }
+        finally
+        {
+            database.UpgradeStarting -= OnUpgrade;
+        }
     }
 
     private async Task<StartupOutcome> ContinueAfterOpenAsync(DatabaseOpenResult result, CancellationToken cancellationToken)
@@ -68,12 +98,13 @@ public sealed partial class StartupCoordinator(
         if (!result.IsReady)
         {
             LogNotReady(logger, result.Status, result.DatabasePath, result.ErrorDetail);
-            return new StartupOutcome.NeedsRecovery(result, database.ListBackups());
+            return new StartupOutcome.NeedsRecovery(result, database.ListRestorable());
         }
 
         try
         {
-            return await LoadAfterOpenAsync(cancellationToken).ConfigureAwait(false);
+            var loaded = await LoadAfterOpenAsync(cancellationToken).ConfigureAwait(false);
+            return loaded is StartupOutcome.ReadyToWork ready && result.Upgrade is { } upgrade ? ready with { Upgrade = upgrade } : loaded;
         }
 #pragma warning disable CA1031 // Health check 2026-11-12: a database that opened but then refuses the first write or read
         // (a full disk, a file made read-only meanwhile) leads to the recovery page, never to a start that throws with
@@ -83,7 +114,7 @@ public sealed partial class StartupCoordinator(
         {
             LogFailedAfterOpen(logger, ex, result.DatabasePath);
             var failed = result with { Status = DatabaseOpenStatus.IoError, ErrorDetail = ex.Message };
-            return new StartupOutcome.NeedsRecovery(failed, database.ListBackups());
+            return new StartupOutcome.NeedsRecovery(failed, database.ListRestorable());
         }
     }
 
@@ -100,6 +131,10 @@ public sealed partial class StartupCoordinator(
         // Unsent attachments no draft holds and originals nothing names go, as do leftover temporary files (architecture
         // §15.2). In the background: it never delays the window and its failure is only logged.
         _ = Task.Run(() => resources.CleanUpAsync(CancellationToken.None), CancellationToken.None);
+
+        // Replaced model keys that the interrupted tasks held, or that a restored backup listed, leave the system's key store
+        // (D2 §2.3). In the background too: a key store that waits for the user to unlock it never holds up the window.
+        retiredKeys.CleanUpSoon();
 
         var all = await workspaces.ListAsync(cancellationToken).ConfigureAwait(false);
         if (all.Count == 0)

@@ -156,6 +156,12 @@
         <TextBlock Name="ModelStatus" v:Motion.Appear="Fade" Margin="2,10,0,0" Text="{Binding Model.Status}" TextWrapping="Wrap" FontSize="13"
                    Classes.muted="{Binding !Model.StatusIsError}" Classes.error="{Binding Model.StatusIsError}"
                    IsVisible="{Binding Model.Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Border Name="ModelFailure" Classes="notice error" HorizontalAlignment="Left" Margin="0,10,0,0" IsVisible="{Binding Model.HasFailure}">
+          <DockPanel>
+            <TextBlock Classes="notice-icon" Text="!" />
+            <v:FailureBlock Name="ModelFailureBlock" DataContext="{Binding Model.Failure}" />
+          </DockPanel>
+        </Border>
         <DockPanel Margin="0,20,0,0">
           <Button DockPanel.Dock="Left" Name="ModelBackButton" Classes="quiet" Content="{x:Static t:UiText.OnboardingBack}" Command="{Binding BackCommand}" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">

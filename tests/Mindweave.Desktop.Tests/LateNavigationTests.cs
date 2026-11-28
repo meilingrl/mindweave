@@ -105,7 +105,8 @@ public class LateNavigationTests
         await using var app = DesktopHarness.Create();
         var conversation = await ConversationAsync(app);
         var summaries = app.Services.GetRequiredService<SummaryService>();
-        Assert.True((await summaries.SummarizeAsync(conversation.Id, CancellationToken.None)).Accepted);
+        var outcome = await summaries.SummarizeAsync(conversation.Id, CancellationToken.None);
+        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
         await UiWait.UntilAsync(() => summaries.ForConversationAsync(conversation.Id, CancellationToken.None).Result is not null);
         var node = (await summaries.ForConversationAsync(conversation.Id, CancellationToken.None))!.Node.Id;
         app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
@@ -142,7 +143,9 @@ public class LateNavigationTests
         var (_, sending) = await SendingAsync(app, second: "摄影");
         await sending;
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        // The page shows the answer's end a moment before it is written; a summary or branch asked for in between is refused.
         await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages.All(m => !m.IsInProgress));
+        await UiWait.AnswersStoredAsync(app.Services.GetRequiredService<ConversationService>(), page.Id);
         return page;
     }
 

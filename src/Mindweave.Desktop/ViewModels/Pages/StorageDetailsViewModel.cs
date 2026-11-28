@@ -19,9 +19,9 @@ public sealed partial class StorageDetailsViewModel : PageViewModel, IDisposable
 {
     private readonly ISystemShell _shell;
     private readonly IBackupFiles _files;
-    private readonly IBackupPrompts _prompts;
+    private readonly BackupRequests _prompts;
 
-    public StorageDetailsViewModel(AppEnvironment environment, IBackupFiles files, ISystemShell shell, IBackupPrompts prompts)
+    public StorageDetailsViewModel(AppEnvironment environment, IBackupFiles files, ISystemShell shell, BackupRequests prompts)
         : base(StorageDetailsRoute.Instance)
     {
         ArgumentNullException.ThrowIfNull(prompts);
@@ -86,11 +86,27 @@ public sealed partial class StorageDetailsViewModel : PageViewModel, IDisposable
     [RelayCommand]
     private void OpenDataFolder() => _shell.OpenFolder(Environment.DataDirectory);
 
+    /// <summary>D2: the log is what a report of a problem needs first; the folder is made if nothing was logged yet.</summary>
+    [RelayCommand]
+    private void OpenLogFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(Environment.LogDirectory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DesktopLog.Swallowed(ex); // The system's own message about a missing folder says enough.
+        }
+
+        _shell.OpenFolder(Environment.LogDirectory);
+    }
+
     [RelayCommand]
     private void Restore(BackupRowViewModel row)
     {
         ArgumentNullException.ThrowIfNull(row);
-        if (row.CanRestore && row.Entry.Backup is { } backup)
+        if (row.CanRestore && row.Restorable is { } backup)
         {
             _prompts.Restore(backup);
         }
@@ -136,8 +152,17 @@ public sealed partial class BackupRowViewModel(BackupEntry entry, int schemaVers
 
     public bool IsBackup => Entry.Backup is not null;
 
-    /// <summary>"结构版本 8"; null for a leftover, whose version is not in its name.</summary>
-    public string? VersionText => Entry.Backup is { } backup ? UiText.SchemaVersionBadge(backup.SchemaVersion) : null;
+    /// <summary>
+    /// What 恢复… restores: the backup, or the database an earlier restore replaced (gap-schema-5, D-042); null for a
+    /// leftover whose file is not a Mindweave database.
+    /// </summary>
+    public BackupInfo? Restorable { get; } = entry.Backup ?? entry.Leftover?.AsBackup();
+
+    /// <summary>The row offers 恢复… (enabled or, for a newer build's data, disabled with the reason).</summary>
+    public bool IsRestorable => Restorable is not null;
+
+    /// <summary>"结构版本 8"; null for a leftover whose version cannot be read.</summary>
+    public string? VersionText => Restorable is { } backup ? UiText.SchemaVersionBadge(backup.SchemaVersion) : null;
 
     /// <summary>"删除工作区前", "删除会话前", "恢复前", or "恢复时替换下的旧数据"; null for an upgrade backup.</summary>
     public string? Badge => Entry.Backup is { } backup ? UiText.BackupReasonLabel(backup.Reason) : UiText.LeftoverDatabase;
@@ -145,18 +170,18 @@ public sealed partial class BackupRowViewModel(BackupEntry entry, int schemaVers
     public string SizeText => UiText.FormatSize(Entry.SizeBytes);
 
     /// <summary>A backup this build can open; one written by a newer build is listed but not restorable.</summary>
-    public bool CanRestore => Entry.Backup is { } backup && backup.SchemaVersion <= schemaVersion;
+    public bool CanRestore => Restorable is { } backup && backup.SchemaVersion <= schemaVersion;
 
     /// <summary>Written by a newer build: its version badge is marked and 恢复… says why it is off.</summary>
-    public bool IsTooNew => Entry.Backup is { } backup && backup.SchemaVersion > schemaVersion;
+    public bool IsTooNew => Restorable is { } backup && backup.SchemaVersion > schemaVersion;
 
     /// <summary>Made before a restore: its badge stands out, as the way back to that data.</summary>
     public bool IsBeforeRestore => Entry.Backup?.Reason == BackupReason.BeforeRestore;
 
     /// <summary>Why 恢复… is disabled (its tooltip), or what a leftover is.</summary>
-    public string? Hint => Entry.Backup is { } backup
-        ? backup.SchemaVersion > schemaVersion ? UiText.BackupTooNew(backup.SchemaVersion, schemaVersion) : null
-        : UiText.LeftoverHint;
+    public string? Hint => Restorable is { } backup && backup.SchemaVersion > schemaVersion
+        ? UiText.BackupTooNew(backup.SchemaVersion, schemaVersion)
+        : Entry.Backup is null ? UiText.LeftoverHint : null;
 
     /// <summary>The row as a screen reader names it, inside each of its controls' names.</summary>
     public string RowName => Entry.Backup is { } b

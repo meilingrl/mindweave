@@ -9,7 +9,8 @@ namespace Mindweave.Infrastructure.Logging;
 /// <summary>
 /// Minimal daily-rolling file logger. Writes are serialized and flushed per entry so the log survives a
 /// forced kill. Logs contain identifiers and errors, never message bodies or credentials; as a last line of
-/// defence, every entry (exception text included) is scrubbed of credential-shaped tokens before it is written.
+/// defence, every entry (exception text included) is scrubbed of credential-shaped tokens and of every key this process
+/// has read or written (<see cref="KnownSecrets"/>, D2) before it is written.
 /// </summary>
 public sealed class FileLoggerProvider : ILoggerProvider
 {
@@ -17,15 +18,17 @@ public sealed class FileLoggerProvider : ILoggerProvider
 
     private readonly string _directory;
     private readonly TimeProvider _time;
+    private readonly KnownSecrets _secrets;
     private readonly Lock _gate = new();
     private readonly ConcurrentDictionary<string, FileLogger> _loggers = new();
     private StreamWriter? _writer;
     private DateOnly _writerDate;
 
-    public FileLoggerProvider(string directory, TimeProvider time)
+    public FileLoggerProvider(string directory, TimeProvider time, KnownSecrets secrets)
     {
         _directory = directory;
         _time = time;
+        _secrets = secrets ?? throw new ArgumentNullException(nameof(secrets));
         try
         {
             Directory.CreateDirectory(directory);
@@ -66,7 +69,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         {
             try
             {
-                WriterFor(DateOnly.FromDateTime(now.UtcDateTime)).WriteLine(Redaction.Scrub(line.ToString()));
+                WriterFor(DateOnly.FromDateTime(now.UtcDateTime)).WriteLine(_secrets.Scrub(line.ToString()));
             }
             catch (Exception ex) when (CannotWrite(ex))
             {

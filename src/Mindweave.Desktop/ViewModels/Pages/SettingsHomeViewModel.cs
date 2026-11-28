@@ -418,6 +418,9 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     /// <summary>A carried scroll position the view applies once it can, then clears.</summary>
     public double? PendingScroll { get; set; }
 
+    /// <summary>A section a link asked for (a failure's fix, D2 §2.1); the view scrolls to it once laid out, then clears.</summary>
+    public Navigation.SettingsSection? PendingSection { get; set; }
+
     /// <summary>What lives only in this page, carried over a language switch (bilingual-ui.md §6.6).</summary>
     private sealed record CarriedState(object? Model, object? WebSearch, object? Mcp, double Scroll, bool LanguageChosen);
 

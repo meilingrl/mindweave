@@ -25,6 +25,16 @@ public interface IModelSettings
 
     Task SaveAsync(ModelSettingsInput input, CancellationToken cancellationToken);
 
+    /// <summary>How many unfinished requests use the saved key (D2 §2.3): what <see cref="RemoveKeyAsync"/> would stop.</summary>
+    Task<int> RequestsUsingKeyAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 移除密钥 (D2 §2.3): deletes the saved key; the connection then reads as not configured. While requests use the key it
+    /// is removed only with <paramref name="stopRequests"/>, which stops them first. Throws
+    /// <see cref="Credentials.CredentialUnavailableException"/> when the key store is locked; nothing changes then.
+    /// </summary>
+    Task<KeyRemoval> RemoveKeyAsync(bool stopRequests, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<string>> DiscoverModelsAsync(string baseUrl, string? typedKey, CancellationToken cancellationToken);
 
     Task<ConnectionTestResult> TestAsync(string baseUrl, string model, string? typedKey, CancellationToken cancellationToken);

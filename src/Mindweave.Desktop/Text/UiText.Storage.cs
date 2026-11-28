@@ -45,6 +45,11 @@ public static partial class UiText
     public static string BackupsLabel => T("Backups", "备份");
     public static string ChannelLabel => T("Data channel", "数据通道");
     public static string OpenDataFolder => T("Open data location", "打开数据位置");
+    public static string LogFolderLabel => T("Log", "日志");
+    public static string OpenLogFolder => T("Open log folder", "打开日志文件夹");
+    public static string LogFolderHint => T(
+        "One file per day, the last 14 days. It holds errors and timings, never conversation text or keys.",
+        "每天一个文件，保留最近 14 天。记录错误与耗时，不含对话内容和密钥。");
     public static string Retry => T("Retry", "重试");
     public static string Exit => T("Quit", "退出");
     public static string RestoreThis => T("Restore this backup…", "恢复此备份…");
@@ -77,12 +82,12 @@ public static partial class UiText
             DatabaseOpenStatus.TooNew => T(
                 string.Format(
                     Culture,
-                    "The data format version is {0}, but this app supports only up to {1}. To avoid damaging the data, this app will not write to it. Open it with a newer Mindweave.",
+                    "The data format version is {0}, but this app supports only up to {1}. To avoid damaging the data, this app will not write to it. Open it with a newer Mindweave. If you restore an older backup here instead, the newer data is not deleted: it stays in the data folder as old data replaced by a restore, and the newer Mindweave can restore it from Settings › Data and storage.",
                     result.FoundVersion,
                     result.SupportedVersion),
                 string.Format(
                     CultureInfo.CurrentCulture,
-                    "数据结构版本为 {0}，本程序只支持到 {1}。为避免损坏数据，本程序不会写入。请使用更新的 Mindweave 打开。",
+                    "数据结构版本为 {0}，本程序只支持到 {1}。为避免损坏数据，本程序不会写入。请使用更新的 Mindweave 打开。如果在这里改为恢复一份较早的备份，较新的数据不会删除：它作为“恢复时替换下的旧数据”留在数据目录中，更新的 Mindweave 可以在 设置 › 数据与存储 中把它恢复回来。",
                     result.FoundVersion,
                     result.SupportedVersion)),
             DatabaseOpenStatus.BackupFailed => T(
@@ -143,6 +148,33 @@ public static partial class UiText
         BackupReason.BeforeWorkspaceDelete => BackupBeforeDelete,
         BackupReason.BeforeConversationDelete => BackupBeforeConversationDelete,
         BackupReason.BeforeRestore => BackupBeforeRestore,
+        BackupReason.Replaced => LeftoverDatabase,
         _ => null,
     };
+
+    /// <summary>The start-up page while the data is upgraded (gap-schema-4, D-042).</summary>
+    public static string StartupUpgrading(DataUpgradeStarting step)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        return step.BackupFirst
+            ? T(
+                string.Format(Culture, "Upgrading data (format version {0} to {1}); a backup is made first…", step.From, step.To),
+                string.Format(CultureInfo.CurrentCulture, "正在升级数据（结构版本 {0} 到 {1}），会先做一份备份……", step.From, step.To))
+            : T(
+                string.Format(Culture, "Upgrading data (format version {0} to {1})…", step.From, step.To),
+                string.Format(CultureInfo.CurrentCulture, "正在升级数据（结构版本 {0} 到 {1}）……", step.From, step.To));
+    }
+
+    /// <summary>The one notice after an upgrade: to which version, and where the copy from before it is.</summary>
+    public static string UpgradedNotice(DataUpgrade upgrade)
+    {
+        ArgumentNullException.ThrowIfNull(upgrade);
+        return upgrade.BackupMadeNow
+            ? T(
+                string.Format(Culture, "Your data was upgraded to format version {0}. A backup of it from before the upgrade (version {1}) is in Settings › Data and storage.", upgrade.To, upgrade.From),
+                string.Format(CultureInfo.CurrentCulture, "数据已升级到结构版本 {0}。升级前（结构版本 {1}）的备份在 设置 › 数据与存储 中。", upgrade.To, upgrade.From))
+            : T(
+                string.Format(Culture, "Your data was upgraded to format version {0}. The backup it came from (version {1}) stays as it was in Settings › Data and storage.", upgrade.To, upgrade.From),
+                string.Format(CultureInfo.CurrentCulture, "数据已升级到结构版本 {0}。恢复所用的备份（结构版本 {1}）保持原样，在 设置 › 数据与存储 中。", upgrade.To, upgrade.From));
+    }
 }

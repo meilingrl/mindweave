@@ -16,14 +16,11 @@ using Mindweave.Desktop.SummaryNetwork;
 
 namespace Mindweave.Desktop.ViewModels;
 
-/// <summary>Opens the share dialog on a conversation's exploration; the sidebar and the network page hold this, not the dialog.</summary>
-public interface ISharePrompt
-{
-    void Open(WorkspaceId workspace, ConversationId conversation);
-}
-
-/// <summary>Hands a share request to the window's dialog.</summary>
-public sealed class ShareRequests : ISharePrompt
+/// <summary>
+/// Opens the share dialog on a conversation's exploration: the sidebar and the network page hold this, not the dialog,
+/// and it hands the request to the window's dialog.
+/// </summary>
+public sealed class ShareRequests
 {
     public event EventHandler<(WorkspaceId Workspace, ConversationId Conversation)>? Requested;
 

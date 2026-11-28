@@ -85,7 +85,7 @@ public class ManualBackupImportGalleryTests
             import.CloseCommand.Execute(null);
 
             // The conversation, one line in the order the questions were asked.
-            app.Services.GetRequiredService<Mindweave.Desktop.ViewModels.IWorkspaceSwitcher>().SwitchTo(app.Workbench.Workspaces.Single(w => w.Id == first.Id));
+            app.Services.GetRequiredService<Mindweave.Desktop.ViewModels.WorkspaceSwitchRequests>().SwitchTo(app.Workbench.Workspaces.Single(w => w.Id == first.Id));
             await Task.Delay(200, CancellationToken.None);
             app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(trains.Conversation)));
             await Task.Delay(400, CancellationToken.None);

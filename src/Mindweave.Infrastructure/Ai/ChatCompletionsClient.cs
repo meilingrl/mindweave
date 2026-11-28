@@ -204,8 +204,20 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.ModelListTimeout);
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"{baseUrl.TrimEnd('/')}/models"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        var anthropic = IsAnthropic(baseUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"{baseUrl.TrimEnd('/')}/models{(anthropic ? "?limit=1000" : string.Empty)}"));
+        if (anthropic)
+        {
+            // Anthropic's OpenAI-compatible layer covers chat completions only; its model list is Anthropic's own API, which
+            // takes the key and a version header of its own and lists 20 models a page unless asked for more (2026-11-28).
+            request.Headers.Add("x-api-key", apiKey);
+            request.Headers.Add("anthropic-version", AnthropicVersion);
+        }
+        else
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
         try
         {
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
@@ -234,6 +246,13 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             throw new ChatClientException(GenerationErrorKind.InvalidResponse, "The model list is not valid JSON.", ex);
         }
     }
+
+    /// <summary>The version of Anthropic's own API asked for when listing its models.</summary>
+    internal const string AnthropicVersion = "2023-06-01";
+
+    /// <summary>Anthropic's own service (its OpenAI-compatible layer lives under the same host).</summary>
+    private static bool IsAnthropic(string baseUrl) =>
+        Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) && string.Equals(uri.Host, "api.anthropic.com", StringComparison.OrdinalIgnoreCase);
 
     private async Task<HttpResponseMessage> SendAsync(ChatRequest request, string apiKey, CancellationToken cancellationToken)
     {
@@ -464,6 +483,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         catch (HttpRequestException ex)
         {
             return afterCompletion ? null : throw new ChatClientException(GenerationErrorKind.Network, ex.Message, ex);
+        }
+        catch (InvalidDataException ex)
+        {
+            // A line or event larger than any answer could be (low finding security-4).
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, ex.Message, ex);
         }
     }
 
@@ -765,7 +789,10 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
         if (status is >= 300 and < 400)
         {
-            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"HTTP {status}: redirects are not followed; check the service address.", httpStatus: status);
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"HTTP {status}: redirects are not followed; check the service address.", httpStatus: status)
+            {
+                ProviderRequestId = ProviderRequestId(response),
+            };
         }
 
         var (text, _) = await ReadAtMostAsync(response.Content, MaxErrorBodyBytes, cancellationToken).ConfigureAwait(false);
@@ -791,7 +818,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         var wait = response.Headers.RetryAfter is { } retry
             ? retry.Delta ?? (retry.Date is { } date ? date - DateTimeOffset.UtcNow : null)
             : null;
-        throw new ChatClientException(kind, detail, httpStatus: status) { RetryAfter = wait is { } w && w > TimeSpan.Zero ? w : null };
+        throw new ChatClientException(kind, detail, httpStatus: status)
+        {
+            RetryAfter = wait is { } w && w > TimeSpan.Zero ? w : null,
+            ProviderRequestId = ProviderRequestId(response),
+        };
     }
 
     /// <summary>The message of an error node: OpenAI's <c>{"message": …}</c> object, or whatever else a relay sent, as text.</summary>
@@ -808,7 +839,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
     /// <summary>Every failure leaving this client is scrubbed of the key it was called with (services echo keys).</summary>
     private static ChatClientException Redacted(ChatClientException ex, string apiKey) =>
-        new(ex.Kind, ScrubbedAndShort(ex.Message, apiKey), ex.InnerException, ex.HttpStatus) { RetryAfter = ex.RetryAfter };
+        new(ex.Kind, ScrubbedAndShort(ex.Message, apiKey), ex.InnerException, ex.HttpStatus) { RetryAfter = ex.RetryAfter, ProviderRequestId = ex.ProviderRequestId };
 
     private static string? ProviderRequestId(HttpResponseMessage response) =>
         response.Headers.TryGetValues("x-request-id", out var values) || response.Headers.TryGetValues("request-id", out values)

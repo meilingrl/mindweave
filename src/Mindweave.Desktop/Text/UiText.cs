@@ -113,6 +113,37 @@ public static partial class UiText
         "草稿或回答的结束状态没能写入，内容仍保留在程序里，写入成功前不会退出。已停止的任务不会自动恢复。");
     public static string ExitRetry => T("Try quitting again", "重试退出");
     public static string ExitReturn => T("Go back", "返回");
+    public static string QuitWithoutSaving => T("Quit without saving", "不保存并退出");
+
+    /// <summary>
+    /// The failed-save message after a failed retry (errors-9): what quitting without saving loses. Without a save to go
+    /// by (stopping the tasks failed), everything that may be unsaved is named.
+    /// </summary>
+    public static string QuitWithoutSavingLoses(Application.Storage.UnsavedWork? unsaved)
+    {
+        var all = unsaved is null;
+        var lost = new List<string>(3);
+        if (all || unsaved!.Drafts)
+        {
+            lost.Add(T("unsent question drafts and reading positions", "未发送的提问草稿和阅读位置"));
+        }
+
+        if (all || unsaved!.SummaryEdits)
+        {
+            lost.Add(T("summary edits not yet saved", "尚未保存的总结编辑"));
+        }
+
+        if (all || unsaved!.Answers)
+        {
+            lost.Add(T(
+                "the last part of stopped answers (each keeps what was saved before; they show as interrupted next time)",
+                "已停止回答的最后一段（各自保留之前已保存的部分，下次打开时标为中断）"));
+        }
+
+        return T(
+            "\n\nIf you quit without saving, this is lost: " + string.Join("; ", lost) + ".",
+            "\n\n若不保存并退出，会丢失：" + string.Join("；", lost) + "。");
+    }
 
     /// <summary>The exit prompt's body, naming user answers and summaries separately ("1 answer and 1 summary" / "1 个回答、1 个总结").</summary>
     public static string ExitWithUnfinished(int answers, int summaries)

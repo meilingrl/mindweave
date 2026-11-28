@@ -33,6 +33,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     private readonly AnswerRunner _answers;
     private readonly TaskRunners _tasks;
     private readonly IClock _clock;
+    private readonly Credentials.RetiredCredentials _retired;
 
     private bool _closed;
     private int _shutDown;
@@ -43,9 +44,12 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         StorageHealth health,
         IClock clock,
         GenerationOptions options,
-        ILogger<GenerationCoordinator> logger)
+        ILogger<GenerationCoordinator> logger,
+        Credentials.RetiredCredentials retired)
     {
         ArgumentNullException.ThrowIfNull(health);
+        ArgumentNullException.ThrowIfNull(retired);
+        _retired = retired;
         _requests = requests;
         _health = health;
         _options = options;
@@ -322,6 +326,63 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
             await running.Completion.ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Unfinished work of every kind that was accepted with this key: queued, running (an answer only while it is still
+    /// live), or waiting for an approval. What removing the key would stop (D2 §2.3).
+    /// </summary>
+    public int CountUsing(string credentialRef)
+    {
+        lock (_gate)
+        {
+            return _userQueue.Concat(_backgroundQueue).Concat(_idleQueue).Count(w => Uses(w, credentialRef))
+                + _running.Values.Count(r => Uses(r.Work, credentialRef) && (r.Work is not AnswerWork a || IsLive(a)));
+        }
+    }
+
+    /// <summary>
+    /// Stops all work accepted with this key, as the user's stop does: a queued answer or task becomes cancelled, a running
+    /// answer keeps what arrived, a running task stores nothing. Completes once the stopped runs have ended.
+    /// </summary>
+    public async Task StopUsingAsync(string credentialRef)
+    {
+        var queued = new List<GenerationWork>();
+        List<Running> running;
+        lock (_gate)
+        {
+            while (RemoveQueued(w => Uses(w, credentialRef)) is { } work)
+            {
+                queued.Add(work);
+            }
+
+            running = [.. _running.Values.Where(r => Uses(r.Work, credentialRef))];
+        }
+
+        foreach (var work in queued)
+        {
+            if (work is AnswerWork answer)
+            {
+                await _answers.CancelQueuedAsync(answer).ConfigureAwait(false);
+            }
+            else
+            {
+                await CancelQueuedTaskAsync(work).ConfigureAwait(false);
+            }
+        }
+
+        foreach (var r in running)
+        {
+            await r.Cancellation.CancelAsync().ConfigureAwait(false);
+        }
+
+        await Task.WhenAll(running.Select(r => r.Completion)).ConfigureAwait(false);
+        if (queued.Count + running.Count > 0)
+        {
+            RaiseChanged();
+        }
+    }
+
+    private static bool Uses(GenerationWork work, string credentialRef) => string.Equals(work.Task.Model.CredentialRef, credentialRef, StringComparison.Ordinal);
 
     /// <summary>
     /// Cancels the background work (titles and naming) of these conversations before they are archived or deleted
@@ -649,9 +710,18 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         {
             // Never leaves a caller waiting, whatever ended the run (no-op when the runner already answered).
             (running.Work as TransientWork)?.Output.TrySetCanceled();
+            bool closed;
             lock (_gate)
             {
                 _running.Remove(running.Work.Task.Id);
+                closed = _closed;
+            }
+
+            // A key replaced while this task ran may be free now (D2 §2.3). Not during an exit: the data is about to close,
+            // and the next start cleans up.
+            if (!closed)
+            {
+                _retired.CleanUpSoon();
             }
 
             // The token source is not disposed: a concurrent StopAsync may still cancel it after the run ends.

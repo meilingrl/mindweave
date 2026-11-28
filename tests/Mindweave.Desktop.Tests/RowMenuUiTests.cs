@@ -49,8 +49,8 @@ public class RowMenuUiTests
 
         // The page's entries in the page's words and icons, the default first and bold, the destructive one last in the danger colour.
         var items = menu.Items.OfType<MenuItem>().ToList();
-        Assert.Equal(["RowMenuOpen", "RowMenuRename", "RowMenuSummarize", "RowMenuShare", "RowMenuArchive", "RowMenuDelete"], items.Select(i => i.Name));
-        Assert.Equal([UiText.RowOpen, UiText.Rename, UiText.Summarize, UiText.ShareEntry, UiText.Archive, UiText.RowDelete], items.Select(i => i.Header));
+        Assert.Equal(["RowMenuOpen", "RowMenuRename", "RowMenuSummarize", "RowMenuContinue", "RowMenuShare", "RowMenuArchive", "RowMenuDelete"], items.Select(i => i.Name));
+        Assert.Equal([UiText.RowOpen, UiText.Rename, UiText.Summarize, UiText.ContinueInBranch, UiText.ShareEntry, UiText.Archive, UiText.RowDelete], items.Select(i => i.Header));
         Assert.All(items, i => Assert.IsType<PathIcon>(i.Icon));
         Assert.All(items, i => Assert.True(i.IsEffectivelyEnabled, i.Name));
         Assert.Equal(Avalonia.Media.FontWeight.SemiBold, items[0].FontWeight);
@@ -180,6 +180,82 @@ public class RowMenuUiTests
         await list.RowAction;
         Assert.Equal("铁轨的材料", (await conversations.LoadAsync(sibling, CancellationToken.None))!.Conversation.Title);
         Assert.False(RenameBox(window, sibling).IsVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_double_click_on_a_row_opens_it_and_renames_it_in_place()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        var (root, middle, _, sibling) = await SeedAsync(app, window);
+        var list = app.ShellPage.Conversations;
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var middleTitle = list.Items.Single(i => i.Id == middle).Title;
+
+        // The first click opens the row as ever; the second turns its title into the rename box, all selected, with the focus.
+        await UiInput.PastDoubleClickAsync();
+        ClickRow(window, middle);
+        ClickRow(window, middle);
+        await UiWait.UntilAsync(() => RenameBox(window, middle) is { IsFocused: true, IsEffectivelyVisible: true });
+        Assert.Equal(middle, ((ConversationViewModel)app.Workbench.CurrentPage!).Id);
+        Assert.Equal(middleTitle, RenameBox(window, middle).SelectedText);
+
+        // Enter saves as the menu's rename does.
+        window.KeyTextInput("双击改的名字");
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await list.RowAction;
+        var stored = (await conversations.LoadAsync(middle, CancellationToken.None))!.Conversation;
+        Assert.Equal(("双击改的名字", TitleSource.Manual), (stored.Title, stored.TitleSource));
+
+        // A modified double click selects, and in the selection mode a double click ticks: neither renames.
+        await UiInput.PastDoubleClickAsync();
+        ClickRow(window, root, Toggle);
+        ClickRow(window, root, Toggle);
+        Assert.DoesNotContain(list.Items, i => i.IsRenaming);
+        list.ClearSelection();
+        list.ToggleSelectionModeCommand.Execute(null);
+        await UiInput.PastDoubleClickAsync();
+        ClickRow(window, sibling);
+        ClickRow(window, sibling);
+        Assert.DoesNotContain(list.Items, i => i.IsRenaming);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task New_branch_continues_the_conversation_from_its_end_and_opens_the_branch()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        var (_, middle, _, sibling) = await SeedAsync(app, window);
+        var list = app.ShellPage.Conversations;
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var last = (await conversations.LoadAsync(middle, CancellationToken.None))!.Messages[^1];
+
+        OpenMenu(window, middle);
+        await ClickEntryAsync(window, "RowMenuContinue");
+        await list.RowAction;
+        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        var source = (await conversations.GetSourceAsync(page.Id, CancellationToken.None))!;
+        Assert.Equal((middle, last.Id, (string?)null), (source.Parent, source.SourceMessage, source.Quote));
+        Assert.True(page.CanReturnToSource);
+        Assert.Equal(UiText.ReturnToEndHint, page.ReturnHint);
+        await UiWait.UntilAsync(() => list.Items.Any(i => i.Id == page.Id && i.IsBranch));
+
+        // The page's toolbar makes the same, from the conversation on screen.
+        app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(sibling)));
+        var siblingPage = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await siblingPage.Loaded;
+        window.UpdateLayout();
+        var button = Find<Button>(CurrentView(window), "ContinueInBranchButton");
+        Assert.True(button.IsEffectivelyVisible);
+        Assert.Equal(UiText.ContinueInBranchTip, ToolTip.GetTip(button));
+        UiInput.Click(window, button);
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel p && p.Id != sibling);
+        var branch = (ConversationViewModel)app.Workbench.CurrentPage!;
+        Assert.True((await conversations.GetSourceAsync(branch.Id, CancellationToken.None))!.IsContinuation);
+        Assert.Equal(sibling, (await conversations.GetSourceAsync(branch.Id, CancellationToken.None))!.Parent);
         window.Close();
     }
 
@@ -320,6 +396,7 @@ public class RowMenuUiTests
         Assert.True(MenuEntry(window, "RowMenuOpen").IsEffectivelyEnabled);
         Assert.True(MenuEntry(window, "RowMenuRename").IsEffectivelyEnabled);
         AssertDisabled(window, "RowMenuSummarize", UiText.SummarizeRejected(SummarizeRejection.AnswerInProgress));
+        AssertDisabled(window, "RowMenuContinue", UiText.BranchRejected(Core.Branches.BranchRejection.AnswerNotFinished));
         AssertDisabled(window, "RowMenuArchive", UiText.RowArchiveBusy);
         AssertDisabled(window, "RowMenuDelete", UiText.RowDeleteBusy);
 
@@ -347,6 +424,9 @@ public class RowMenuUiTests
         Assert.Null(list.RowNotice);
         await list.SummarizeRowCommand.ExecuteAsync(leafRow);
         Assert.Null(list.RowNotice);
+        await list.ContinueInBranchRowCommand.ExecuteAsync(leafRow);
+        Assert.Null(list.RowNotice);
+        Assert.Empty(await conversations.ListBranchesAsync(leaf, CancellationToken.None));
         list.DeleteRowCommand.Execute(leafRow);
         Assert.False(app.Root.ConversationDeletion.IsOpen);
         Assert.Empty(await conversations.ArchivedAmongAsync([root, middle, leaf, sibling], CancellationToken.None));
@@ -372,7 +452,7 @@ public class RowMenuUiTests
         await UiWait.UntilAsync(() => list.IsStoragePaused);
         OpenMenu(window, middle);
         Assert.True(MenuEntry(window, "RowMenuOpen").IsEffectivelyEnabled);
-        foreach (var name in new[] { "RowMenuRename", "RowMenuSummarize", "RowMenuArchive", "RowMenuDelete" })
+        foreach (var name in new[] { "RowMenuRename", "RowMenuSummarize", "RowMenuContinue", "RowMenuArchive", "RowMenuDelete" })
         {
             AssertDisabled(window, name, UiText.RowStoragePaused);
         }

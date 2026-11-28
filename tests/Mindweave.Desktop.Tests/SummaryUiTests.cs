@@ -152,12 +152,12 @@ public class SummaryUiTests
         app.Client.Knowledge.TruncateNext();
 
         await page.Summary.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.Summary.SummaryProblem is not null);
-        Assert.Contains("截断", page.Summary.SummaryProblem, StringComparison.Ordinal);
+        await UiWait.UntilAsync(() => page.Summary.SummaryFailure is not null);
+        Assert.Contains("截断", page.Summary.SummaryFailure!.CopyText, StringComparison.Ordinal); // The service's text, in the details.
         Assert.False(page.Summary.HasSummary);
 
         await page.Summary.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.SummaryProblem is null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.SummaryFailure is null);
     }
 
     [AvaloniaFact]
