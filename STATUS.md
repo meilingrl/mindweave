@@ -68,7 +68,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
-| Publish a daily build with migrations v19 and v20 (0.6.28 or later), when you want it | It upgrades your real data; a build before v20 cannot open it afterwards | Importing in daily use |
 | The application icon: the tile colour (black nearly disappears on a dark taskbar), and whether the open state with nodes is used | Look and feel is yours to judge | Nothing |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
@@ -86,6 +85,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | 3e90875 (0.6.29) | 2026-11-27 | passed: 3329 passed, 0 failed, 128 skipped of 3457; Credential Manager test ran |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
-| Daily build | f9edc39 (0.6.11, schema v18) | 2026-11-24 | published by you; the backup taken before it is `mindweave-v18-20261124T143852Z-before-publish-f9edc39.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
+| Daily build | 599fd19 (0.6.32, schema v20) | 2026-11-28 | published by you; the backup taken before it is `mindweave-v20-20261127T200932Z-before-publish-599fd19.db`. No migration since v20, so a later publish needs no upgrade |
 
 First command: `scripts/test.sh full`.
