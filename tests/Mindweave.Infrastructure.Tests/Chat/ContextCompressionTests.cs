@@ -31,10 +31,14 @@ public class ContextCompressionTests
         var answer = await h.AskAsync(conversation, "最后的问题" + Tipping);
 
         var request = h.Client.Requests.Last(FakeChatClient.IsAnswer);
-        Assert.Equal(ChatRole.System, request.Turns[0].Role);
-        Assert.StartsWith("以下是较早一段对话（第 1–8 条消息）的摘要，原文保存在本地：", request.Turns[0].Content, StringComparison.Ordinal);
-        Assert.StartsWith("最后的问题", request.Turns[^1].Content, StringComparison.Ordinal);
-        Assert.Equal("问题 4", request.Turns[1].Content);
+        var turns = FakeChatClient.Dialogue(request);
+        Assert.Equal(ChatRole.System, turns[0].Role);
+        Assert.StartsWith("以下是较早一段对话（第 1–8 条消息）的摘要，原文保存在本地：", turns[0].Content, StringComparison.Ordinal);
+        Assert.StartsWith("最后的问题", turns[^1].Content, StringComparison.Ordinal);
+        Assert.Equal("问题 4", turns[1].Content);
+
+        // One system turn opens the request: the answer instructions, then the summary; the whole of it fits the budget.
+        Assert.StartsWith(AnswerPrompt.For(false) + "\n\n以下是较早一段对话", request.Turns[0].Content, StringComparison.Ordinal);
         Assert.True(TokenEstimator.PerRequest + request.Turns.Sum(t => TokenEstimator.Message(t.Content)) <= 6_704);
 
         // The original record is complete and the answer is marked as sent with a summary.
@@ -209,7 +213,7 @@ public class ContextCompressionTests
         Assert.Equal(6_704, small.Budget);
         Assert.False(small.Compressed);
         Assert.Equal(small.FullTokens, small.Tokens);
-        Assert.InRange(small.Tokens, 3_000, 3_200);
+        Assert.InRange(small.Tokens - TokenEstimator.Message(AnswerPrompt.For(false)), 3_000, 3_200);
 
         // What it is made of adds up to the total: here the conversation and the request's framing only.
         Assert.Equal(small.Tokens, small.Parts.Sum(p => p.Tokens));

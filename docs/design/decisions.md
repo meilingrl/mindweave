@@ -283,7 +283,7 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Summaries** start with a gist, are organized by concept and list key terms. No styles.
 - **Evaluation**: new scenarios for explanations, a side-by-side report of two prompt versions, cost and time per scenario, size limits checked without a paid run, and an optional judge whose verdict is only a hint. The owner's reading and daily use decide what is good.
 - **Three increments**: prompts and the evaluation; the note and the summary titles; long-page passages.
-- The note is [reply-quality.md](reply-quality.md); the text is requirements v0.32 (§10.9) and architecture §2.3, §15.4 and §15.5. Nothing is built.
+- The note is [reply-quality.md](reply-quality.md); the text is requirements v0.32 (§10.9) and architecture §2.3, §15.4 and §15.5. Increments 1 and 2 are built (0.6.37, 0.6.38).
 
 ## D-044 Return and review is adopted (you, 2026-11-25 and 11-26)
 
@@ -331,3 +331,10 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 
 - **Interfaces with one implementation (architecture-8).** The new test found 18 that no other project uses in a signature. Six that only forwarded were removed; their callers take the one class. Twelve stay on the test's list of exceptions, each with its written reason: four places where tests put stand-ins (`ISystemShell`, `IThemeApplier`, `IUiDispatcher`, `IPageFactory`), five navigation interfaces (architecture §2 names navigation as a boundary), two narrow views of the generation coordinator (`IGenerationEvents`, `IRunSlots`) and `IToolSource` (the tool registry takes a list of sources). This narrows D-042's "removed".
 - **Stored names (gap-schema-3).** A new preference key or a new JSON field only needs recording in `stored-names.txt`, since an older build passes over it. Every other change, and every removal, needs a new schema version. This narrows D-042's "the schema version is the only gate for stored formats".
+
+## D-049 Run order, long lines, and the last two safety increments (you, 2026-11-28)
+
+- **R8 stays.** The last request of a run offers no tools, because it is the one that writes the reply. On the Messages protocol, where tools stand first, that request misses the cache. How to keep most of the cache within R8 is settled with prompt caching step 3.
+- **No guard on very long lines.** A line of 200,000 characters without spaces takes many seconds to lay out. It is too rare, and it normally comes from a bug upstream, so nothing is added for it.
+- **The parts that change per request are the app's notes in a user turn, on every service** (architecture §15.5).
+- **D2 increments 4 and 5 are accepted with what they need:** increment 4 (keys nothing refers to, removing every key) a run on the Windows hardware; increment 5 (erasing for good) a trial on a copy of your data first.

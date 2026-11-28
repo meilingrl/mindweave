@@ -58,12 +58,19 @@ public sealed class SummaryService : ISummaries
     /// <summary>Output cap for a summary; reasoning models spend hidden reasoning against it (D-015).</summary>
     public const int SummaryOutputTokens = 16_384;
 
+    /// <summary>
+    /// The version of the summary prompt (the "summary" prompt files), for evaluation reports; raise it whenever the text
+    /// changes. Version 2 (reply quality, Q9): a gist first, the body by concept, key terms.
+    /// </summary>
+    public const int PromptVersion = 2;
+
     private const int SourceExcerpt = 3_000;
 
     /// <summary>The last "question" of a summary request; never stored.</summary>
     private static string Request => T("Summarize the conversation above as instructed.", "请按要求总结以上对话。");
 
     private readonly ISummaryStore _summaries;
+    private readonly Preferences.IPersonalNote _personalNote;
     private readonly IConversationStore _conversations;
     private readonly IBranchStore _branches;
     private readonly IContextSummaryStore _contextSummaries;
@@ -89,8 +96,11 @@ public sealed class SummaryService : ISummaries
         ILogger<SummaryService> logger,
         IContextSummaryStore contextSummaries,
         SummaryLinks.SummaryLinkService links,
-        IResourceStore resources)
+        IResourceStore resources,
+        Preferences.IPersonalNote personalNote)
     {
+        ArgumentNullException.ThrowIfNull(personalNote);
+        _personalNote = personalNote;
         ArgumentNullException.ThrowIfNull(contextSummaries);
         ArgumentNullException.ThrowIfNull(links);
         ArgumentNullException.ThrowIfNull(resources);
@@ -181,7 +191,9 @@ public sealed class SummaryService : ISummaries
         var model = active with { MaxOutputTokens = SummaryOutputTokens };
         var toSeq = messages.Where(m => m.IsFinished).Max(m => m.Seq);
         var covered = messages.Where(m => m.Seq <= toSeq).ToList();
-        var system = new List<ChatTurn> { new(ChatRole.System, PromptLibrary.Get("summary")) };
+        // The personal note goes with every summary request too, marked as the user's own preferences (requirements §10.9).
+        var note = Conversations.AnswerPrompt.NotePart(await _personalNote.GetAsync(cancellationToken).ConfigureAwait(false));
+        var system = new List<ChatTurn> { new(ChatRole.System, note.Length == 0 ? PromptLibrary.Get("summary") : PromptLibrary.Get("summary") + "\n\n" + note) };
         if (await BackgroundAsync(conversation, cancellationToken).ConfigureAwait(false) is { } background)
         {
             system.Add(new ChatTurn(ChatRole.System, background));

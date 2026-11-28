@@ -1,0 +1,64 @@
+{
+  "at": "2026-11-27T13:30:09.150933+00:00",
+  "model": "deepseek-flash @ api.deepseek.com",
+  "answerPrompt": 1,
+  "runPrompt": 4,
+  "summaryPrompt": 2,
+  "scenarios": [
+    {
+      "id": "long-page",
+      "category": "网络",
+      "failure": null,
+      "passed": 3,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 9 年／9年／九年",
+          "passed": false,
+          "detail": ""
+        },
+        {
+          "name": "调用 fetch_page",
+          "passed": true,
+          "detail": "web_search、fetch_page、search_attachments、search_attachments、search_attachments、search_attachments"
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "1 个编号"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 5,
+        "ToolCalls": 6,
+        "ByTool": {
+          "web_search": 1,
+          "fetch_page": 1,
+          "search_attachments": 4
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 1,
+        "ValidCitations": 1,
+        "EstimatedTokens": 23082,
+        "PromptTokens": 16820,
+        "CompletionTokens": 982,
+        "Seconds": 15.1836072,
+        "FirstTextSeconds": 12.9725032,
+        "ScenarioRequests": 5,
+        "ScenarioPromptTokens": 16820,
+        "ScenarioCompletionTokens": 982,
+        "InputTokens": 16820
+      },
+      "quote": null,
+      "answer": "我读了这份年度报告，但**里面并没有青鸾-7卫星，也没有任何卫星的设计寿命数据**，因此这个问题在报告里查不到答案，无法给出年限。\n\n具体情况：\n\n- 搜索只给出了一条结果，而这个结果只是报告首页的摘要，没有提到青鸾-7 [1]。\n- 打开报告全文后，内容从头到尾都是同一套模板：按月份依次列出“第 N 次专题会议”，内容依次涉及空间天气、深空通信、材料试验、人才培养、国际合作、地面设施、科普活动、月球探测等，每段都是“工作总体按计划推进，部分环节因设备交付推迟而有所延后……形成会议纪要，由相关部门分头落实”这类套话 [1]。\n- 我另外读了文档的结尾部分（第 10 部分），它同样是这类会议纪要的重复段落，没有出现型号名称、技术指标或寿命参数 [1]。\n\n也就是说，这份材料更像一份填充了占位文字的页面，不具备可核查的技术数据。要核实青鸾-7的设计寿命，比较可靠的办法是查任务方或研制方发布的任务说明、卫星用户手册、发射公告，或权威航天数据库（例如 Gunter\u0027s Space Page、CEOS 数据库）中的条目。如果你能提供卫星的所属机构或发射时间，我可以据此再查。"
+    }
+  ]
+}

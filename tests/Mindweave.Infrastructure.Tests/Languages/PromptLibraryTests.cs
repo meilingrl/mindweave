@@ -25,11 +25,15 @@ public class PromptLibraryTests
 {
     /// <summary>
     /// Where each prompt says which language to write in, in each language. Null: that language's prompt has no such rule
-    /// (the Chinese run instructions never had one, nor did the Chinese naming prompt; the branch background is not an
-    /// instruction to write anything).
+    /// (the run instructions follow the answer instructions, which have it; the Chinese naming prompt never had one; the
+    /// branch part and the branch background are not instructions to write anything).
     /// </summary>
     private static readonly Dictionary<string, (string? English, string? Chinese)> LanguageRules = new(StringComparer.Ordinal)
     {
+        ["answer"] = ("Answer in the language of the user's question.", "使用提问所用的语言回答。"),
+        ["answer-branch"] = (null, null),
+        ["answer-note"] = (null, null),
+        ["answer-summaries"] = (null, null),
         ["summary"] = ("Use the language of the conversation.", "使用对话所用的语言。"),
         ["summary-branch-background"] = (null, null),
         ["summary-naming"] = ("in the language of the summaries", null),
@@ -37,7 +41,7 @@ public class PromptLibraryTests
         ["title"] = ("use the language of the question", "使用提问所用的语言"),
         ["attachment-digest"] = ("In the language of the material", "请用材料所用的语言"),
         ["attachment-digest-merge"] = ("In the language of the material", "用材料所用的语言"),
-        ["run"] = ("Answer in the language of the user's question.", null),
+        ["run"] = (null, null),
         ["recommendations"] = ("Use the language most of these titles are written in.", "使用这些标题主要使用的语言。"),
         ["link-suggestions"] = ("Use the language most of these titles are written in.", "使用这些标题主要使用的语言。"),
         ["workspace-names"] = ("use the language most of these titles are written in.", "使用这些标题主要使用的语言。"),
@@ -127,7 +131,9 @@ public class PromptLibraryTests
         {
             CurrentLanguage.Set(UiLanguage.English);
             var english = Render();
-            Assert.StartsWith("You are the assistant in Mindweave", english["run.all"], StringComparison.Ordinal);
+            Assert.StartsWith("You answer the user's questions in Mindweave", english["answer"], StringComparison.Ordinal);
+            Assert.Contains("This conversation is a branch", english["answer.branch"], StringComparison.Ordinal);
+            Assert.StartsWith("Tools and material:", english["run.all"], StringComparison.Ordinal);
             Assert.Contains("search_attachments (", english["run.all"], StringComparison.Ordinal);
             Assert.Contains("notes_write, calendar_add: third-party tools", english["run.all"], StringComparison.Ordinal);
             Assert.Contains("Recommend 3 new questions worth exploring next", english["recommendations.question"], StringComparison.Ordinal);
@@ -145,7 +151,7 @@ public class PromptLibraryTests
             foreach (var (key, text) in english)
             {
                 var own = text.Replace("引用的一段话", string.Empty, StringComparison.Ordinal).Replace("来源回答的开头", string.Empty, StringComparison.Ordinal);
-                foreach (var sample in tools.Select(t => t.DisplayName).Concat(["蒸汽机车", "蒸汽机的原理", "蒸汽机", "瓦特改良了冷凝器", "火车", "铁路", "为什么铁轨是钢的？", "机械"]))
+                foreach (var sample in tools.Select(t => t.DisplayName).Concat(["蒸汽机车", "蒸汽机的原理", "蒸汽机", "瓦特改良了冷凝器", "火车", "铁路", "为什么铁轨是钢的？", "机械", "我是中学生物老师。", "无砟轨道"]))
                 {
                     own = own.Replace(sample, string.Empty, StringComparison.Ordinal);
                 }
@@ -236,6 +242,10 @@ public class PromptLibraryTests
         WorkspaceName.TryCreate("机械", out var current, out _);
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["answer"] = AnswerPrompt.For(false),
+            ["answer.branch"] = AnswerPrompt.For(true),
+            ["answer.note"] = AnswerPrompt.NotePart("我是中学生物老师。"),
+            ["answer.summaries"] = AnswerPrompt.SummariesPart(["蒸汽机车", "无砟轨道"]),
             ["summary"] = PromptLibrary.Get("summary"),
             ["summary.request"] = Static(typeof(SummaryService), "Request"),
             ["summary-branch-background"] = PromptLibrary.Get("summary-branch-background", ("quote", "引用的一段话"), ("excerpt", "来源回答的开头")),

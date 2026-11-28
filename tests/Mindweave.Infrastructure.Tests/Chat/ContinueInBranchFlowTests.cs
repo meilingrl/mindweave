@@ -1,5 +1,6 @@
 using Mindweave.Application.Ai;
 using Mindweave.Core.Branches;
+using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
 
@@ -31,7 +32,7 @@ public class ContinueInBranchFlowTests
         await h.AskAsync(branch.Child, "三");
 
         // All of the parent up to the branch, with no quote before the first question; the parent's later turn stays out.
-        Assert.Equal(["一", "答：一", "二", "答：二", "三"], LastAnswerRequest(h).Turns.Select(t => t.Content));
+        Assert.Equal(["一", "答：一", "二", "答：二", "三"], LastAnswerTurns(h).Select(t => t.Content));
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public class ContinueInBranchFlowTests
 
         Assert.Equal(
             ["一", "答：一", "关于上文中的这段内容：\n> 一\n\n二", "答：关于上文中的这段内容：\n> 一\n\n二", "三"],
-            LastAnswerRequest(h).Turns.Select(t => t.Content));
+            LastAnswerTurns(h).Select(t => t.Content));
         var lineage = await h.Conversations.GetLineageAsync(grandchild, Ct);
         Assert.Equal([root, child, grandchild], lineage.Select(e => e.Conversation.Id));
     }
@@ -88,5 +89,6 @@ public class ContinueInBranchFlowTests
         Assert.Equal(2, await h.CountAsync("conversation"));
     }
 
-    private static ChatRequest LastAnswerRequest(ChatHarness h) => h.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
+    /// <summary>The history of the last answer request, after its instructions and without the app's note.</summary>
+    private static IReadOnlyList<ChatTurn> LastAnswerTurns(ChatHarness h) => FakeChatClient.Dialogue(h.Client.Requests.Last(FakeChatClient.IsAnswer));
 }

@@ -1,0 +1,64 @@
+{
+  "at": "2026-11-27T13:30:40.382591+00:00",
+  "model": "deepseek-flash @ api.deepseek.com",
+  "answerPrompt": 1,
+  "runPrompt": 4,
+  "summaryPrompt": 2,
+  "scenarios": [
+    {
+      "id": "long-page",
+      "category": "网络",
+      "failure": null,
+      "passed": 4,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 9 年／9年／九年",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 fetch_page",
+          "passed": true,
+          "detail": "web_search、fetch_page、search_attachments、search_attachments、search_attachments、search_attachments"
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "1 个编号"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 4,
+        "ToolCalls": 6,
+        "ByTool": {
+          "web_search": 1,
+          "fetch_page": 1,
+          "search_attachments": 4
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 1,
+        "ValidCitations": 1,
+        "EstimatedTokens": 16661,
+        "PromptTokens": 12260,
+        "CompletionTokens": 774,
+        "Seconds": 10.2289052,
+        "FirstTextSeconds": 9.1374157,
+        "ScenarioRequests": 4,
+        "ScenarioPromptTokens": 12260,
+        "ScenarioCompletionTokens": 774,
+        "InputTokens": 12260
+      },
+      "quote": null,
+      "answer": "根据这份年度报告，青鸾-7 卫星的设计寿命是 **9 年**。报告第 9 部分写道：“青鸾-7 气象卫星于本年度完成在轨测试并交付使用。卫星由研究院第二总体部研制，设计寿命为 9 年，主要载荷是一台多通道微波辐射计，可在云层下测量大气温度与湿度。”[1]\n\n补充两点：如果其他来源给出不同说法，则以报告中这一句为准，因为这是报告正文的直接陈述；该报告其余篇幅基本是各类专题会议的例行记述，与青鸾-7 无关。"
+    }
+  ]
+}

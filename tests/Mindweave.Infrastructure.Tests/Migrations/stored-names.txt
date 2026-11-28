@@ -361,6 +361,7 @@ key mcp.servers
 key news.in-workspace
 key news.sound
 key onboarding.step
+key personal-note
 key recommend.auto-prepare
 key recommend.nodes
 key recommend.questions

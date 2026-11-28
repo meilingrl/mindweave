@@ -1,0 +1,63 @@
+{
+  "at": "2026-11-27T13:03:42.732747+00:00",
+  "model": "deepseek-flash @ api.deepseek.com",
+  "answerPrompt": 1,
+  "runPrompt": 4,
+  "summaryPrompt": 2,
+  "scenarios": [
+    {
+      "id": "tight-context",
+      "category": "长上下文",
+      "failure": null,
+      "passed": 4,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 邓远山",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 玉衡-7",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 web_search",
+          "passed": true,
+          "detail": "web_search、web_search、fetch_page、fetch_page"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 3,
+        "ToolCalls": 4,
+        "ByTool": {
+          "web_search": 2,
+          "fetch_page": 2
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 2,
+        "ValidCitations": 2,
+        "EstimatedTokens": 42592,
+        "PromptTokens": 32796,
+        "CompletionTokens": 13382,
+        "Seconds": 89.568437,
+        "FirstTextSeconds": 88.6408694,
+        "ScenarioRequests": 8,
+        "ScenarioPromptTokens": 32796,
+        "ScenarioCompletionTokens": 13382,
+        "InputTokens": 32796
+      },
+      "quote": null,
+      "answer": "**白鹭村的石桥**：由工匠 **邓远山** 于 **1902 年**主持修建。桥有九个桥孔，桥面铺着青石板，至今仍能通行牛车；每逢初五赶集，两岸村民都从桥上过，集市就摆在桥头的空地上。（据附件《粘贴的文字》第 41 节）\n\n**星河-3 的着陆点**：叫 **“玉衡-7”**，位于月球背面一片相对平坦的撞击坑底部。2026 年 11 月 9 日北京时间 03:12，星河-3 在那里成功着陆，随后计划用三个月开展科学探测 [1]。这颗探测器由南溟航天研究院研制，于 2026 年 10 月 20 日发射，携带月壤雷达、中子谱仪、全景相机与地震计四台仪器，任务是研究月球背面浅层结构与月壤含水情况 [2]。\n\n需要提醒的是：这两条网上信息都来自我检索到的网页，我无法独立核实其真实性；“星河-3”也不是我熟悉的公开航天任务名称，如果你是在别处看到这个说法，最好回到原始发布方确认。"
+    }
+  ]
+}

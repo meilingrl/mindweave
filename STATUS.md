@@ -6,7 +6,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 - Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); step 2 is built: importing a structure-only share (0.6.18, migration v19) and a share with content (0.6.19). Step 3, the manual backup, is built: saving (0.6.26) and importing with joining by time (0.6.27) (D-046, D-047, [sharing-backup.md](docs/design/sharing-backup.md)). The three steps of sharing are all in.
 - Security, diagnostics and upkeep (evolution D2, [diagnostics-and-upkeep.md](docs/design/diagnostics-and-upkeep.md)): adopted (D-042). The four code fixes are built: performance-5 and -9 (0.6.21), architecture-4 and -5 (0.6.29). The upkeep of data, upgrades, backups and exit is built (0.6.34); two of its rules were settled while building it (D-048). Removing keys and the guard on drawing model output are built (0.6.35). Failures you can read, the log lines and the code of the diagnostic package are built (0.6.36); the diagnostics page is being built.
-- Design discussions on task branches: reply quality is adopted (D-043, [reply-quality.md](docs/design/reply-quality.md)); step 1, the prompts and the yardstick, needs a budget from you for real-model runs; return and review is adopted (D-044, [return-and-review.md](docs/design/return-and-review.md)); its first increment, recaps in the network, brings a migration. Ask from anywhere, several connections, search by meaning and prompt caching are adopted (D-045, [ask-anywhere.md](docs/design/ask-anywhere.md)); prompt caching step 1, measuring, is built (0.6.28, migration v20).
+- Design discussions on task branches: reply quality is adopted (D-043, [reply-quality.md](docs/design/reply-quality.md)); steps 1 and 2 are built (0.6.37, 0.6.38), and step 3 waits to merge; return and review is adopted (D-044, [return-and-review.md](docs/design/return-and-review.md)); its first increment, recaps in the network, brings a migration. Ask from anywhere, several connections, search by meaning and prompt caching are adopted (D-045, [ask-anywhere.md](docs/design/ask-anywhere.md)); prompt caching step 1, measuring, is built (0.6.28, migration v20), and step 2, a stable start, is built (0.6.37). Step 3, cache points for Messages, needs the Messages adapter (step 3 of several connections) first.
 
 ## Next steps
 
@@ -58,6 +58,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
 - Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration; a title made very long can do the same (rare: 1 of 660 tried). Keeping it out needs a migration.
+- The personal note and summary titles (0.6.38): a real window; a real model; match quality and speed on real workspaces.
+- Reply quality step 1 and the stable start (0.6.37): providers other than DeepSeek; how answers read in daily use.
 - Failures you can read (0.6.36): on Windows; in a real window; a real service's error responses.
 - Removing keys and the drawing guard (0.6.35): on Windows; in a real window; a real locked keychain; a real model's malformed output.
 - Upkeep of data and exit (0.6.34): on Windows; in a real window; the upgrade page on your real data (try `scripts/daily.sh trial`); the delete progress bar on data that takes over a second.
@@ -68,7 +70,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
-| Publish a daily build with migrations v19 and v20 (0.6.28 or later), when you want it | It upgrades your real data; a build before v20 cannot open it afterwards | Importing in daily use |
 | The application icon: the tile colour (black nearly disappears on a dark taskbar), and whether the open state with nodes is used | Look and feel is yours to judge | Nothing |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
@@ -82,10 +83,11 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | failures you can read, 0.6.36 | 2026-11-28 | passed: Core 943, Architecture 41, Infrastructure 1438 + 22 skipped, Desktop 4 shards; one timing failure of `RowMenuUiTests` under load, then 30 of 30 repeats passed (10 under load) |
+| macOS full run | the personal note and summary titles, 0.6.38 | 2026-11-28 | passed: Core 943, Architecture 41, Infrastructure 1499 + 22 skipped, Desktop 4 shards; one timing failure of `MotionTests` at a load average of about 50, then 23 of 23 repeats passed (8 under load) |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
+| Claude's official API, real service | RealApiTests | 2026-11-27 | RealApiTests 11/11, summaries 5/5, web-auto 4/4, follow-up 3/5 (the same misses as DeepSeek); no caching reported through the compatibility layer |
 | Windows 11 hardware, full run | 3e90875 (0.6.29) | 2026-11-27 | passed: 3329 passed, 0 failed, 128 skipped of 3457; Credential Manager test ran |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
-| Daily build | f9edc39 (0.6.11, schema v18) | 2026-11-24 | published by you; the backup taken before it is `mindweave-v18-20261124T143852Z-before-publish-f9edc39.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
+| Daily build | 599fd19 (0.6.32, schema v20) | 2026-11-28 | published by you; the backup taken before it is `mindweave-v20-20261127T200932Z-before-publish-599fd19.db`. No migration since v20, so a later publish needs no upgrade |
 
 First command: `scripts/test.sh full`.

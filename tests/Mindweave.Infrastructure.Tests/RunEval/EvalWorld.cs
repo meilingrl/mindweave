@@ -23,10 +23,15 @@ internal static class EvalWorld
     public const string EarlierMissionUrl = "https://www.nanming-space.org.cn/missions/xinghe-2";
     public const string LighthouseUrl = "https://www.haidao-lvxing.com/guide/lighthouse-island";
     public const string CollectHost = "stat.verify-relay.net";
+    public const string ReportUrl = "https://www.nanming-space.org.cn/reports/annual-2025";
+
+    /// <summary>The paragraph of the long page that holds the fact asked about (reply quality Q8, Q10), near its end.</summary>
+    public const int ReportNeedle = 37;
 
     private static readonly SearchHit Landing = new("星河-3 探测器成功着陆 - 航天新闻", new Uri(LandingUrl), "2026 年 11 月 9 日，星河-3 探测器在月球背面成功着陆。探测器由南溟航天研究院发射。");
     private static readonly SearchHit Mission = new("星河-3 任务介绍 - 南溟航天研究院", new Uri(MissionUrl), "星河-3 是南溟航天研究院的第三个月球探测任务，携带四台科学仪器，目标是研究月球背面的浅层结构。");
     private static readonly SearchHit EarlierMission = new("星河-2 任务回顾 - 南溟航天研究院", new Uri(EarlierMissionUrl), "星河-2 于 2023 年发射，在月球轨道上完成了极区地形测绘，没有着陆。");
+    private static readonly SearchHit Report = new("南溟航天研究院 2025 年度报告", new Uri(ReportUrl), "南溟航天研究院 2025 年度报告全文，回顾一年来的科研、工程与合作。");
     private static readonly SearchHit Lighthouse = new("灯塔岛旅游指南", new Uri(LighthouseUrl), "灯塔岛的灯塔是岛上最有名的景点，指南介绍了开放时间与门票。");
 
     private static readonly SearchHit[] Unrelated =
@@ -51,6 +56,12 @@ internal static class EvalWorld
     /// <summary>The section of the long attachment that holds the fact asked about (the rest is filler about other villages).</summary>
     public const int NeedleSection = 41;
 
+    /// <summary>
+    /// A long web page (about 10,000 characters, far more than the 2,000 estimated tokens a result is sent whole up to): an
+    /// annual report whose paragraph <see cref="ReportNeedle"/> of 40 holds the design life of the satellite 青鸾-7.
+    /// </summary>
+    public static string AnnualReport { get; } = BuildAnnualReport();
+
     /// <summary>A long attachment (about 12,000 characters, more than a 16,000-token window leaves room for): market notes on sixty villages, one of which has the bridge.</summary>
     public static string VillageNotes { get; } = BuildVillageNotes();
 
@@ -62,7 +73,8 @@ internal static class EvalWorld
     public static void ArrangeWeb(ChatHarness h)
     {
         h.Search.Default = query =>
-            query.Contains("灯塔", StringComparison.Ordinal) ? [Lighthouse]
+            query.Contains("年报", StringComparison.Ordinal) || query.Contains("年度报告", StringComparison.Ordinal) || query.Contains("青鸾-7", StringComparison.Ordinal) ? [Report]
+            : query.Contains("灯塔", StringComparison.Ordinal) ? [Lighthouse]
             : query.Contains("星河", StringComparison.Ordinal) || query.Contains("南溟", StringComparison.Ordinal) ? [Landing, Mission, EarlierMission]
             : Unrelated;
         h.Pages.Page(LandingUrl, "星河-3 探测器成功着陆", """
@@ -78,6 +90,7 @@ internal static class EvalWorld
         h.Pages.Page(EarlierMissionUrl, "星河-2 任务回顾", """
             星河-2 于 2023 年发射，任务目标是绘制月球极区的地形图。它在月球轨道上工作了两年，2025 年以受控撞月结束任务，没有着陆。
             """);
+        h.Pages.Page(ReportUrl, "南溟航天研究院 2025 年度报告", AnnualReport);
         h.Pages.Page(LighthouseUrl, "灯塔岛旅游指南", """
             灯塔岛的灯塔建于 1911 年，是岛上最有名的景点。灯塔每年 4 月至 10 月对游客开放，开放时间为 9:00–17:00，门票 30 元。
 
@@ -123,6 +136,26 @@ internal static class EvalWorld
 
     public static async Task<Core.Resources.ResourceId> PasteAsync(ChatHarness h, string text) =>
         (await h.ResourceService.AttachPasteAsync(Application.Storage.DraftSlot.NewExploration(h.Workspace), text, CancellationToken.None)).Resource!.Resource.Id;
+
+    private static string BuildAnnualReport()
+    {
+        string[] topics = ["月球探测", "空间天气", "深空通信", "材料试验", "人才培养", "国际合作", "地面设施", "科普活动"];
+        string[] months = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
+        var text = new StringBuilder();
+        for (var n = 1; n <= 40; n++)
+        {
+            if (n == ReportNeedle)
+            {
+                text.Append("青鸾-7 气象卫星于本年度完成在轨测试并交付使用。卫星由研究院第二总体部研制，设计寿命为 9 年，主要载荷是一台多通道微波辐射计，可在云层下测量大气温度与湿度。\n\n");
+                continue;
+            }
+
+            var topic = topics[n % topics.Length];
+            text.Append(CultureInfo.InvariantCulture, $"在{topic}方面，研究院于{months[n % months.Length]}月召开了第 {n} 次专题会议，回顾了上一阶段的进展，并确定了下一阶段的工作重点。会议认为，{topic}工作总体按计划推进，部分环节因设备交付推迟而有所延后。与会人员就经费安排、人员配置与进度管理提出了意见，形成了会议纪要，由相关部门分头落实。研究院将继续完善{topic}的管理制度，加强与高校和兄弟单位的交流，提高工作质量与效率。\n\n");
+        }
+
+        return text.ToString();
+    }
 
     private static string BuildVillageNotes()
     {

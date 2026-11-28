@@ -63,6 +63,19 @@ public sealed partial class WebRun
         return string.Join(' ', parts);
     }
 
+    /// <summary>
+    /// The query of the search for matching summaries before an answer (requirements §10.9, docs/design/reply-quality.md Q7):
+    /// <see cref="PreSearchQuery"/>'s rule, so a short or referring question searches with its title and selection; and in a
+    /// branch the selected passage always goes with the question (at most <see cref="ContextPart"/> characters of it).
+    /// </summary>
+    public static string SummaryQuery(string question, string? title, string? quote, string? previous)
+    {
+        var query = PreSearchQuery(question, title, quote, previous);
+        var part = WebSearchTool.OneLine(quote ?? string.Empty);
+        part = part.Length > ContextPart ? part[..ContextPart] : part;
+        return part.Length == 0 || query.Contains(part, StringComparison.Ordinal) ? query : part + " " + query;
+    }
+
     /// <summary>The numbering of the run's sources, shared with its local results (L11).</summary>
     public RunSources Numbering { get; } = new();
 

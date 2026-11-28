@@ -21,7 +21,7 @@ An answer has three parts: before the run (once per question), the run loop, and
 
 1. **Pre-search** (only in the “开” (On) setting, W1): search once with the original question text (at most 400 characters); the results are placed before the question.
 2. **Each round**:
-   1. Check the limits; if any is reached, this round is the final one: no tools, and “请直接回答” (Please answer directly) is added at the end of the system turn (R8).
+   1. Check the limits; if any is reached, this round is the final one: no tools, and “请直接回答” (Please answer directly) is added at the end of the request (R8; until prompt caching step 2, at the end of the system turn).
    2. Assemble the request; when it exceeds the available space, shrink the earliest tool results to one line (first in, first out); if it still does not fit, handle it as reaching the token limit.
    3. Send one streamed model request. Stopped → end; timeout → go to the final request; **any error → the whole answer fails**; **truncated for length → end**; no tool calls, or this is the final request → this is the answer.
    4. Execute the tool calls **one by one**: parse arguments → wait for approval when needed (releasing the execution slot, W10) → execute with a timeout → store the result as a resource → if it is at most 2,000 estimated tokens, give it to the model whole; otherwise give the beginning and a handle → mark external material as untrusted (W11) → stop offering a tool after it errors 3 times in a row.
@@ -70,7 +70,7 @@ Decisions are numbered L1–L12. Items with “Yes” in the “Architecture” 
 | L11 | **Local results can be numbered too**: in this run, passages returned by `search_attachments` and `search_summaries` share the [n] numbering with web sources (generalizing W4's rule); the citation list shows them as “附件《名称》” (Attachment “name”) or “总结《标题》” (Summary “title”), and clicking opens the viewer or the summary | P1 (the part R2 deferred) | Yes (§15.9) | Answers relying on local material can be checked too; the numbering and locating of W4–W6 can be reused | Keep R2; local results appear only in the step details |
 | L12 | **Evaluation set and run report** (see section 4): do it first, as the yardstick for all the other items | P8 | No | Without it, L1–L11 cannot be compared | Rely only on the user's trial use |
 
-Where L2 goes: the budget line goes at the end of the system prompt, because some services reject system turns anywhere other than the start (R8's experience).
+Where L2 goes: the budget line goes at the end of the system prompt, because some services reject system turns anywhere other than the start (R8's experience). Since prompt caching step 2 (requirements §10.11.4, [ask-anywhere.md](ask-anywhere.md)) it goes at the end of the request instead, in a user turn marked as the app's own lines, for the same reason.
 
 ## 4. Evaluation (L12, implemented 2026-11-19)
 
@@ -100,9 +100,24 @@ Purpose: compare runs before and after a change, across models and across prompt
 | `limit-two` | Limits | Only 2 model requests allowed | Completes the answer with the results it has |
 | `tight-context` | Long context | A long attachment fills the context, and the web is also needed | Both parts answered correctly; searches (no longer a known gap after L8) |
 
+**Explanation scenarios (8, reply quality increment 1, [reply-quality.md](reply-quality.md) Q10, 2026-11-27).** They measure how answers and summaries are written. A branch question picks its passage from the answer the model actually gave (a term from a list, or the longest paragraph); when none fits, the scenario is reported as not run.
+
+| ID | Category | Content | Main checks |
+| --- | --- | --- | --- |
+| `branch-term` | Explanation | A branch on a term of an answer about the short attachment | Does not restate the parent answer; mentions the term; no number without a source |
+| `branch-paragraph` | Explanation | A branch on the longest paragraph of an answer | Does not restate the parent answer; no number without a source |
+| `simpler` | Explanation | "Simpler please, I am in middle school" after an explanation | No tool calls |
+| `two-readings` | Explanation | A question with two readings (a day on Mercury) | Names both readings (59 and 176 days) |
+| `summary-topic` | Explanation | A question on a topic that has a summary | Builds on it (its facts appear); no web |
+| `follow-up-on` | Follow-up | A follow-up that refers back, in the "开" setting | The pre-search carries the topic; correct answer; valid citations |
+| `long-page` | Web | A detail in paragraph 37 of 40 of a long page | Reads the page; correct answer; valid citations |
+| `summary-jumps` | Summary | A conversation that jumps between ideas, then a summary | The summary opens with a gist of one or two sentences and lists key terms |
+
+`attachment-short` and `attachment-long` also check that no [n] is written without a source, and `attachment-short` that the attachment is named. "Does not restate" compares runs of 12 letters: a share of 20% or more taken from the parent answer, apart from the selected passage itself, fails.
+
 ### 4.3 Metrics
 
-All computed from the existing `ai_request`, `run_step` and the answer's blocks, with no migration: answer status, model request count, tool call count (by tool), repeated call count (same tool name and normalized arguments; rejected calls do not count), calls that errored, approval cards, limits reached, [n] markers written and how many of them are valid, estimated input tokens, input and output tokens reported by the service, the time taken by the answer under test, and the total model request count of the whole scenario (including titles, attachment digests and earlier questions, used to estimate cost). “Whether the answer is correct” gets only a rough check (expected keywords, expected tools used); quality is judged by the user reading the answers in the report.
+All computed from the existing `ai_request`, `run_step` and the answer's blocks, with no migration (since reply quality increment 1 also seconds to the first text, measured from the question to the first text on screen, and the tokens the service reported for the whole scenario): answer status, model request count, tool call count (by tool), repeated call count (same tool name and normalized arguments; rejected calls do not count), calls that errored, approval cards, limits reached, [n] markers written and how many of them are valid, estimated input tokens, input and output tokens reported by the service, the time taken by the answer under test, and the total model request count of the whole scenario (including titles, attachment digests and earlier questions, used to estimate cost). “Whether the answer is correct” gets only a rough check (expected keywords, expected tools used); quality is judged by the user reading the answers in the report.
 
 ### 4.4 How to run
 
@@ -110,7 +125,13 @@ All computed from the existing `ai_request`, `run_step` and the answer's blocks,
 scripts/real-api.sh eval [config] [scenario-id,…]
 ```
 
-Real requests are sent only when the user explicitly runs it, and costs stay within the quota the user gives: the 12 scenarios are about 12 answers under test, plus titles, the first question of `follow-up`, and the attachment digests of the two long-attachment scenarios (about 12,000 characters of input each). The model is declared as “able to call tools”. The report is written to a temporary directory (`MINDWEAVE_RUN_EVAL_REPORT` may point elsewhere): one Markdown file (summary, one row per scenario, each scenario's checks, tool calls and answer) and one JSON file with the same name (for comparing two runs); comparison results worth keeping are written up in `docs/reviews/`. Without a real service, these scenarios run as ordinary tests (`RunEvalTests`, about 1 second).
+Real requests are sent only when the user explicitly runs it, and costs stay within the quota the user gives: the 20 scenarios are about 20 answers or summaries under test, plus titles, the earlier questions of the follow-up, branch and summary scenarios, and the attachment digests of the two long-attachment scenarios (about 12,000 characters of input each).
+
+```
+scripts/real-api.sh compare [config] [scenario-id,…]
+```
+
+Runs every scenario twice, with the prompts before reply quality increment 1 (no answer instructions, run instructions 3, summary prompt 1; kept in `EvalEditions.cs`) and with the prompts as built, and writes a side-by-side report: per scenario and in total, each version's checks, input and output tokens, model requests, tool calls, seconds to the first text and in all, with the difference, then both answers. `MINDWEAVE_RUN_EVAL_PRICES=in,out` (per million tokens, in the environment or the profile file) adds the cost. `MINDWEAVE_RUN_EVAL_JUDGE=1` adds two hints from the same model: which answer is clearer (asked twice, the answers' places swapped; when the two disagree the hint says so), and how many cited sentences their passages support (one request per answer for all its cited sentences). That is about 55 requests for the 20 scenarios: two per scenario for clarity, one per answer that cites. The judge's own requests and tokens are reported apart; its verdict is never a pass or a fail. The model is declared as “able to call tools”. The report is written to a temporary directory (`MINDWEAVE_RUN_EVAL_REPORT` may point elsewhere): one Markdown file (summary, one row per scenario, each scenario's checks, tool calls and answer) and one JSON file with the same name (for comparing two runs); comparison results worth keeping are written up in `docs/reviews/`. Without a real service, these scenarios run as ordinary tests (`RunEvalTests`, about 1 second).
 
 ### 4.5 The first real run (2026-11-19, deepseek-flash, before the evaluation was corrected)
 
@@ -167,7 +188,7 @@ Done in four steps in the order of section 5, one commit per item; the five item
 | # | Implementation | Difference from the proposal |
 | --- | --- | --- |
 | L1 | `RunPrompt` (version 1→3): one system turn at the start of each request; if a context summary of earlier conversation is at the start, it is merged into this turn | Version 2 adds “互不依赖的几次调用可以在同一次回复里一起发出” (several independent calls may be sent together in one reply) (to go with L3); version 3 changes to “各工具的结果都带编号” (every tool's results are numbered) (to go with L11). The prompt also asks the model not to write process narration such as “我先查一下” (let me check first) (a problem observed in the baseline) |
-| L2 | At the end of the system turn: “包括这一轮，还可以调用工具 n 轮、共 m 次” (including this round, tools can still be called for n rounds, m times in total); the final request switches to R8's prompt | It says “rounds” rather than “model request count”, because the final request offers no tools |
+| L2 | At the end of the system turn: “包括这一轮，还可以调用工具 n 轮、共 m 次” (including this round, tools can still be called for n rounds, m times in total); the final request switches to R8's prompt. Since prompt caching step 2: at the end of the request, as the app's note (`RequestNote`) with the question or after the latest results; a note the model replied to stays in the history, so each request begins with exactly what the previous one sent | It says “rounds” rather than “model request count”, because the final request offers no tools |
 | L3 | The calls of one reply first start one by one (steps, blocks and approval), then run concurrently (at most 4); results are stored, written as blocks and sent in call order; with `SideEffect`, all run in sequence | The block order is “all calls first, then all results” (the UI pairs them by call number, so the display is unchanged) |
 | L4 | When a read-only call's tool name and normalized arguments (keys sorted, strings trimmed of leading and trailing whitespace) match an earlier successful call in this run, it is not executed; it is recorded as a step and counts toward the call count; if the result was already shrunk to one line, the full result is returned | Two identical calls in the same reply also execute only once; if the earlier call failed, the call runs as usual; the pre-search in the “开” setting counts as an earlier call |
 | L5 | When a request after tool results meets a network error, timeout, 5xx or 429, wait 2 seconds (429's `Retry-After`, at most 20 seconds) and retry once, as a separate step | Retry only when this request has received nothing yet (no retry once text has streamed out, to avoid duplicating the body); a second consecutive failure ends as usual. `ChatClientException` gains `RetryAfter` and `IsTransient` |
@@ -175,12 +196,12 @@ Done in four steps in the order of section 5, one commit per item; the five item
 | L7 | Order of shrinking to one line: failed and rejected → search results not cited and whose pages were not read → local and other results (and search results whose pages were read) → web pages → those cited in the body | None |
 | L8 | When tools are offered, planning uses 75% of the space (`ContextBudget.LeavingRoom`, with a wider margin); when the required items do not fit, the original space is used; requests during the run can still use all of it | The context ring predicts with the same room since 0.5.11, and counts the run instructions and tools |
 | L9 | “开” setting: when the question is shorter than 30 characters or contains a referring word, prepend the conversation title and branch selection (at most 100 characters each) | When there is no title yet (common for the second question), the previous question is used in its place. Referring words are detected by a simple rule: any “它” in the sentence counts, which may add extra context, harmlessly |
-| L10 | When “检索附件” (search attachments) is available, “本会话较早取得的材料” (material obtained earlier in this conversation) is attached after the run prompt: the last 10 tool results (web page title and host, name) and resource numbers, within about 300 tokens | None |
+| L10 | When “检索附件” (search attachments) is available, “本会话较早取得的材料” (material obtained earlier in this conversation) is attached after the run prompt: the last 10 tool results (web page title and host, name) and resource numbers, within about 300 tokens. Since prompt caching step 2 it goes in the first request's note, with the question: it grows from question to question | None |
 | L11 | One numbering sequence per run (`RunSources`): each part from attachment search and each summary from summary network search gets a number; a web page read in an earlier run keeps its URL when read again and shares numbering with web sources; the citation list shows “附件《》” (Attachment), “材料《》” (Material) and “总结《》” (Summary) with the location, and clicking opens the viewer (scrolled to the passage) or the summary | An extra “材料” (Material) class was added (search results and the like obtained in earlier runs, which are not the user's attachments). Old [n] markers in stored web pages are removed when they are read again, so the model does not reuse them. The `citation` block's stored name is unchanged; its data gains optional `kind` and `target`, and old data reads as usual |
 
 **Not triggered on a real service, covered only by fake-model tests:** L4 (the model made no repeated calls this time), L5 (no retryable error occurred), L6 (no middle truncation), L7 (space never ran out), the actual concurrency of L3 (the report does not record which calls came from the same reply), L9 (the “开” questions in the evaluation are the first question in a new conversation).
 
-**To do (not in this scope):**
+**To do (not in this scope):** both items were done in reply quality increment 1 (2026-11-27), and wait for a real evaluation:
 
-- Attachment digest requests may be truncated by the output limit on reasoning models (step 4 `tight-context`); to be looked at together with the same kind of problem in context compression.
-- Run prompt version 3 dropped “依据附件时写出名称” (name the attachment when relying on it); attachment parts sent directly with the question have no numbers, so the model may still write [n] (step 4 `attachment-long`). After adding a sentence back, another evaluation is needed.
+- Attachment digest requests were truncated by the output limit on reasoning models (step 4 `tight-context`): a long attachment was digested in segments as large as the input space allowed, which left the first request too little output. Every digest request now leaves the whole digest allowance for output. The first real comparison (2026-11-27, [reply-quality-20261127](../reviews/reply-quality-20261127/README.md)) still saw a digest cut off at 8,192 tokens, so digests follow the rule of the other summaries: 16,384 tokens of output (in a small window, all but 4,000 tokens of input) and one more request after a cut-off (`AttachmentDigestOutputTests`).
+- Run prompt version 3 dropped “依据附件时写出名称” (name the attachment when relying on it); version 4 has it again (step 4 `attachment-long`).

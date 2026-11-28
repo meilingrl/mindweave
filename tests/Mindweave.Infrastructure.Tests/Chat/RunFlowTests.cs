@@ -58,7 +58,7 @@ public class RunFlowTests
         Assert.Equal([SearchAttachmentsTool.ToolName], requests[0].Tools!.Select(t => t.Name));
         var assistant = requests[1].Turns.Single(t => t.ToolCalls is not null);
         Assert.Equal("我先查一下附件。", assistant.Content);
-        var tool = requests[1].Turns[^1];
+        var tool = FakeChatClient.Dialogue(requests[1])[^1];
         Assert.Equal((ChatRole.Tool, call.CallId), (tool.Role, tool.ToolCallId));
         Assert.Contains("瓦特改良了蒸汽机", tool.Content, StringComparison.Ordinal);
 
@@ -107,7 +107,7 @@ public class RunFlowTests
         var result = answer.Blocks.OfType<ToolResultBlock>().Single();
         Assert.Equal(ToolResultStatus.Succeeded, result.Status);
         Assert.Equal(new ToolFinding(ToolFindingKind.ResourcePart, resource.ToString(), ModelPhrases.Current.PastedText, 1), Assert.Single(result.Findings!));
-        Assert.Contains("瓦特改良了蒸汽机", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Contains("瓦特改良了蒸汽机", FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[^1].Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class RunFlowTests
         Assert.Equal(RunLimits.Default.ModelRequests, requests.Count);
         Assert.All(requests.SkipLast(1), r => Assert.True(r.HasTools));
         Assert.False(requests[^1].HasTools);
-        Assert.Contains(AnswerRunnerFinalInstruction, requests[^1].Turns[0].Content, StringComparison.Ordinal);
+        Assert.Contains(AnswerRunnerFinalInstruction, FakeChatClient.NoteOf(requests[^1]), StringComparison.Ordinal);
         Assert.Equal(MessageState.Complete, answer.State);
 
         var run = (await h.Runs.RunsAsync(conversation, Ct))[answer.Id];
@@ -219,7 +219,7 @@ public class RunFlowTests
         Assert.Contains("delete_everything", results[1].Preview, StringComparison.Ordinal);
         Assert.Contains("（不存在的工具）", answer.Blocks.OfType<ToolCallBlock>().Last().Summary, StringComparison.Ordinal);
         var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
-        Assert.StartsWith("出错：", requests[1].Turns[^1].Content, StringComparison.Ordinal);
+        Assert.StartsWith("出错：", FakeChatClient.Dialogue(requests[1])[^1].Content, StringComparison.Ordinal);
         var run = (await h.Runs.RunsAsync(conversation, Ct))[answer.Id];
         Assert.Equal([RunStepState.Failed, RunStepState.Failed], run.Steps.Where(s => s.Kind == RunStepKind.Tool).Select(s => s.State));
     }

@@ -1,3 +1,4 @@
+using Mindweave.Application.Conversations;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Models;
 using Mindweave.Core.Context;
@@ -56,7 +57,7 @@ public class TokenCalibrationFlowTests
         Assert.Empty(await h.Requests.RecentTokenSamplesAsync("https://other.example/v1", "fake-model", 50, Ct));
 
         var usage = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
-        var raw = TokenEstimator.PerRequest + (await h.Store.GetMessagesAsync(conversation, Ct)).Sum(m => TokenEstimator.Message(m.Text));
+        var raw = TokenEstimator.PerRequest + TokenEstimator.Message(AnswerPrompt.For(false)) + (await h.Store.GetMessagesAsync(conversation, Ct)).Sum(m => TokenEstimator.Message(m.Text));
         Assert.Equal(InputTokens, usage.Budget);
         var fitted = TokenCalibration.Fit([.. samples.Select(s => (s.Estimate, s.Reported))]);
         Assert.Equal(fitted.Predict(raw), usage.Tokens);
@@ -70,7 +71,7 @@ public class TokenCalibrationFlowTests
         var conversation = await AskAsync(h, null, "第一个问题");
 
         var usage = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
-        var raw = TokenEstimator.PerRequest + (await h.Store.GetMessagesAsync(conversation, Ct)).Sum(m => TokenEstimator.Message(m.Text));
+        var raw = TokenEstimator.PerRequest + TokenEstimator.Message(AnswerPrompt.For(false)) + (await h.Store.GetMessagesAsync(conversation, Ct)).Sum(m => TokenEstimator.Message(m.Text));
         Assert.Equal(raw, usage.Tokens);
         Assert.Equal(InputTokens, usage.Budget);
     }

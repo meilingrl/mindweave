@@ -100,6 +100,8 @@ public sealed partial class ConversationService : IConversations
     private readonly IRunStore _runs;
     private readonly Preferences.IToolSettings _toolSettings;
     private readonly Preferences.IWebSearchSettings _webSearch;
+    private readonly Preferences.IPersonalNote _personalNote;
+    private readonly Summaries.MatchingSummaries _matching;
 
     public ConversationService(
         IConversationStore store,
@@ -117,8 +119,14 @@ public sealed partial class ConversationService : IConversations
         Tools.ToolRegistry tools,
         Preferences.IToolSettings toolSettings,
         IRunStore runs,
-        Preferences.IWebSearchSettings webSearch)
+        Preferences.IWebSearchSettings webSearch,
+        Preferences.IPersonalNote personalNote,
+        Summaries.MatchingSummaries matching)
     {
+        ArgumentNullException.ThrowIfNull(personalNote);
+        ArgumentNullException.ThrowIfNull(matching);
+        _personalNote = personalNote;
+        _matching = matching;
         ArgumentNullException.ThrowIfNull(summaries);
         ArgumentNullException.ThrowIfNull(archive);
         ArgumentNullException.ThrowIfNull(resources);
@@ -252,9 +260,11 @@ public sealed partial class ConversationService : IConversations
 
         // Shown in billed tokens: the estimate through what this model was seen to bill. With tools, what the next question
         // sends is planned with room for the run, and the run's instructions and tool definitions go with it.
-        var (planned, inputs, known) = await PlanAsync(id, own.Messages, budget, model, cancellationToken, ancestors).ConfigureAwait(false);
+        var (planned, inputs, known) = await PlanAsync(id, own.Messages, budget, model, cancellationToken, ancestors, forQuestion: false).ConfigureAwait(false);
         var run = await RunPlanAsync(null, id, inputs, model, null, string.Empty, cancellationToken).ConfigureAwait(false);
-        var instructions = TokenEstimator.PerRequest + (run is null ? 0 : TokenEstimator.Message(RunPrompt.For(run.Tools)));
+        var system = AnswerPrompt.WithRun(inputs.Instructions, run is null ? string.Empty : RunPrompt.For(run.Tools));
+        var instructions = TokenEstimator.PerRequest + (system.Length == 0 ? 0 : TokenEstimator.Message(system))
+            + (inputs.Note.Length == 0 ? 0 : TokenEstimator.Message(RequestNote.Of(inputs.Note)));
         var tools = run?.Tools.Select(Tools.ToolRegistry.Definition).Sum(ChatTurns.Estimate) ?? 0;
         var items = BranchContext.Assemble(ancestors, own, ModelPhrases.Current);
         var raw = items.Sum(i => TokenEstimator.Message(i.Text));
@@ -335,7 +345,7 @@ public sealed partial class ConversationService : IConversations
         var user = QuestionMessage(id, question, blocks, now);
         var answer = NewMessage(id, 1, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var (planned, inputs, known) = await PlanAsync(id, [user], budget, model, cancellationToken, chain).ConfigureAwait(false);
+        var (planned, inputs, known) = await PlanAsync(id, [user], budget, model, cancellationToken, chain, workspace).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -801,10 +811,13 @@ public sealed partial class ConversationService : IConversations
     /// What is sent for <paramref name="own"/>: the frozen ancestor chain, then the conversation itself, fitted to
     /// the model's budget (S3). Stored summaries count with their real size; missing ones are written later, in the
     /// answer task's own slot. <paramref name="chain"/> is the ancestor chain when the caller has it already: that of a
-    /// conversation that is not stored yet, or one just read.
+    /// conversation that is not stored yet, or one just read; <paramref name="workspace"/> is that of a conversation not
+    /// stored yet. <paramref name="forQuestion"/>: the last user message is the question to answer, so the workspace's
+    /// summaries are searched for it (requirements §10.9); false when only the size of what is sent is wanted.
     /// </summary>
     private async Task<(PlanOutcome Outcome, ContextInputs Inputs, IReadOnlyDictionary<SummaryKey, int> Known)> PlanAsync(
-        ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, ModelSnapshot model, CancellationToken cancellationToken, IReadOnlyList<ContextSegment>? chain = null)
+        ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, ModelSnapshot model, CancellationToken cancellationToken, IReadOnlyList<ContextSegment>? chain = null,
+        WorkspaceId? workspace = null, bool forQuestion = true)
     {
         var ancestors = chain ?? await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
@@ -817,9 +830,81 @@ public sealed partial class ConversationService : IConversations
         // ranked by the question the user typed.
         var question = own.LastOrDefault(m => m.Role == MessageRole.User) is { } last ? ContentBlocks.TypedTextOf(last.Blocks) : string.Empty;
         var candidates = await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment, phrases), question, model, cancellationToken).ConfigureAwait(false);
-        var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates, phrases);
-        return (outcome, new ContextInputs(ancestors, segment, candidates), known);
+        // The answer instructions open every answer request and count in its budget (architecture §15.5), with the personal
+        // note; a branch from a selected passage gets its own part, and the titles of matching summaries go with the
+        // question (requirements §10.9).
+        var branch = !string.IsNullOrWhiteSpace(segment.Quote);
+        var titles = forQuestion ? await MatchingTitlesAsync(id, workspace, ancestors, segment, question, cancellationToken).ConfigureAwait(false) : [];
+        var inputs = new ContextInputs(ancestors, segment, candidates)
+        {
+            Instructions = AnswerPrompt.Opening(await PersonalNoteAsync(cancellationToken).ConfigureAwait(false)),
+            Note = AnswerPrompt.RequestPart(branch, titles),
+        };
+        var outcome = Plan(inputs);
+
+        // Short of room, the titles are left out before anything is compressed or cut (requirements §10.9, §9.6).
+        if (titles.Count > 0 && (outcome.Plan is not { } full || full.IsCompressed || full.IsResourceReduced))
+        {
+            var without = inputs with { Note = AnswerPrompt.BranchPart(branch) };
+            if (Plan(without) is { Plan: not null } fits)
+            {
+                (inputs, outcome) = (without, fits);
+            }
+        }
+
+        return (outcome, inputs, known);
+
+        PlanOutcome Plan(ContextInputs planned) =>
+            ContextPlanner.Plan(ancestors, segment, budget.Available - planned.InstructionTokens, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates, phrases);
     }
+
+    /// <summary>The personal note (requirements §10.9); one that cannot be read is left out, and the answer goes on.</summary>
+    private async Task<string> PersonalNoteAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _personalNote.GetAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogPersonalNoteUnread(_logger, ex);
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// The titles of the workspace's summaries that match the question (requirements §10.9), searched by the follow-up rule
+    /// (L9, <see cref="Tools.WebRun.SummaryQuery"/>). The summaries of this conversation and its ancestors are left out: their
+    /// text is in the request already. A search that fails leaves the titles out, with no error shown.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> MatchingTitlesAsync(
+        ConversationId id, WorkspaceId? workspace, IReadOnlyList<ContextSegment> ancestors, ContextSegment own, string question, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var stored = workspace is null ? await _store.GetAsync(id, cancellationToken).ConfigureAwait(false) : null;
+            if ((workspace ?? stored?.WorkspaceId) is not { } space)
+            {
+                return [];
+            }
+
+            var questions = own.Messages.Where(m => m.Role == MessageRole.User).Select(m => ContentBlocks.TypedTextOf(m.Blocks)).ToList();
+            var previous = questions.Count > 1 ? questions[^2] : null;
+            var query = Tools.WebRun.SummaryQuery(question, stored?.Title, own.Quote, previous);
+            return await _matching.TitlesAsync(space, query, [.. ancestors.Select(a => a.Conversation), id], cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogSummarySearchFailed(_logger, ex, id);
+            return [];
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The personal note could not be read; the request goes without it")]
+    private static partial void LogPersonalNoteUnread(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The search for matching summaries failed for conversation {ConversationId}; the answer goes without their titles")]
+    private static partial void LogSummarySearchFailed(ILogger logger, Exception exception, ConversationId conversationId);
 
     /// <summary>Share of the input space a run's context plan leaves for tool results and later rounds (L8).</summary>
     internal const int RunRoomPercent = 25;
@@ -837,7 +922,7 @@ public sealed partial class ConversationService : IConversations
         }
 
         var room = budget.LeavingRoom(RunRoomPercent);
-        return ContextPlanner.Plan(inputs.Ancestors, inputs.Own, room.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, inputs.Resources, ModelPhrases.Current).Plan is { } reserved
+        return ContextPlanner.Plan(inputs.Ancestors, inputs.Own, room.Available - inputs.InstructionTokens, key => known.TryGetValue(key, out var tokens) ? tokens : null, inputs.Resources, ModelPhrases.Current).Plan is { } reserved
             ? (reserved, room)
             : (plan, budget);
     }

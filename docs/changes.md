@@ -17,6 +17,26 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.38 · 2026-11-28
+
+- Added Settings › Personal note: up to 500 characters of your own preferences, sent at the start of every answer and summary request, marked as yours; your question or a required format wins over it (D-043 step 2)
+- Added the titles of matching summaries to an answer request: one local keyword search of the workspace's summaries, the top three, left out first when room is short
+- Changed the model section's privacy line to name the personal note and the summary titles
+- Try: Settings › Personal note, write a note and ask a question; summarize a conversation, then ask about its topic in another conversation
+- Not verified: Windows and Linux before CI; a real window; a real model reading the note and the titles; match quality on real workspaces; the search's time on a large workspace
+
+## 0.6.37 · 2026-11-28
+
+- Added answer instructions to every answer, with a branch part that says what the branch was opened for (requirements §10.9, D-043 step 1)
+- Added to the evaluation: eight scenarios for explanations, checks, time to first text, cost with a cap, a side-by-side report (`scripts/real-api.sh compare`) and an optional judge. On deepseek-flash, checks rose from 59/72 to 64/72 on the scenarios both prompt versions completed; the reports are in docs/reviews/reply-quality-20261127 and cache-stable-start-20261127
+- Changed the run instructions to version 4: when to stop searching and how to refine, plain terms, original sources, and naming an attachment that has no number
+- Changed the summary prompt to version 2: the gist, grouped by concept, and a "Key terms" line
+- Changed every request to start the same way: the system turn holds only what is the same for every conversation, and what belongs to one request goes last, in the app's own notes (prompt caching step 2, D-045). On deepseek-flash the share of input read from the cache rose from 44% to 67%
+- Fixed attachment digests: they leave the full output allowance to reasoning models, and get one more request after a cut-off, as the other summaries do
+- Documents: architecture §15.5 says the run instructions take about 500 estimated tokens for one tool, and that the parts that change per request are the app's notes in a user turn on every service; decision log D-049
+- Try: ask a question in a branch and read the answer against the same question before; `scripts/real-api.sh compare` with a budget
+- Not verified: Windows and Linux before CI; providers other than DeepSeek for the stable start; whether answers and summaries read better, which is yours to judge in daily use
+
 ## 0.6.36 · 2026-11-28
 
 - Added one failure block wherever a request fails (an answer, a summary, a tool step, 测试连接 and the model list, 网络搜索 › 测试, an MCP server): what failed, what to do, a link to the setting that fixes it, Details (time, model, status, request ID, duration, the service's text) and Copy details, which carries no conversation text and no key (D-042 §2.1)

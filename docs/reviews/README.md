@@ -8,6 +8,8 @@
 | [结构审查：过长文件与职责混杂](claude-auto-structure-20261106/README.md) | 2026-11-06 三路只读分析：生成协调器的拆分步骤、其他大文件的排序与拆分方案、测试代码的重复辅助方法 |
 | [工程健康检查 2026-11-12](claude-auto-health-20261112/README.md) | 18 个维度的分级与 225 条发现（英文）；[low-triage.md](claude-auto-health-20261112/low-triage.md) 是低／信息级待办的分诊表 |
 | [运行评测基线 2026-11-19](run-eval-20261119/README.md) | 评测 L12 对 deepseek-flash 的第一份基线（改进 L1–L11 之前）：报告、数字与未通过检查的原因 |
+| [回复质量第一步对照 2026-11-27](reply-quality-20261127/README.md) | 上一版与本版提示词在 deepseek-flash 上的并排对照（含评判提示）：报告、数字、费用与发现（英文） |
+| [提示缓存第二步评测 2026-11-27](cache-stable-start-20261127/README.md) | 请求的固定开头（缓存第二步）前后在 deepseek-flash 上各一次评测：检查、读自缓存的输入、费用与发现（英文） |
 
 现行行为以 [需求](../requirements.md) 和 [架构](../architecture.md) 为准。
 

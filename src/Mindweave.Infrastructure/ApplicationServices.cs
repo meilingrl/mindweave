@@ -73,6 +73,8 @@ public static class ApplicationServices
         services.AddSingleton<UsageStatisticsService>();
         services.AddSingleton<UsagePricesService>();
         services.AddSingleton<RecommendationSettingsService>();
+        services.AddSingleton<PersonalNoteService>();
+        services.AddSingleton<MatchingSummaries>();
         services.TryAddSingleton(new RecommendationOptions()); // Tests stand its clock still.
         services.AddSingleton<RecommendationService>();
         services.AddSingleton<SummaryLinkService>();
@@ -127,6 +129,7 @@ public static class ApplicationServices
         services.TryAddSingleton<IUsageStatistics>(sp => sp.GetRequiredService<UsageStatisticsService>());
         services.AddSingleton<IUsagePrices>(sp => sp.GetRequiredService<UsagePricesService>());
         services.AddSingleton<IRecommendationSettings>(sp => sp.GetRequiredService<RecommendationSettingsService>());
+        services.AddSingleton<IPersonalNote>(sp => sp.GetRequiredService<PersonalNoteService>());
         // A test may hold the recommendations (to see the page while they load), as for the conversations interface.
         services.TryAddSingleton<IRecommendations>(sp => sp.GetRequiredService<RecommendationService>());
         services.AddSingleton<ISummaryLinks>(sp => sp.GetRequiredService<SummaryLinkService>());

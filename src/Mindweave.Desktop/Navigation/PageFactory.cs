@@ -51,7 +51,8 @@ internal sealed class PageFactory(
     ShareRequests share,
     LanguageSwitch language,
     TextWidth textWidth,
-    Application.Diagnostics.IFailureDetailsSource failures) : IPageFactory
+    Application.Diagnostics.IFailureDetailsSource failures,
+    Application.Preferences.IPersonalNote personalNote) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -63,7 +64,7 @@ internal sealed class PageFactory(
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings,
             new ToolSettingsPanel(toolSettings, models, new WebSearchSettingsPanel(webSearch), new McpServersPanel(mcpServers, mcpConnections, dispatcher)),
-            language, textWidth),
+            language, textWidth, new PersonalNotePanel(personalNote)),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
         UsageStatisticsRoute => new UsageStatisticsViewModel(context.Workspace, statistics, prices, context.Navigator),
         WorkspacesRoute => new WorkspacesViewModel(
