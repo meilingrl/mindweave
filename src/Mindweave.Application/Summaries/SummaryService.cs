@@ -58,6 +58,12 @@ public sealed class SummaryService : ISummaries
     /// <summary>Output cap for a summary; reasoning models spend hidden reasoning against it (D-015).</summary>
     public const int SummaryOutputTokens = 16_384;
 
+    /// <summary>
+    /// The version of the summary prompt (the "summary" prompt files), for evaluation reports; raise it whenever the text
+    /// changes. Version 2 (reply quality, Q9): a gist first, the body by concept, key terms.
+    /// </summary>
+    public const int PromptVersion = 2;
+
     private const int SourceExcerpt = 3_000;
 
     /// <summary>The last "question" of a summary request; never stored.</summary>

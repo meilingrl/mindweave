@@ -24,7 +24,7 @@ This directory records the choices that the handoff document lets implementers r
 | [Web search and citations (agent platform phase 3)](web-search.md) | This phase's new decisions W1–W16 (confirmed by the user 2026-11-17), the Tavily adapter, URL checks for page fetching, approval cards, citation numbering and locating, 设置 › 工具 › 网络搜索 (Settings › Tools › Web search), items waiting for verification with real services |
 | [Third-party tools (agent platform phase 4, MCP)](mcp.md) | This phase's new decisions M1–M18 (accepted by the user 2026-11-19), the MCP client package, server settings and keys, starting and restarting processes, enabling tools and definition snapshots, approval cards, untrusted results, the fake server for tests |
 | [Run loop improvements](agent-loop.md) | A walkthrough of the run loop, the problems found P1–P10, improvements L1–L12 (run prompt, budget line, concurrent read-only calls, retry, leaving room, eviction by citation, material index, local citations, evaluation); implemented and merged 2026-11-20; §8 lists what is left |
-| [Reply quality](reply-quality.md) | Approved 2026-11-26 (D-043), not built: answer instructions for every answer with a branch part, the personal note, the titles of matching summaries, stop and refine rules, the best-matching passages of a long page, summaries by concept, the evaluation with cost and time; no suggested questions under an answer, no quiz or guided mode; three increments |
+| [Reply quality](reply-quality.md) | Approved 2026-11-26 (D-043), increment 1 built (0.6.37): answer instructions for every answer with a branch part, the personal note, the titles of matching summaries, stop and refine rules, the best-matching passages of a long page, summaries by concept, the evaluation with cost and time; no suggested questions under an answer, no quiz or guided mode; three increments |
 
 ## Network
 
@@ -52,7 +52,7 @@ This directory records the choices that the handoff document lets implementers r
 | Document | Content |
 | --- | --- |
 | [Free trial](free-trial.md) | Adopted 2026-11-22 (evolution D9), not built: a relay on the owner's VPS, anonymous install tokens with proof-of-work, per-install and global caps, the request flow, starting limits, hosting, the app changes, cost and open decisions |
-| [Ask from anywhere, connections, search and caching](ask-anywhere.md) | Approved 2026-11-27 (D-045), not built: quoting with notes from a conversation, from another application and from the screen, with the app staying in the menu bar; several connections with one current model, a model for background work, a local server and the Messages and Responses protocols; search by meaning with an embedding model on a saved connection; cached tokens recorded, a stable request order and cache points; what is set aside (browser extension, MCP server, command line, a model inside the app) |
+| [Ask from anywhere, connections, search and caching](ask-anywhere.md) | Approved 2026-11-27 (D-045), prompt caching steps 1 and 2 built (0.6.28, 0.6.37): quoting with notes from a conversation, from another application and from the screen, with the app staying in the menu bar; several connections with one current model, a model for background work, a local server and the Messages and Responses protocols; search by meaning with an embedding model on a saved connection; cached tokens recorded, a stable request order and cache points; what is set aside (browser extension, MCP server, command line, a model inside the app) |
 
 ## Interface
 

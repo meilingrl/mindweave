@@ -77,7 +77,7 @@ public class MathRenderingTests
         child.Composer.Text = "为什么？";
         await child.Composer.SendCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].CanBranch);
-        var sent = app.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
+        var sent = app.Client.Requests.Last(Testing.FakeChatClient.IsAnswer);
         Assert.Contains("> 质能方程 $E = mc^2$ 说明", sent.Turns[^1].Content, StringComparison.Ordinal);
 
         child.ReturnToSourceCommand.Execute(null);

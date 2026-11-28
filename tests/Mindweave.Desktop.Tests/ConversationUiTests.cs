@@ -56,7 +56,7 @@ public class ConversationUiTests
 
         var page = await OpenConversationAsync(app, "蒸汽机是谁发明的？", null);
         await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Complete);
-        await UiWait.UntilAsync(() => app.Client.Requests.Any(r => r.Turns[0].Role == ChatRole.System));
+        await UiWait.UntilAsync(() => app.Client.Requests.Any(FakeChatClient.IsTitle));
         Assert.NotEqual(FakeChatClient.DefaultTitle, page.Title);
 
         titles.SetResult();

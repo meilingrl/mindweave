@@ -59,9 +59,12 @@ public class ConversationFlowTests
         var second = await h.Conversations.AskAsync(first.Conversation, "二", Ct);
         await h.WaitForAnswerAsync(second.Answer!.Value);
 
-        var request = h.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
-        Assert.Equal(["一", "答：一", "二"], request.Turns.Select(t => t.Content));
-        Assert.Equal([ChatRole.User, ChatRole.Assistant, ChatRole.User], request.Turns.Select(t => t.Role));
+        var request = h.Client.Requests.Last(FakeChatClient.IsAnswer);
+        Assert.Equal(["一", "答：一", "二"], FakeChatClient.Dialogue(request).Select(t => t.Content));
+        Assert.Equal([ChatRole.User, ChatRole.Assistant, ChatRole.User], FakeChatClient.Dialogue(request).Select(t => t.Role));
+
+        // Every answer request opens with the answer instructions, a root conversation's without the branch part (requirements §10.9).
+        Assert.Equal(new ChatTurn(ChatRole.System, AnswerPrompt.For(false)), request.Turns[0]);
     }
 
     [Fact]
@@ -112,7 +115,7 @@ public class ConversationFlowTests
         // When a slot frees up, the waiting question runs before a's title task.
         holds[0].Finish();
         await h.WaitForAnswerAsync(c.Answer!.Value);
-        var order = h.Client.Requests.Select(r => r.Turns[0].Role == ChatRole.System ? "title" : r.Turns[^1].Content).ToArray();
+        var order = h.Client.Requests.Select(r => FakeChatClient.IsTitle(r) ? "title" : r.Turns[^1].Content).ToArray();
         Assert.Equal(["a", "b", "c"], order.Take(3));
         holds[1].Finish();
         await h.WaitForAnswerAsync(b.Answer!.Value);
@@ -160,8 +163,8 @@ public class ConversationFlowTests
 
         Assert.Equal(failed.Id, redone.Supersedes);
         Assert.Equal("答：二", redone.Text);
-        var request = h.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
-        Assert.Equal(["一", "答：一", "二"], request.Turns.Select(t => t.Content));
+        var request = h.Client.Requests.Last(FakeChatClient.IsAnswer);
+        Assert.Equal(["一", "答：一", "二"], FakeChatClient.Dialogue(request).Select(t => t.Content));
         var messages = (await h.Conversations.LoadAsync(first.Conversation, Ct))!.Messages;
         Assert.Equal(5, messages.Count);
         Assert.Contains(messages, m => m.Id == failed.Id && m.Text == "半截");
@@ -182,8 +185,8 @@ public class ConversationFlowTests
         await h.WaitForAnswerAsync(next.Answer!.Value);
 
         Assert.Equal(SendRejection.NotRetryable, notLast.Rejection);
-        var request = h.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
-        Assert.Equal(["一", "新答", "二"], request.Turns.Select(t => t.Content));
+        var request = h.Client.Requests.Last(FakeChatClient.IsAnswer);
+        Assert.Equal(["一", "新答", "二"], FakeChatClient.Dialogue(request).Select(t => t.Content));
     }
 
     [Fact]

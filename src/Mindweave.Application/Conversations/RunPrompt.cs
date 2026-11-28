@@ -8,19 +8,22 @@ using static Mindweave.Application.Languages.Bilingual;
 namespace Mindweave.Application.Conversations;
 
 /// <summary>
-/// The run instructions (docs/design/agent-loop.md L1, architecture §15.5): the system turn that opens every request of a run.
-/// What the app is, that only the user's question is an instruction, what each offered tool is for, when to stop, how to
-/// cite and what to say when something is missing; then the budget line (L2) or, for the last request, the instruction to
-/// answer (R8). An answer without tools gets none of this. <see cref="Version"/> changes with the text, so evaluation reports
-/// can be compared by it. The text is the prompt file "run" in the interface language (docs/design/bilingual-ui.md §5).
+/// The run instructions (docs/design/agent-loop.md L1, architecture §15.5), which follow the answer instructions
+/// (<see cref="AnswerPrompt"/>) in the system turn that opens every request of a run: that only the user's question is an
+/// instruction, what each offered tool is for, when to stop and how to search, which sources to prefer, how to cite and
+/// what to say when something is missing; then the budget line (L2) or, for the last request, the instruction to answer
+/// (R8). An answer without tools gets none of this. <see cref="Version"/> changes with the text, so evaluation reports can
+/// be compared by it. The text is the prompt file "run" in the interface language (docs/design/bilingual-ui.md §5).
 /// </summary>
 public static class RunPrompt
 {
     /// <summary>
     /// The version of the run instructions (the "run" prompt files and the tool lines below); raise it whenever the text
     /// changes. Writing the English text (docs/design/bilingual-ui.md §5) left the Chinese text, and so the version, as it was.
+    /// Version 4 (reply quality, Q6): the stop, refine, search-term and source lines, and naming an attachment without a
+    /// number; what the app is moved to the answer instructions.
     /// </summary>
-    public const int Version = 3;
+    public const int Version = 4;
 
     /// <summary>What each built-in tool is for; a third-party tool is described by its own definition.</summary>
     private static string? UseOf(string tool) => tool switch

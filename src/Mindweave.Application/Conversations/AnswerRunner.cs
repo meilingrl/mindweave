@@ -52,6 +52,30 @@ internal sealed partial class AnswerRunner(
         }
     }
 
+    /// <summary>
+    /// <paramref name="turns"/> opened by one system turn of <paramref name="system"/>, unchanged when it is empty. A system
+    /// turn already at the start (a summary of older context) is joined to it: some services refuse a system turn anywhere but first.
+    /// </summary>
+    internal static IReadOnlyList<ChatTurn> Opened(IReadOnlyList<ChatTurn> turns, string system)
+    {
+        if (system.Length == 0)
+        {
+            return turns;
+        }
+
+        var opened = new List<ChatTurn>(turns);
+        if (opened.Count > 0 && opened[0].Role == ChatRole.System)
+        {
+            opened[0] = opened[0] with { Content = system + "\n\n" + opened[0].Content };
+        }
+        else
+        {
+            opened.Insert(0, new ChatTurn(ChatRole.System, system));
+        }
+
+        return opened;
+    }
+
     /// <summary>What the answer says when its run failed in a way nobody foresaw.</summary>
     internal static string UnexpectedDetail(Exception ex) => $"Unexpected failure: {ex.Message}";
 
@@ -148,6 +172,9 @@ internal sealed partial class AnswerRunner(
             return;
         }
 
+        // The answer instructions open the request (requirements §10.9); a run adds its own to them. What belongs to this
+        // conversation only, the branch part, goes with the question, so the start stays the same for every request (§10.11.4).
+        request = request with { Turns = RequestNote.Append(Opened(request.Turns, work.Inputs?.Instructions ?? string.Empty), RequestNote.Of(work.Inputs?.Note)) };
         MessageState final;
         GenerationErrorKind? error = null;
         string? detail = null;

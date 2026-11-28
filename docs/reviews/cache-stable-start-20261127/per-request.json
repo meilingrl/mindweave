@@ -1,0 +1,338 @@
+{
+  "at": "2026-11-27T19:42:44.226238+00:00",
+  "model": "deepseek-flash @ api.deepseek.com",
+  "answerPrompt": 1,
+  "runPrompt": 4,
+  "summaryPrompt": 2,
+  "scenarios": [
+    {
+      "id": "web-auto",
+      "category": "网络",
+      "failure": null,
+      "passed": 4,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 着陆",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 web_search",
+          "passed": true,
+          "detail": "web_search、web_search、fetch_page、fetch_page、web_search"
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "3 个编号"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 4,
+        "ToolCalls": 5,
+        "ByTool": {
+          "web_search": 3,
+          "fetch_page": 2
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 3,
+        "ValidCitations": 3,
+        "EstimatedTokens": 7994,
+        "PromptTokens": 7410,
+        "CompletionTokens": 675,
+        "Seconds": 7.1987967,
+        "FirstTextSeconds": 5.3778169,
+        "ScenarioRequests": 4,
+        "ScenarioPromptTokens": 7410,
+        "ScenarioCompletionTokens": 675,
+        "ScenarioCacheReadTokens": 5632,
+        "InputTokens": 7410
+      },
+      "requests": [
+        {
+          "purpose": "answer",
+          "input": 955,
+          "cached": 768
+        },
+        {
+          "purpose": "answer",
+          "input": 1665,
+          "cached": 1024
+        },
+        {
+          "purpose": "answer",
+          "input": 2172,
+          "cached": 1664
+        },
+        {
+          "purpose": "answer",
+          "input": 2618,
+          "cached": 2176
+        }
+      ],
+      "quote": null,
+      "answer": "能查到的最新节点是：**星河-3 已在月球背面软着陆**。\n\n**任务概况**\n星河-3 是南溟航天研究院的第三个月球探测任务，2026 年 10 月 20 日发射 [2]。探测器上装了四台科学仪器：月壤雷达、中子谱仪、全景相机和地震计；任务目标是研究月球背面的浅层结构以及月壤中的含水情况，设计工作寿命为一年 [2]。\n\n**最新进展**\n2026 年 11 月 9 日北京时间 03:12，星河-3 在月球背面“玉衡-7”区域着陆。该区域是一个相对平坦的撞击坑底部。研究院表示，各系统工作正常，并计划在着陆后的三个月内开展科学探测 [1]。\n\n**后续可关注什么**\n“未来三个月开展科学探测”这一安排，意味着接下来还会公布月壤雷达剖面、中子谱仪测得的含氢量等实测结果。我在网上还没找到这些数据发布的报道。另外，这个任务设计寿命一年，因此后续还可以关注它能否顺利度过月夜。\n\n作为对照，前一代星河-2 于 2023 年发射，只在月球轨道完成了极区地形测绘，没有着陆，所以星河-3 是这一系列首次落月 [3]。\n\n如果你是在别处看到“星河-3”这个名称，想了解的其实是另一个同名对象，比如某颗商业卫星或电影里的设定，请说明一下，我再帮你查。"
+    },
+    {
+      "id": "follow-up",
+      "category": "追问",
+      "failure": null,
+      "passed": 5,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 月壤雷达",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 地震计",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "1 个编号"
+        },
+        {
+          "name": "追问的检索词带上主题",
+          "passed": true,
+          "detail": "没有再搜索"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 3,
+        "ToolCalls": 3,
+        "ByTool": {
+          "search_attachments": 2,
+          "fetch_page": 1
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 1,
+        "LimitReached": null,
+        "CitedNumbers": 1,
+        "ValidCitations": 1,
+        "EstimatedTokens": 8450,
+        "PromptTokens": 7869,
+        "CompletionTokens": 721,
+        "Seconds": 6.1121767,
+        "FirstTextSeconds": 4.0576621,
+        "ScenarioRequests": 7,
+        "ScenarioPromptTokens": 13394,
+        "ScenarioCompletionTokens": 1756,
+        "ScenarioCacheReadTokens": 9600,
+        "InputTokens": 7869
+      },
+      "requests": [
+        {
+          "purpose": "answer",
+          "input": 1700,
+          "cached": 896
+        },
+        {
+          "purpose": "answer",
+          "input": 2943,
+          "cached": 1792
+        },
+        {
+          "purpose": "answer",
+          "input": 3226,
+          "cached": 3072
+        }
+      ],
+      "quote": null,
+      "answer": "据南溟航天研究院的《星河-3 任务介绍》，探测器携带**四台科学仪器**：**月壤雷达、中子谱仪、全景相机和地震计** [1]。\n\n这四台仪器大致分工如下（前面的定义是通用的仪器原理；我手头的材料只列出了名称，没有给出具体参数）：\n\n- **月壤雷达**：向月面下方发射电磁波，并接收不同深度的反射信号，用来查看浅层结构，例如分层和埋藏物。这对应任务目标中的“浅层结构” [1]。\n- **中子谱仪**：测量月表逸出的中子数量与能量。氢原子对中子有很强的减速作用，因此中子谱异常通常意味着那里含氢较多，常被用来推断水或含水矿物的存在。这对应任务目标中的“月壤含水情况” [1]。\n- **全景相机**：拍摄着陆区周围的环形全景影像，用于地形、地貌记录和工程巡视。\n- **地震计**：记录月震与陨石撞击引起的震动，用来探测月球内部结构；阿波罗任务也曾用过同类仪器。\n\n两点提醒：\n\n1. 这份任务介绍很短，只写了仪器名称，没有说明型号、探测精度级别，也没有说明是否与其他机构合作研制。如果你要这些细节，还需要更详细的资料；我目前没有找到。\n2. 上述信息只有南溟航天研究院一家来源 [1]，我没有找到独立报道来交叉印证这些仪器的清单。"
+    },
+    {
+      "id": "tight-context",
+      "category": "长上下文",
+      "failure": null,
+      "passed": 4,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 邓远山",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "包含 玉衡-7",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 web_search",
+          "passed": true,
+          "detail": "web_search、web_search、fetch_page、fetch_page"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 3,
+        "ToolCalls": 4,
+        "ByTool": {
+          "web_search": 2,
+          "fetch_page": 2
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 3,
+        "ValidCitations": 3,
+        "EstimatedTokens": 42479,
+        "PromptTokens": 32760,
+        "CompletionTokens": 14792,
+        "Seconds": 73.7077708,
+        "FirstTextSeconds": 72.8782086,
+        "ScenarioRequests": 8,
+        "ScenarioPromptTokens": 32760,
+        "ScenarioCompletionTokens": 14792,
+        "ScenarioCacheReadTokens": 23549,
+        "InputTokens": 32760
+      },
+      "requests": [
+        {
+          "purpose": "resource_summary",
+          "input": 2384,
+          "cached": 2176
+        },
+        {
+          "purpose": "resource_summary",
+          "input": 2366,
+          "cached": 2176
+        },
+        {
+          "purpose": "resource_summary",
+          "input": 2317,
+          "cached": 2176
+        },
+        {
+          "purpose": "resource_summary",
+          "input": 1795,
+          "cached": 1661
+        },
+        {
+          "purpose": "resource_summary",
+          "input": 1803,
+          "cached": 0
+        },
+        {
+          "purpose": "answer",
+          "input": 6660,
+          "cached": 1024
+        },
+        {
+          "purpose": "answer",
+          "input": 7463,
+          "cached": 6784
+        },
+        {
+          "purpose": "answer",
+          "input": 7972,
+          "cached": 7552
+        }
+      ],
+      "quote": null,
+      "answer": "**石桥：** 白鹭村横跨鹭溪的石桥，由工匠**邓远山**于 1902 年主持修建；它有九个桥孔，桥面铺青石板，至今能通牛车（见附件第 41 节）。\n\n**星河-3 着陆点：** 据航天新闻报道，星河-3 于 2026 年 11 月 9 日在月球背面着陆，着陆点位于月球背面的**“玉衡-7”区域**，那里是一片相对平坦的撞击坑底部 [1]。该任务由南溟航天研究院发射，携带月壤雷达、中子谱仪、全景相机与地震计，主要研究月球背面浅层结构和月壤含水情况 [2][3]。\n\n这是网络报道的说法，我无法独立核实“玉衡-7”这一名称。"
+    },
+    {
+      "id": "long-page",
+      "category": "网络",
+      "failure": null,
+      "passed": 4,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 9 年／9年／九年",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 fetch_page",
+          "passed": true,
+          "detail": "web_search、fetch_page、search_attachments、search_attachments、search_attachments、search_attachments"
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "1 个编号"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 4,
+        "ToolCalls": 6,
+        "ByTool": {
+          "web_search": 1,
+          "fetch_page": 1,
+          "search_attachments": 4
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 1,
+        "ValidCitations": 1,
+        "EstimatedTokens": 17942,
+        "PromptTokens": 13120,
+        "CompletionTokens": 741,
+        "Seconds": 5.6917949,
+        "FirstTextSeconds": 4.9105029,
+        "ScenarioRequests": 4,
+        "ScenarioPromptTokens": 13120,
+        "ScenarioCompletionTokens": 741,
+        "ScenarioCacheReadTokens": 9088,
+        "InputTokens": 13120
+      },
+      "requests": [
+        {
+          "purpose": "answer",
+          "input": 1123,
+          "cached": 896
+        },
+        {
+          "purpose": "answer",
+          "input": 2699,
+          "cached": 1152
+        },
+        {
+          "purpose": "answer",
+          "input": 3990,
+          "cached": 2816
+        },
+        {
+          "purpose": "answer",
+          "input": 5308,
+          "cached": 4224
+        }
+      ],
+      "quote": null,
+      "answer": "**青鸾-7 卫星的设计寿命是 9 年。**\n\n该表述出现在报告接近结尾的部分：青鸾-7 气象卫星在 2025 年完成在轨测试并交付使用，由研究院第二总体部研制，设计寿命为 9 年，主要载荷是一台多通道微波辐射计，可在云层下测量大气温度与湿度 [1]。\n\n补充两点：\n- 报告本身大部分篇幅是各部门专题会议的例行记述，讲到卫星型号的内容只在靠后的部分出现少数几段，所以只读开头容易以为报告里没有这颗卫星。\n- 9 年指的是设计寿命，即设计上预期可正常工作的年限，并不等于实际在轨寿命；实际退役时间取决于燃料、器件状态与任务需要。"
+    }
+  ]
+}

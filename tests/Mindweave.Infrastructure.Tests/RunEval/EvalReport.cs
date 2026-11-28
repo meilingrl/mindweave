@@ -21,12 +21,14 @@ internal static class EvalReport
     };
 
     /// <param name="label">What ran: "scripted" or the model and its host.</param>
-    public static string Markdown(IReadOnlyList<EvalResult> results, string label, DateTimeOffset at)
+    /// <param name="edition">The prompts it ran with; the prompts as built when null.</param>
+    /// <param name="prices">Prices per million tokens, for the cost line; tokens only without them.</param>
+    public static string Markdown(IReadOnlyList<EvalResult> results, string label, DateTimeOffset at, EvalEdition? edition = null, EvalPrices? prices = null)
     {
         var s = new StringBuilder();
         var ran = results.Where(r => r.Metrics is not null).ToList();
         var metrics = ran.Select(r => r.Metrics!).ToList();
-        s.Append(CultureInfo.InvariantCulture, $"# 运行评测报告\n\n- 时间：{at:yyyy-MM-dd HH:mm} UTC\n- 模型：{label}\n- 场景：{results.Count} 个（{ran.Count} 个运行完成）\n- 运行说明：版本 {Application.Conversations.RunPrompt.Version}\n- 依据：docs/design/agent-loop.md §4\n\n");
+        s.Append(CultureInfo.InvariantCulture, $"# 运行评测报告\n\n- 时间：{at:yyyy-MM-dd HH:mm} UTC\n- 模型：{label}\n- 场景：{results.Count} 个（{ran.Count} 个运行完成）\n- 提示词：{(edition ?? EvalEdition.Current).Label}\n- 依据：docs/design/agent-loop.md §4，docs/design/reply-quality.md Q10\n\n");
 
         s.Append("## 汇总\n\n| 指标 | 值 |\n| --- | --- |\n");
         Row(s, "检查通过", $"{results.Sum(r => r.Passed)} / {results.Sum(r => r.Checks.Count)}");
@@ -44,16 +46,24 @@ internal static class EvalReport
             Row(s, "估算输入 token（被测回答，合计）", $"{metrics.Sum(m => m.EstimatedTokens):N0}");
             Row(s, "服务报告的输入／输出 token", metrics.Any(m => m.PromptTokens is not null) ? $"{metrics.Sum(m => m.PromptTokens ?? 0):N0} / {metrics.Sum(m => m.CompletionTokens ?? 0):N0}" : "服务未报告");
             Row(s, "全部模型请求（含标题、摘要与前面的提问）", $"{ran.Sum(r => r.Observation!.ScenarioRequests)}");
+            Row(s, "全部输入／输出 token（服务报告）", metrics.Any(m => m.ScenarioPromptTokens is not null) ? $"{metrics.Sum(m => m.ScenarioPromptTokens ?? 0):N0} / {metrics.Sum(m => m.ScenarioCompletionTokens ?? 0):N0}" : "服务未报告");
+            Row(s, "其中读自缓存的输入 token（服务报告）", EvalText.CacheRead(metrics));
+            if (prices is not null)
+            {
+                Row(s, "费用（全部）", $"{metrics.Sum(m => prices.Of(m.ScenarioPromptTokens ?? m.InputTokens, m.ScenarioCompletionTokens ?? m.CompletionTokens ?? 0)):0.0000}");
+            }
+
+            Row(s, "被测回答到首字（合计）", $"{metrics.Sum(m => m.FirstTextSeconds ?? 0):0.0} 秒");
             Row(s, "被测回答耗时（合计）", $"{metrics.Sum(m => m.Seconds):0} 秒");
         }
 
-        s.Append("\n## 场景\n\n| 场景 | 类别 | 状态 | 检查 | 请求 | 工具 | 重复 | 出处 | 上限 | 秒 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n");
+        s.Append("\n## 场景\n\n| 场景 | 类别 | 状态 | 检查 | 请求 | 工具 | 重复 | 出处 | 上限 | 秒 | 首字秒 | 输入／输出 token |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n");
         foreach (var r in results)
         {
             var m = r.Metrics;
             var row = m is null
-                ? $"| {r.Scenario.Id} | {r.Scenario.Category} | 未运行 | — | — | — | — | — | — | — |\n"
-                : string.Create(CultureInfo.InvariantCulture, $"| {r.Scenario.Id} | {r.Scenario.Category} | {m.State} | {r.Passed}/{r.Checks.Count} | {m.ModelRequests} | {m.ToolCalls} | {m.Repeated} | {m.ValidCitations}/{m.CitedNumbers} | {m.LimitReached ?? "—"} | {m.Seconds:0} |\n");
+                ? $"| {r.Scenario.Id} | {r.Scenario.Category} | 未运行 | — | — | — | — | — | — | — | — | — |\n"
+                : string.Create(CultureInfo.InvariantCulture, $"| {r.Scenario.Id} | {r.Scenario.Category} | {m.State} | {r.Passed}/{r.Checks.Count} | {m.ModelRequests} | {m.ToolCalls} | {m.Repeated} | {m.ValidCitations}/{m.CitedNumbers} | {m.LimitReached ?? "—"} | {m.Seconds:0} | {(m.FirstTextSeconds is { } f ? f.ToString("0.0", CultureInfo.InvariantCulture) : "—")} | {m.InputTokens:N0} / {m.CompletionTokens?.ToString("N0", CultureInfo.InvariantCulture) ?? "—"} |\n");
             s.Append(row);
         }
 
@@ -97,8 +107,14 @@ internal static class EvalReport
                 s.Append(CultureInfo.InvariantCulture, $"\n批准卡片（已拒绝）：{Escape(string.Join("；", o.ApprovalsAsked))}\n");
             }
 
-            var text = o.Answer.Text.Length > AnswerExcerpt ? o.Answer.Text[..AnswerExcerpt] + "…" : o.Answer.Text;
-            s.Append("\n回答：\n\n");
+            if (o.Quote is { } quote)
+            {
+                s.Append(CultureInfo.InvariantCulture, $"\n所选的段落：{Escape(quote)}\n");
+            }
+
+            var shown = o.Summary is { } summary ? $"标题：{summary.Title}\n短名：{summary.ShortTitle}\n\n{summary.Body}" : o.Text;
+            var text = shown.Length > AnswerExcerpt ? shown[..AnswerExcerpt] + "…" : shown;
+            s.Append(o.Summary is null ? "\n回答：\n\n" : "\n总结：\n\n");
             s.Append(text.Length == 0 ? "> （空）\n" : string.Join('\n', text.ReplaceLineEndings("\n").Split('\n').Select(l => "> " + l)) + "\n");
         }
 
@@ -106,13 +122,15 @@ internal static class EvalReport
     }
 
     /// <summary>The numbers of each scenario, for comparing one run with another.</summary>
-    public static string JsonOf(IReadOnlyList<EvalResult> results, string label, DateTimeOffset at) =>
+    public static string JsonOf(IReadOnlyList<EvalResult> results, string label, DateTimeOffset at, EvalEdition? edition = null) =>
         JsonSerializer.Serialize(
             new
             {
                 at,
                 model = label,
-                runPrompt = Application.Conversations.RunPrompt.Version,
+                answerPrompt = (edition ?? EvalEdition.Current).Answer,
+                runPrompt = (edition ?? EvalEdition.Current).Run,
+                summaryPrompt = (edition ?? EvalEdition.Current).Summary,
                 scenarios = results.Select(r => new
                 {
                     id = r.Scenario.Id,
@@ -121,18 +139,22 @@ internal static class EvalReport
                     passed = r.Passed,
                     checks = r.Checks.Select(c => new { name = c.Name, passed = c.Passed, detail = c.Detail }),
                     metrics = r.Metrics,
-                    answer = r.Observation?.Answer.Text,
+
+                    // Each request of the measured answer: its input and what of it the provider's cache served.
+                    requests = r.Observation?.Requests.Select(q => new { purpose = q.Purpose, input = q.PromptTokens, cached = q.CacheReadTokens }),
+                    quote = r.Observation?.Quote,
+                    answer = r.Observation?.Text,
                 }),
             },
             Json);
 
     /// <summary>Writes both files next to each other; returns the Markdown file's path.</summary>
-    public static async Task<string> WriteAsync(IReadOnlyList<EvalResult> results, string label, string path, CancellationToken ct)
+    public static async Task<string> WriteAsync(IReadOnlyList<EvalResult> results, string label, string path, CancellationToken ct, EvalEdition? edition = null, EvalPrices? prices = null)
     {
         var at = DateTimeOffset.UtcNow;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        await File.WriteAllTextAsync(path, Markdown(results, label, at), ct);
-        await File.WriteAllTextAsync(Path.ChangeExtension(path, ".json"), JsonOf(results, label, at), ct);
+        await File.WriteAllTextAsync(path, Markdown(results, label, at, edition, prices), ct);
+        await File.WriteAllTextAsync(Path.ChangeExtension(path, ".json"), JsonOf(results, label, at, edition), ct);
         return path;
     }
 

@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** approved by the owner on 2026-11-27 (D-045), after the discussion of 2026-11-25 to 2026-11-27, for four topics: quoting, several connections and local models, search by meaning, prompt caching. Not built. The requirement and architecture text (requirements v0.34 §10.11; architecture §2.3, §7.5, §15.5 and §18) was confirmed by the owner on 2026-11-27. Where this note and that text differ, the text holds.
+**Status:** approved by the owner on 2026-11-27 (D-045), after the discussion of 2026-11-25 to 2026-11-27, for four topics: quoting, several connections and local models, search by meaning, prompt caching. Prompt caching steps 1 and 2 are built (0.6.28, 0.6.37); the rest is not built. The requirement and architecture text (requirements v0.34 §10.11; architecture §2.3, §7.5, §15.5 and §18) was confirmed by the owner on 2026-11-27. Where this note and that text differ, the text holds.
 
 This note took over directions 1, 3 and 7 of [more directions](../ideas/more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4.
 

@@ -163,9 +163,9 @@ public class AttachmentFlowTests
         // The model changes to one that cannot see: the image in the history goes as a line saying so.
         await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", null, null, settings.Capabilities with { ImageInput = false }), Ct);
         await h.AskAsync(sent.Conversation, "还记得吗");
-        var later = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last();
-        Assert.Null(later.Turns[0].Images);
-        Assert.StartsWith("[图片：图片.png，当前模型不能查看]", later.Turns[0].Content, StringComparison.Ordinal);
+        var later = FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last());
+        Assert.Null(later[0].Images);
+        Assert.StartsWith("[图片：图片.png，当前模型不能查看]", later[0].Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -224,7 +224,7 @@ public class AttachmentFlowTests
         Assert.False(await h.ResourceService.HasOriginalAsync(paste.Resource));
         Assert.NotNull(await h.Conversations.LoadAsync(sent.Conversation, Ct));
         await h.AskAsync(sent.Conversation, "再讲讲");
-        Assert.Contains("提取过的文字", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0].Content, StringComparison.Ordinal);
+        Assert.Contains("提取过的文字", FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[0].Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -246,7 +246,7 @@ public class AttachmentFlowTests
         Assert.False(await h.ResourceService.HasOriginalAsync(image.Resource));
         Assert.Null(await h.ResourceService.OpenOriginalAsync(image.Resource.Id, Ct));
         await h.AskAsync(sent.Conversation, "再讲讲");
-        var first = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0];
+        var first = FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).Last())[0];
         Assert.Contains("提取过的文字", first.Content, StringComparison.Ordinal);
         Assert.Contains("[图片：图片.png，原件缺失", first.Content, StringComparison.Ordinal);
         Assert.Null(first.Images);
