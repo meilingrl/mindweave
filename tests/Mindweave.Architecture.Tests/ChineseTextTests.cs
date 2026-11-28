@@ -34,6 +34,8 @@ public class ChineseTextTests
         ("Mindweave.Application/Workspaces/WorkspaceNameSuggestions.cs", "ListMarker", "accepts Chinese list numbering in a model's answer"),
         ("Mindweave.Application/Workspaces/WorkspaceNameSuggestions.cs", "Preamble", "skips the Chinese lead-in a model writes before its list"),
         ("Mindweave.Application/Tools/WebRun.cs", "PointsBack", "recognizes a Chinese question that refers back to earlier material"),
+        ("Mindweave.Application/Summaries/MatchingSummaries.cs", "Common", "recognizes the Chinese question words that name no topic, in either interface language"),
+        ("Mindweave.Application/Summaries/MatchingSummaries.cs", "Particles", "recognizes Chinese particles and pronouns in a question, in either interface language"),
         ("Mindweave.Application/Tools/WebRun.cs", "Address", "ends an address at the Chinese punctuation that follows it in a question"),
         ("Mindweave.Application/Tools/ITool.cs", "ChinesePlaceholder", "an image placeholder is replaced in either language: the language may switch while a tool runs"),
         ("Mindweave.Infrastructure/Tools/GuardedPageFetcher.cs", "RobotCheckTitles", "recognizes the Chinese titles websites give a check for robots"),

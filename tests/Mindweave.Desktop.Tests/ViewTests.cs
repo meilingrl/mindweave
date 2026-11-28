@@ -26,7 +26,7 @@ public class ViewTests
             typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),
             typeof(ViewModels.Conversations.ConversationSummaryPanel), typeof(ViewModels.Conversations.ConversationLifecycleActions),
             typeof(ViewModels.Conversations.RecommendedQuestionViewModel), typeof(ViewModels.Conversations.ModelConnectionNote),
-            typeof(ViewModels.Pages.ModelSettingsViewModel), typeof(ViewModels.Pages.ToolSettingsPanel), typeof(ViewModels.Pages.ArchivedItemViewModel),
+            typeof(ViewModels.Pages.ModelSettingsViewModel), typeof(ViewModels.Pages.ToolSettingsPanel), typeof(ViewModels.Pages.PersonalNotePanel), typeof(ViewModels.Pages.ArchivedItemViewModel),
             typeof(ViewModels.Conversations.AttachmentChip), typeof(ViewModels.Conversations.AttachmentViewer),
             typeof(ViewModels.Conversations.WebSearchSwitch), typeof(ViewModels.Pages.WebSearchSettingsPanel),
             typeof(ViewModels.Pages.McpServersPanel), typeof(ViewModels.Pages.McpServerItem), typeof(ViewModels.Pages.McpToolItem),

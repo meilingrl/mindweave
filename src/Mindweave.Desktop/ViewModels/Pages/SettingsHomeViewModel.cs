@@ -44,9 +44,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
         IRecommendationSettings? recommendationSettings = null,
         ToolSettingsPanel? tools = null,
         LanguageSwitch? language = null,
-        TextWidth? textWidth = null)
+        TextWidth? textWidth = null,
+        PersonalNotePanel? note = null)
         : base(SettingsHomeRoute.Instance)
     {
+        Note = note;
         _textWidth = textWidth;
         _language = language;
         if (language is not null)
@@ -107,6 +109,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
 
     public bool HasTools => Tools is not null;
 
+    /// <summary>设置 › 个人说明 (requirements §10.9); null where the note is not wired.</summary>
+    public PersonalNotePanel? Note { get; }
+
+    public bool HasNote => Note is not null;
+
     /// <summary>The 工作区 section's entry to 设置 › 工作区 is offered (the page is built with the workbench's list).</summary>
     public bool CanManageWorkspaces => _workspaces is not null;
 
@@ -139,6 +146,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
         _chosen.Clear();
         Loaded = LoadAsync();
         Model.ReloadIfUnchanged();
+        Note?.Refresh();
     }
 
     /// <summary>The stored choice; changing it applies at once and is saved in the background.</summary>

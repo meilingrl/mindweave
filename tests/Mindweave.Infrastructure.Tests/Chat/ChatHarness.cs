@@ -168,6 +168,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteRecommendationStore RecommendationStore => (SqliteRecommendationStore)_services.GetRequiredService<IRecommendationStore>();
 
     /// <summary>The recommendation choices.</summary>
+    public Application.Preferences.IPersonalNote PersonalNote => _services.GetRequiredService<Application.Preferences.IPersonalNote>();
+
     public Application.Preferences.IRecommendationSettings RecommendationSettings => _services.GetRequiredService<Application.Preferences.IRecommendationSettings>();
 
     /// <summary>The preference store the services remember small choices in (app_state).</summary>

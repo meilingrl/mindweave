@@ -22,12 +22,15 @@ public class AnswerPromptTests
 
     /// <summary>
     /// The most each piece may take, in the app's own estimate (CJK one token a character, so a Chinese text counts high).
-    /// Measured when written (2026-11-27), English / Chinese: answer 228 / 212, branch 134 / 130, summary 402 / 313.
+    /// Measured when written (2026-11-27), English / Chinese: answer 228 / 212, branch 134 / 130, summary 402 / 313; and
+    /// (2026-11-28) the wording around the personal note 77 / 72 and around the summary titles, without them, about 40.
     /// </summary>
     public static TheoryData<string, int> Limits => new()
     {
         { "answer", 260 },
         { "answer-branch", 150 },
+        { "answer-note", 90 },
+        { "answer-summaries", 60 },
         { "summary", 440 },
     };
 
@@ -153,7 +156,7 @@ public class AnswerPromptTests
     [Fact]
     public void The_versions_moved_with_the_texts()
     {
-        Assert.Equal(1, AnswerPrompt.Version);
+        Assert.Equal(2, AnswerPrompt.Version);
         Assert.Equal(4, RunPrompt.Version);
         Assert.Equal(2, SummaryService.PromptVersion);
         Assert.StartsWith(PromptLibrary.Get("answer", UiLanguage.Chinese), AnswerPrompt.WithRun(PromptLibrary.Get("answer", UiLanguage.Chinese), "x"), StringComparison.Ordinal);

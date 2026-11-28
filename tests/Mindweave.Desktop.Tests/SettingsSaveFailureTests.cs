@@ -82,6 +82,34 @@ public class SettingsSaveFailureTests
         Assert.Equal(["dark", "light", "dark"], preferences.Writes.Where(w => w.Key == AppearanceService.Key).Select(w => w.Value));
     }
 
+    [AvaloniaFact]
+    public async Task A_personal_note_that_could_not_be_saved_is_reported_and_still_applies()
+    {
+        var preferences = new SwitchablePreferences();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IPreferenceStore>(preferences));
+        await app.StartWithWorkspaceAsync("火车");
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
+        await settings.Note!.Loaded;
+
+        preferences.FailWrites = true;
+        settings.Note.Text = "我是护士。";
+        await settings.Note.Saving;
+        Assert.Equal(UiText.PersonalNoteSaveFailed, settings.Note.Status);
+        Assert.Equal("我是护士。", await app.Services.GetRequiredService<IPersonalNote>().GetAsync(CancellationToken.None));
+
+        preferences.FailWrites = false;
+        settings.Note.Text = "我是护士，懂基础化学。";
+        await settings.Note.Saving;
+        Assert.Null(settings.Note.Status);
+        Assert.Equal("我是护士，懂基础化学。", await preferences.GetAsync(PersonalNoteService.Key, CancellationToken.None));
+
+        // Emptied: the key is removed, and nothing is sent.
+        settings.Note.Text = string.Empty;
+        await settings.Note.Saving;
+        Assert.Null(await preferences.GetAsync(PersonalNoteService.Key, CancellationToken.None));
+    }
+
     /// <summary>Preferences in memory whose writes can be made to fail or to take a while; writes are recorded in order.</summary>
     private sealed class SwitchablePreferences : IPreferenceStore
     {

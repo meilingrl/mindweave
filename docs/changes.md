@@ -17,6 +17,14 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.38 · 2026-11-28
+
+- Added Settings › Personal note: up to 500 characters of your own preferences, sent at the start of every answer and summary request, marked as yours; your question or a required format wins over it (D-043 step 2)
+- Added the titles of matching summaries to an answer request: one local keyword search of the workspace's summaries, the top three, left out first when room is short
+- Changed the model section's privacy line to name the personal note and the summary titles
+- Try: Settings › Personal note, write a note and ask a question; summarize a conversation, then ask about its topic in another conversation
+- Not verified: Windows and Linux before CI; a real window; a real model reading the note and the titles; match quality on real workspaces; the search's time on a large workspace
+
 ## 0.6.37 · 2026-11-28
 
 - Added answer instructions to every answer, with a branch part that says what the branch was opened for (requirements §10.9, D-043 step 1)

@@ -283,7 +283,7 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Summaries** start with a gist, are organized by concept and list key terms. No styles.
 - **Evaluation**: new scenarios for explanations, a side-by-side report of two prompt versions, cost and time per scenario, size limits checked without a paid run, and an optional judge whose verdict is only a hint. The owner's reading and daily use decide what is good.
 - **Three increments**: prompts and the evaluation; the note and the summary titles; long-page passages.
-- The note is [reply-quality.md](reply-quality.md); the text is requirements v0.32 (§10.9) and architecture §2.3, §15.4 and §15.5. Increment 1 is built (0.6.37).
+- The note is [reply-quality.md](reply-quality.md); the text is requirements v0.32 (§10.9) and architecture §2.3, §15.4 and §15.5. Increments 1 and 2 are built (0.6.37, 0.6.38).
 
 ## D-044 Return and review is adopted (you, 2026-11-25 and 11-26)
 

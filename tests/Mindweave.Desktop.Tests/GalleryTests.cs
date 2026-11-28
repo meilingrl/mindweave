@@ -564,6 +564,36 @@ public class GalleryTests
         window.Close();
     }
 
+    /// <summary>设置 › 个人说明 (requirements §10.9): empty, written, and at the limit.</summary>
+    [AvaloniaFact]
+    public async Task G22c_settings_personal_note()
+    {
+        await using var scene = Scene.Create("g22c");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
+        await settings.Note!.Loaded;
+        await SettleAsync(window);
+        var category = Find<RadioButton>(window, "CategoryNote");
+        category.IsChecked = true;
+        category.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        await SettleAsync(window);
+        Capture(window, "g22c-settings-note-empty");
+
+        settings.Note.Text = UiText.PersonalNotePlaceholder.Contains("nurse", StringComparison.Ordinal)
+            ? "I teach secondary-school biology and know some statistics, but little physics or programming. Skip the history unless I ask. Start with the short answer, then the detail; an everyday example helps me more than a formula."
+            : "我是中学生物老师，懂一些统计，物理和编程基础很弱。除非我问，不用讲历史背景。先给简短的结论，再讲细节；比起公式，一个日常的例子对我更有用。";
+        Find<TextBox>(window, "PersonalNoteBox").Focus();
+        await SettleAsync(window);
+        Capture(window, "g22c-settings-note-written");
+
+        settings.Note.Text = string.Concat(Enumerable.Repeat(settings.Note.Text, 10))[..PersonalNotePanel.MaxLength];
+        await SettleAsync(window);
+        Capture(window, "g22c-settings-note-full");
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task G23_storage_details()
     {

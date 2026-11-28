@@ -26,7 +26,7 @@ public sealed partial class SettingsHomeView
         _categories =
         [
             (CategoryAppearance, AppearanceSection), (CategoryHints, HintsSection), (CategoryModel, ModelSection),
-            (CategoryTools, ToolsArea), (CategoryData, DataSection),
+            (CategoryNote, NoteSection), (CategoryTools, ToolsArea), (CategoryData, DataSection),
         ];
         foreach (var (category, section) in _categories)
         {
