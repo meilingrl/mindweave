@@ -42,6 +42,31 @@ public class RequestOrderTests
     }
 
     [Fact]
+    public async Task Two_continuing_branches_and_their_parent_begin_with_the_same_turns()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, _) = await h.RootWithAnswerAsync("火车是怎么发明的？");
+        var first = (await h.Conversations.ContinueInBranchAsync(root, Ct)).Child;
+        await h.AskAsync(first, "谁造了第一台？");
+        var second = (await h.Conversations.ContinueInBranchAsync(root, Ct)).Child;
+        await h.AskAsync(second, "在哪一年？");
+        await h.AskAsync(root, "后来呢？");
+
+        var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
+        Assert.Equal(4, requests.Count);
+        var (a, b, parent) = (requests[1].Turns, requests[2].Turns, requests[3].Turns);
+
+        // The system turn, the root's question and its answer; then each branch's own question. With no passage selected there
+        // is no branch part, so the question goes alone.
+        Assert.Equal(4, a.Count);
+        Assert.Equal(a.Take(3), b.Take(3));
+        Assert.Equal(new ChatTurn(ChatRole.System, AnswerPrompt.Fixed), a[0]);
+        Assert.Equal(new ChatTurn(ChatRole.User, "谁造了第一台？"), a[3]);
+        Assert.Equal(new ChatTurn(ChatRole.User, "在哪一年？"), b[3]);
+        Assert.Equal(a.Take(3), parent.Take(3));
+    }
+
+    [Fact]
     public async Task A_later_question_begins_with_what_the_earlier_one_sent_up_to_its_question()
     {
         await using var h = await ChatHarness.StartAsync();
