@@ -12,6 +12,8 @@
     <TextBlock Name="FailureAdvice" Classes="caption" Text="{Binding Advice}" TextWrapping="Wrap" IsVisible="{Binding HasAdvice}" />
     <WrapPanel Orientation="Horizontal" Margin="-8,0,0,0">
       <Button Name="FailureFix" Classes="quiet small" Content="{Binding FixLabel}" Command="{Binding FixCommand}" IsVisible="{Binding HasFix}" />
+      <Button Name="FailureShowInList" Classes="quiet small" Content="{x:Static t:UiText.ShowInRequestList}" Command="{Binding ShowInListCommand}"
+              IsVisible="{Binding CanShowInList}" />
       <Button Name="FailureDetailsToggle" Classes="quiet small failure-toggle" Command="{Binding ToggleDetailsCommand}"
               AutomationProperties.Name="{x:Static t:UiText.FailureDetails}">
         <StackPanel Orientation="Horizontal" Spacing="5">

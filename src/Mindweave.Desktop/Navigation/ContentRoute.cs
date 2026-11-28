@@ -93,6 +93,12 @@ public sealed record StorageDetailsRoute : ContentRoute
     public static StorageDetailsRoute Instance { get; } = new();
 }
 
+/// <summary>设置 › 诊断 (D2 §2.2): recent requests, the log and the diagnostic package. Not restored as the last page.</summary>
+public sealed record DiagnosticsRoute : ContentRoute
+{
+    public static DiagnosticsRoute Instance { get; } = new();
+}
+
 /// <summary>设置 › 使用统计 (2026-11-12): token use and activity facts. Not restored as the last page.</summary>
 public sealed record UsageStatisticsRoute : ContentRoute
 {

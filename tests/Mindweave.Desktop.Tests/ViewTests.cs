@@ -30,7 +30,7 @@ public class ViewTests
             typeof(ViewModels.Conversations.AttachmentChip), typeof(ViewModels.Conversations.AttachmentViewer),
             typeof(ViewModels.Conversations.WebSearchSwitch), typeof(ViewModels.Pages.WebSearchSettingsPanel),
             typeof(ViewModels.Pages.McpServersPanel), typeof(ViewModels.Pages.McpServerItem), typeof(ViewModels.Pages.McpToolItem),
-            typeof(FailureViewModel),
+            typeof(FailureViewModel), typeof(DiagnosticPackageViewModel), typeof(ViewModels.Pages.RequestRowViewModel),
         };
         var hosted = typeof(ViewModelBase).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsClass: true } && typeof(ViewModelBase).IsAssignableFrom(t))

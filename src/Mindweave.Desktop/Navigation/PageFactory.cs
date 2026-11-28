@@ -51,7 +51,9 @@ internal sealed class PageFactory(
     ShareRequests share,
     LanguageSwitch language,
     TextWidth textWidth,
-    Application.Diagnostics.IFailureDetailsSource failures) : IPageFactory
+    Application.Diagnostics.IFailureDetailsSource failures,
+    Application.Diagnostics.IRequestList requestList,
+    DiagnosticPackageViewModel diagnosticPackage) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -65,6 +67,7 @@ internal sealed class PageFactory(
             new ToolSettingsPanel(toolSettings, models, new WebSearchSettingsPanel(webSearch), new McpServersPanel(mcpServers, mcpConnections, dispatcher)),
             language, textWidth),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
+        DiagnosticsRoute => new DiagnosticsViewModel(environment, requestList, shell, () => diagnosticPackage.Open(dataAvailable: true), time),
         UsageStatisticsRoute => new UsageStatisticsViewModel(context.Workspace, statistics, prices, context.Navigator),
         WorkspacesRoute => new WorkspacesViewModel(
             context.Workspaces ?? throw new InvalidOperationException("The workspaces page needs the workbench's list."),

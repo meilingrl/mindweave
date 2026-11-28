@@ -33,6 +33,7 @@ public sealed partial class AppStartup : IDisposable
     private readonly SummaryNetwork.SummaryNetworkDetails _summaryNetworkDetails;
     private readonly TextWidth _textWidth;
     private readonly Application.AppEnvironment _environment;
+    private readonly DiagnosticPackageViewModel _diagnostics;
     private readonly ILogger<AppStartup> _logger;
 
     public AppStartup(
@@ -56,9 +57,11 @@ public sealed partial class AppStartup : IDisposable
         SummaryNetwork.SummaryNetworkDetails summaryNetworkDetails,
         TextWidth textWidth,
         Application.AppEnvironment environment,
+        DiagnosticPackageViewModel diagnostics,
         ILogger<AppStartup> logger)
     {
         _environment = environment;
+        _diagnostics = diagnostics;
         _language = language;
         _summaryNetworkDetails = summaryNetworkDetails;
         _textWidth = textWidth;
@@ -227,6 +230,9 @@ public sealed partial class AppStartup : IDisposable
     private static partial void LogStartFailed(ILogger logger, Exception exception);
 
     public Task RetryAsync() => RunAsync();
+
+    /// <summary>The recovery page's diagnostic package (D2 §2.2): the summary and the logs, the data not being open.</summary>
+    public void ExportDiagnostics() => _diagnostics.Open(dataAvailable: false);
 
     /// <summary>Quits through the one exit sequence (it has nothing to ask or save here, but owns the final shutdown).</summary>
     public void Quit() => _exit.InterceptClose();

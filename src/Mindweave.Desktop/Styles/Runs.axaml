@@ -62,7 +62,7 @@
     <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
   </Style>
   <!-- A failed step's failure block (D2 §2.1): its first line reads as the step's outcome did. -->
-  <Style Selector=":is(UserControl).run-step-failure SelectableTextBlock#FailureHeadline">
+  <Style Selector="ContentControl.run-step-failure SelectableTextBlock#FailureHeadline">
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
   </Style>

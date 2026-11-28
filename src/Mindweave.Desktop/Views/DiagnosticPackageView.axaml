@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             x:Class="Mindweave.Desktop.Views.DiagnosticPackageView"
+             x:DataType="vm:DiagnosticPackageViewModel">
+  <!-- The diagnostic package's dialog (D2 §2.2): what will be in it, two ticks, what the log can hold, Save. The manual backup's
+       frame; never taller than the window. -->
+  <Border Classes="dialog wide" Margin="24">
+    <DockPanel>
+      <TextBlock DockPanel.Dock="Top" Classes="dialog-title" Text="{x:Static t:UiText.DiagnosticDialogTitle}" Margin="0,0,0,12" />
+      <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+        <TextBlock DockPanel.Dock="Left" Classes="caption" Text="{x:Static t:UiText.DiagnosticSaving}" VerticalAlignment="Center"
+                   IsVisible="{Binding IsBusy}" AutomationProperties.LiveSetting="Polite" />
+        <StackPanel Classes="dialog-buttons">
+          <Button Name="DiagnosticClose" Classes="secondary" Content="{x:Static t:UiText.ShareClose}" Command="{Binding CloseCommand}" IsCancel="True" />
+          <Button Name="DiagnosticSave" Classes="primary" Content="{x:Static t:UiText.DiagnosticSave}" Command="{Binding SaveCommand}" IsDefault="True" />
+        </StackPanel>
+      </DockPanel>
+      <Border Name="DiagnosticNotice" DockPanel.Dock="Bottom" Classes="notice" Classes.error="{Binding NoticeIsError}" Classes.info="{Binding !NoticeIsError}" Margin="0,12,0,0"
+              IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="✓" IsVisible="{Binding !NoticeIsError}" />
+          <TextBlock Classes="notice-icon" Text="!" IsVisible="{Binding NoticeIsError}" />
+          <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        </DockPanel>
+      </Border>
+      <ScrollViewer Classes="autohide" Margin="0,0,-14,0" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="12" Margin="0,0,14,0">
+          <TextBlock Name="DiagnosticIntro" Classes="dialog-body" Text="{x:Static t:UiText.DiagnosticPackageIntro}" TextWrapping="Wrap" />
+          <Border Name="DiagnosticWithoutData" Classes="notice warning" IsVisible="{Binding WithoutData}">
+            <DockPanel>
+              <TextBlock Classes="notice-icon" Text="!" />
+              <TextBlock Text="{x:Static t:UiText.DiagnosticWithoutData}" TextWrapping="Wrap" />
+            </DockPanel>
+          </Border>
+          <Border Name="DiagnosticContents" Classes="share-contents" IsEnabled="{Binding !IsBusy}" AutomationProperties.Name="{x:Static t:UiText.DiagnosticWhatLeaves}">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="share-heading" Text="{x:Static t:UiText.DiagnosticWhatLeaves}" />
+              <TextBlock Classes="dialog-body" Text="{x:Static t:UiText.DiagnosticReading}" IsVisible="{Binding IsReading}" />
+              <TextBlock Classes="dialog-body" TextWrapping="Wrap" Text="{x:Static t:UiText.DiagnosticSummaryFile}" />
+              <TextBlock Name="DiagnosticRequestsLine" Classes="dialog-body" TextWrapping="Wrap" Text="{Binding RequestsLine}"
+                         IsVisible="{Binding RequestsLine, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <TextBlock Classes="dialog-body" TextWrapping="Wrap" Text="{x:Static t:UiText.DiagnosticSettingsFile}" IsVisible="{Binding DataAvailable}" />
+              <CheckBox Name="DiagnosticModelsAndHosts" IsChecked="{Binding ModelsAndHosts}" IsVisible="{Binding DataAvailable}"
+                        AutomationProperties.Name="{x:Static t:UiText.DiagnosticModelsAndHosts}">
+                <StackPanel Spacing="1">
+                  <TextBlock Text="{x:Static t:UiText.DiagnosticModelsAndHosts}" />
+                  <TextBlock Classes="caption" Text="{x:Static t:UiText.DiagnosticModelsAndHostsHint}" TextWrapping="Wrap" />
+                </StackPanel>
+              </CheckBox>
+              <CheckBox Name="DiagnosticLogs" IsChecked="{Binding Logs}" AutomationProperties.Name="{Binding LogsLine}">
+                <TextBlock Text="{Binding LogsLine}" TextWrapping="Wrap" />
+              </CheckBox>
+            </StackPanel>
+          </Border>
+          <StackPanel Spacing="4">
+            <TextBlock Name="DiagnosticLogNote" Classes="caption" Text="{x:Static t:UiText.DiagnosticLogNote}" TextWrapping="Wrap" />
+            <TextBlock Name="DiagnosticNeverIn" Classes="caption" Text="{x:Static t:UiText.DiagnosticNeverIn}" TextWrapping="Wrap" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

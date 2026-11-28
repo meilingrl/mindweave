@@ -30,6 +30,9 @@ public interface ISystemShell
     /// </summary>
     Task<ExportDestination?> PickBackupFileAsync(string suggestedFileName, CancellationToken cancellationToken);
 
+    /// <summary>The same dialog for a diagnostic package, a zip (D2 §2.2), offering <paramref name="suggestedFileName"/>.zip. Null when cancelled.</summary>
+    Task<ExportDestination?> PickDiagnosticFileAsync(string suggestedFileName, CancellationToken cancellationToken);
+
     /// <summary>The system open dialog for one file to import, a shared file or a manual backup: its path, or null when cancelled.</summary>
     Task<string?> PickSharedFileAsync(CancellationToken cancellationToken);
 }
@@ -85,6 +88,9 @@ internal sealed class SystemShell : ISystemShell
     /// <summary>The package's extension is the writer's (<c>ManualBackupPackage.FileExtension</c>); Desktop names it once, here.</summary>
     public Task<ExportDestination?> PickBackupFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
         PickFileAsync(UiText.ManualBackupTitle, suggestedFileName + "." + BackupExtension, new FileKind(UiText.ManualBackupFileType, [BackupExtension], "application/zip"));
+
+    public Task<ExportDestination?> PickDiagnosticFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
+        PickFileAsync(UiText.DiagnosticDialogTitle, suggestedFileName + ".zip", new FileKind(UiText.DiagnosticFileType, ["zip"], "application/zip", "public.zip-archive"));
 
     /// <summary>The manual backup's own extension (docs/design/sharing-backup.md §4).</summary>
     internal const string BackupExtension = "mwbackup";

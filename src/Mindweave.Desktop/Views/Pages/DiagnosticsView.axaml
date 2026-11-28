@@ -1,0 +1,106 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:v="using:Mindweave.Desktop.Views"
+             x:Class="Mindweave.Desktop.Views.Pages.DiagnosticsView"
+             x:DataType="vm:DiagnosticsViewModel">
+  <!-- 设置 › 诊断 (D2 §2.2): recent requests, failures only at first, each opening in place into the failure block; the log;
+       the diagnostic package. The width and cards of 数据与存储. -->
+  <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+  <Grid Margin="0,4,16,24">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" MaxWidth="640" />
+    </Grid.ColumnDefinitions>
+    <StackPanel>
+      <!-- 最近的请求 -->
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.RecentRequestsSection}" />
+      <Border Classes="card settings">
+        <StackPanel Spacing="10">
+          <DockPanel>
+            <Border Name="RequestsFilter" DockPanel.Dock="Right" Classes="segmented">
+              <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+                <RadioButton Name="RequestsFailuresOnly" Classes="segment" GroupName="RequestsFilter" IsChecked="{Binding FailuresOnly}"
+                             Content="{x:Static t:UiText.RequestsFailuresOnly}" AutomationProperties.Name="{x:Static t:UiText.RequestsFailuresOnly}" />
+                <RadioButton Name="RequestsAll" Classes="segment" GroupName="RequestsFilter" IsChecked="{Binding ShowsAll}"
+                             Content="{x:Static t:UiText.RequestsAll}" AutomationProperties.Name="{x:Static t:UiText.RequestsAll}" />
+              </StackPanel>
+            </Border>
+            <TextBlock Name="RequestsCount" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" Text="{Binding CountText}" />
+          </DockPanel>
+          <TextBlock Classes="caption" Text="{x:Static t:UiText.RequestsLoading}" IsVisible="{Binding IsLoading}" />
+          <TextBlock Name="RequestsProblem" Classes="error" FontSize="13" TextWrapping="Wrap" Text="{Binding Problem}"
+                     IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <ItemsControl Name="RequestList" ItemsSource="{Binding Rows}" Grid.IsSharedSizeScope="True">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RequestRowViewModel">
+                <StackPanel Spacing="4">
+                  <Button Name="RequestRow" Classes="entry request-row" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          Command="{Binding $parent[ItemsControl].((vm:DiagnosticsViewModel)DataContext).ToggleRowCommand}" CommandParameter="{Binding}"
+                          AutomationProperties.Name="{Binding OpenName}">
+                    <Grid Classes="request-line" v:Narrow.Below="520" ColumnSpacing="12" RowDefinitions="Auto,Auto">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="When" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Purpose" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Took" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Classes="timestamp request-time" VerticalAlignment="Center" Text="{Binding TimeText}" />
+                      <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding PurposeText}" />
+                      <StackPanel Grid.Column="2" Classes="request-what" Orientation="Horizontal" Spacing="10">
+                        <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding ModelText}" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+                        <TextBlock Name="RequestResult" VerticalAlignment="Center" Classes="request-result" Classes.failed="{Binding IsFailed}"
+                                   Text="{Binding ResultText}" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="3" Classes="caption request-took" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding DurationText}" />
+                    </Grid>
+                  </Button>
+                  <Border Name="RequestDetails" Classes="notice" Classes.error="{Binding IsFailed}" Classes.info="{Binding !IsFailed}" Margin="0,0,0,6"
+                          IsVisible="{Binding IsOpen}">
+                    <DockPanel>
+                      <TextBlock Classes="notice-icon" Text="!" IsVisible="{Binding IsFailed}" />
+                      <v:FailureBlock DataContext="{Binding Details}" />
+                    </DockPanel>
+                  </Border>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.RequestsHoldNoContent}" />
+        </StackPanel>
+      </Border>
+
+      <!-- 日志 -->
+      <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.LogSection}" />
+      <Border Classes="card settings">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+          <SelectableTextBlock Name="DiagnosticsLogFolder" Classes="path" VerticalAlignment="Center" Text="{Binding Environment.LogDirectory}"
+                               ToolTip.Tip="{x:Static t:UiText.LogFolderHint}" />
+          <Button Grid.Column="1" Name="DiagnosticsOpenLogFolder" Classes="quiet" Command="{Binding OpenLogFolderCommand}"
+                  ToolTip.Tip="{x:Static t:UiText.LogFolderHint}" AutomationProperties.Name="{x:Static t:UiText.OpenLogFolder}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconFolder}" />
+              <TextBlock Text="{x:Static t:UiText.OpenLogFolder}" />
+            </StackPanel>
+          </Button>
+        </Grid>
+      </Border>
+
+      <!-- 诊断包 -->
+      <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.DiagnosticPackageSection}" />
+      <Border Classes="card settings">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.DiagnosticPackageIntro}" />
+          <Button Name="ExportDiagnosticPackage" Classes="secondary" HorizontalAlignment="Left" Content="{x:Static t:UiText.ExportDiagnosticPackage}"
+                  Command="{Binding ExportCommand}" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Grid>
+  </ScrollViewer>
+</UserControl>
