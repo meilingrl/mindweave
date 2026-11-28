@@ -20,6 +20,19 @@ public static partial class DesktopLog
     public static void Swallowed(Exception exception, [CallerMemberName] string member = "", [CallerFilePath] string file = "") =>
         LogSwallowed(s_logger, exception, Path.GetFileNameWithoutExtension(file), member);
 
+    /// <summary>
+    /// A message could not be drawn and is shown as plain text (D2 §2.5). Only the exception's type and where it was thrown
+    /// are logged: its message can quote the text being drawn, and the log holds no conversation text.
+    /// </summary>
+    public static void LogDrawingFailure(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        WriteDrawingFailure(s_logger, exception.GetType().FullName ?? exception.GetType().Name, exception.StackTrace ?? string.Empty);
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A message could not be drawn and is shown as plain text: {Type}\n{Where}")]
+    private static partial void WriteDrawingFailure(ILogger logger, string type, string where);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Handled failure in {Type}.{Member}")]
     private static partial void LogSwallowed(ILogger logger, Exception exception, string type, string member);
 }

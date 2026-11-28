@@ -21,6 +21,9 @@ public partial class SeamTests
             "GenerationRequests.cs",
             "ModelSettingsService.cs",
 
+            // Deletes replaced model keys once nothing uses them (D2 §2.3); never reads one.
+            "RetiredCredentials.cs",
+
             // The search service's key (phase 3, decision W14): read only for a search request or 测试.
             "WebSearchSettings.cs",
 

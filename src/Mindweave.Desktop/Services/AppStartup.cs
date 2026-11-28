@@ -12,7 +12,7 @@ using Mindweave.Desktop.ViewModels.Pages;
 namespace Mindweave.Desktop.Services;
 
 /// <summary>Drives root navigation from the startup outcome: recovery page, onboarding, or the workbench.</summary>
-public sealed partial class AppStartup : IRecoveryActions, IDisposable
+public sealed partial class AppStartup : IDisposable
 {
     private readonly StartupCoordinator _coordinator;
     private readonly WorkspaceService _workspaces;
@@ -165,13 +165,24 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
         _health.Start();
         var installation = Application.Diagnostics.Installation.Describe(_environment);
         LogStarting(_logger, installation);
-        _root.Show(new StartupViewModel());
+        var page = new StartupViewModel();
+        _root.Show(page);
         await GuardAsync(async () =>
         {
-            var outcome = await _coordinator.StartAsync(CancellationToken.None);
+            var outcome = await _coordinator.StartAsync(new Progress<DataUpgradeStarting>(page.Upgrading), CancellationToken.None);
             await ApplyPreferencesAsync(outcome);
             await ApplyAsync(outcome);
+            ShowUpgradeNotice(outcome);
         });
+    }
+
+    /// <summary>The one notice after an upgrade (gap-schema-4, D-042): to which version, and where the backup is.</summary>
+    private void ShowUpgradeNotice(StartupOutcome outcome)
+    {
+        if (outcome is StartupOutcome.ReadyToWork { Upgrade: { } upgrade })
+        {
+            _shell.ShowRestoreNotice(UiText.UpgradedNotice(upgrade), isError: false);
+        }
     }
 
     /// <summary>
@@ -217,16 +228,19 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
 
     public Task RetryAsync() => RunAsync();
 
+    /// <summary>Quits through the one exit sequence (it has nothing to ask or save here, but owns the final shutdown).</summary>
     public void Quit() => _exit.InterceptClose();
 
     public async Task RestoreAsync(BackupInfo backup)
     {
-        _root.Show(new StartupViewModel());
+        var page = new StartupViewModel();
+        _root.Show(page);
         await GuardAsync(async () =>
         {
-            var outcome = await _coordinator.RestoreAsync(backup, CancellationToken.None);
+            var outcome = await _coordinator.RestoreAsync(backup, new Progress<DataUpgradeStarting>(page.Upgrading), CancellationToken.None);
             await ApplyPreferencesAsync(outcome);
             await ApplyAsync(outcome);
+            ShowUpgradeNotice(outcome);
         });
     }
 
@@ -239,15 +253,17 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
     {
         ArgumentNullException.ThrowIfNull(backup);
         _health.Start();
-        _root.Show(new StartupViewModel());
+        var page = new StartupViewModel();
+        _root.Show(page);
         await GuardAsync(async () =>
         {
-            var restore = await _coordinator.RestoreInPlaceAsync(backup, keptCopy, CancellationToken.None);
+            var restore = await _coordinator.RestoreInPlaceAsync(backup, keptCopy, new Progress<DataUpgradeStarting>(page.Upgrading), CancellationToken.None);
             await ApplyPreferencesAsync(restore.Outcome);
             await ApplyAsync(restore.Outcome);
             if (restore.Result.Restored)
             {
-                _shell.ShowRestoreNotice(UiText.RestoredNotice(backup.CreatedAt), isError: false);
+                var upgraded = restore.Result.Open.Upgrade is { } upgrade ? UiText.RestoredAndUpgraded(upgrade.To) : string.Empty;
+                _shell.ShowRestoreNotice(UiText.RestoredNotice(backup.CreatedAt) + upgraded, isError: false);
             }
             else if (restore.Result.Open.IsReady)
             {

@@ -41,6 +41,7 @@ public static class ApplicationServices
         services.AddSingleton<ContextBudgets>();
         services.AddSingleton<ContextCompressor>();
         services.AddSingleton<GenerationRequests>();
+        services.AddSingleton<Application.Credentials.RetiredCredentials>();
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();

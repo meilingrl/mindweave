@@ -28,6 +28,11 @@ public static partial class UiText
     public static string McpArgumentsHint => T(
         "One argument per line, passed to the command as is, without going through a shell.",
         "每行一个参数，原样传给命令，不经过命令行解释。");
+
+    /// <summary>D2 §2.3: what the arguments are not, and where a secret goes instead.</summary>
+    public static string McpArgumentsPlain => T(
+        "Arguments are stored and shown as plain text. Put a key or token in an environment variable below: those values are kept in the system’s key store.",
+        "参数以明文保存和显示。密钥或令牌请放进下面的环境变量：环境变量的值保存在系统的密钥存储中。");
     public static string McpEnvironment => T("Environment variables", "环境变量");
     public static string McpEnvironmentHint => T(
         "One “NAME=value” per line. The values are stored in the system credential service; the server gets only these and basic variables such as PATH and HOME.",

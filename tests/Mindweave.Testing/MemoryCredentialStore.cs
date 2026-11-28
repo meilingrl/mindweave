@@ -10,10 +10,13 @@ public sealed class MemoryCredentialStore : ICredentialStore
     /// <summary>Simulates a locked or missing system credential service.</summary>
     public bool Unavailable { get; set; }
 
+    /// <summary>Simulates a store that does not answer (a locked keychain waiting for the user): reads never complete.</summary>
+    public bool Hangs { get; set; }
+
     public Task<string?> ReadAsync(string reference, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
-        return Task.FromResult(Items.GetValueOrDefault(reference));
+        return Hangs ? new TaskCompletionSource<string?>().Task : Task.FromResult(Items.GetValueOrDefault(reference));
     }
 
     public Task WriteAsync(string reference, string secret, CancellationToken cancellationToken)

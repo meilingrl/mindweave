@@ -5,7 +5,8 @@
 #                                         the desktop tests whose full name contains any NAME (none without NAME)
 #   scripts/test.sh suite [DIR]           everything CI blocks on, with TRX results in DIR if given; the desktop tests
 #                                         run as several processes at once (scripts/test-shards.py)
-#   scripts/test.sh full                  suite, then the quarantined tests, which only report
+#   scripts/test.sh full                  suite (on macOS with the real Keychain tests), then the quarantined tests,
+#                                         which only report
 #   scripts/test.sh repeat N FILTER [PROJECT] [--load]
 #                                         runs a dotnet test filter N times and counts failed runs; --load keeps all
 #                                         cores busy meanwhile, the way a slow CI runner or a full parallel run does
@@ -84,12 +85,15 @@ suite() {
     dotnet test "$project" --no-build -c "$CONFIG" --nologo --filter "$NOT_QUARANTINED" ${trx[@]+"${trx[@]}"} || failed=1
   done
   py "$ROOT/scripts/test-shards.py" run "$DESKTOP/bin/$CONFIG/net10.0/Mindweave.Desktop.Tests.dll" \
-    --shards "$(shard_count)" --timings "$SHARD_TIMINGS" ${results[@]+"${results[@]}"} -- -trait- Category=Quarantine || failed=1
+    --shards "$(shard_count)" --timings "$SHARD_TIMINGS" --hang 300 ${results[@]+"${results[@]}"} -- -trait- Category=Quarantine || failed=1
   ((failed == 0))
 }
 
 full() {
   local failed=0
+  # The real key store is tried too where it raises no prompt: the macOS Keychain did not on 2026-11-27 (cross-platform-5
+  # in docs/design/diagnostics-and-upkeep.md). Windows CI runs it; other systems have none and skip it.
+  if [[ "$(uname -s)" == Darwin ]]; then export MINDWEAVE_CREDENTIAL_TESTS=1; fi
   suite || failed=1
   quarantined_run
   ((failed == 0))

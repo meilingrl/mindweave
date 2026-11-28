@@ -10,6 +10,7 @@ using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views.Pages;
+using Mindweave.Testing;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -210,7 +211,8 @@ public class SummaryNetworkSpatialTests
 
         Assert.Equal(1_000, session.Positions.Count);
         TestContext.Current.TestOutputHelper?.WriteLine($"network load of 1,000 conversations: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms");
-        Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 conversations took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
+        var budget = PerfBudget.Ms(300);
+        Assert.True(elapsed < budget, $"Loading 1,000 conversations took {elapsed.TotalMilliseconds:F1} ms (budget {budget.TotalMilliseconds} ms, spec §6.4).");
     }
 
     private static NodeView View(SummaryNetworkNode n, NodePosition at, SpatialLabel? placed = null, bool dated = false) =>

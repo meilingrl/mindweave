@@ -5,7 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- A fixed number, so a new SDK never brings new analyzer warnings by itself; raising it is one deliberate line
+         (docs/design/diagnostics-and-upkeep.md §3.2, ci-build-7). -->
+    <AnalysisLevel>10.0</AnalysisLevel>
     <AnalysisMode>Recommended</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -23,7 +25,7 @@
     <ContinuousIntegrationBuild Condition="'$(Configuration)' == 'Release'">true</ContinuousIntegrationBuild>
     <!-- The third number rises with every merge into main; the owner calls the second (docs/design/versioning.md).
          The commit tells daily and dev builds apart. -->
-    <Version>0.6.29</Version>
+    <Version>0.6.35</Version>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="MindweaveChannel" Value="$(MindweaveChannel)" />

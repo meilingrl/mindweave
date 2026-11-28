@@ -204,8 +204,61 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
     public bool HasFailure => Failure is not null;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(DiscoverCommand), nameof(TestCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(DiscoverCommand), nameof(TestCommand), nameof(RemoveKeyCommand), nameof(ConfirmKeyRemovalCommand))]
     public partial bool IsBusy { get; private set; }
+
+    /// <summary>The saved connection names a key (found or not), so 移除密钥 is offered (D2 §2.3).</summary>
+    [ObservableProperty]
+    public partial bool CanRemoveKey { get; private set; }
+
+    /// <summary>Requests use the key: the user is asked whether to stop them and remove it.</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmingKeyRemoval { get; private set; }
+
+    /// <summary>How many requests the removal would stop, in words.</summary>
+    [ObservableProperty]
+    public partial string? KeyRemovalQuestion { get; private set; }
+
+    /// <summary>移除密钥: at once when no request uses the key, otherwise after the user's yes.</summary>
+    [RelayCommand(CanExecute = nameof(IsIdle))]
+    private Task RemoveKeyAsync() => RemoveSavedKeyAsync(stopRequests: false);
+
+    [RelayCommand(CanExecute = nameof(IsIdle))]
+    private Task ConfirmKeyRemovalAsync() => RemoveSavedKeyAsync(stopRequests: true);
+
+    [RelayCommand]
+    private void CancelKeyRemoval()
+    {
+        IsConfirmingKeyRemoval = false;
+        KeyRemovalQuestion = null;
+    }
+
+    private Task RemoveSavedKeyAsync(bool stopRequests) => RunAsync(async () =>
+    {
+        IsConfirmingKeyRemoval = false;
+        KeyRemovalQuestion = null;
+        KeyRemoval removal;
+        try
+        {
+            removal = await _settings.RemoveKeyAsync(stopRequests, CancellationToken.None);
+        }
+        catch (CredentialUnavailableException ex)
+        {
+            // The key and the settings are as they were (D2 §2.6).
+            Report(UiText.ModelKeyRemoveFailed(ex.Message), isError: true);
+            return;
+        }
+
+        if (!removal.Removed)
+        {
+            KeyRemovalQuestion = UiText.ModelKeyInUse(removal.RequestsUsingKey);
+            IsConfirmingKeyRemoval = true;
+            return;
+        }
+
+        await LoadAsync();
+        Report(UiText.ModelKeyRemoved, isError: false);
+    });
 
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private Task SaveAsync() => RunAsync(async () =>
@@ -417,8 +470,14 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.I
         ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         OutputLimit = saved.MaxOutputTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         _shownValues = (Name, BaseUrl, Model, ContextWindow, OutputLimit, DeclaresToolCalls, DeclaresImageInput);
+        CanRemoveKey = saved.CredentialRef.Length > 0;
         HasSavedKey = await _settings.SavedKeyExistsAsync(CancellationToken.None);
-        if (!HasSavedKey)
+        if (!CanRemoveKey)
+        {
+            // The key was removed: the connection is not set up until one is entered.
+            Report(UiText.ModelKeyNotSet, isError: false);
+        }
+        else if (!HasSavedKey)
         {
             // A restored backup can point at a key replaced and deleted since: say so instead of "saved".
             Report(UiText.SavedKeyMissing, isError: true);

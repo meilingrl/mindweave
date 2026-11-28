@@ -17,6 +17,59 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.35 · 2026-11-28
+
+- Added 移除密钥 (Remove key) beside 测试连接 in Settings › Model connection; when requests are using the key, it asks first and stops them (D-042 §2.3)
+- Added a line in the MCP server form: arguments are stored as plain text, and a key belongs in an environment variable
+- Added a guard on the drawing of every answer and summary: a message whose formatting cannot be drawn is shown as plain text under a note, and the rest of the page goes on (D-042 §2.5); 348 malformed formulas and about 90 Markdown fragments are tested, and none crashed
+- Fixed retired keys that could stay in the key store for good: they are now cleaned at start-up and when a task ends, behind one gate with the settings save
+- Fixed a key store that does not answer: a read, write or delete fails after 30 seconds with "unlock it and retry", for the model key, the web search key and MCP secrets
+- Fixed a streamed response line without a break growing without bound: it fails as an invalid response past the event limit (security-4)
+- Try: Settings › Model connection › Remove key; start an answer with a slow model first to see the question
+- Not verified: Windows and Linux before CI; a real window; a real locked keychain (tested with a fake store); a real model's malformed output; very long lines without spaces are slow to lay out (47 s for 200,000 characters in a debug build), not guarded
+
+## 0.6.34 · 2026-11-28
+
+- Added a page while the data format is upgraded at start ("Upgrading data … a backup is made first"), and one notice afterwards that says to which version and where the backup is (D-042 §3.1)
+- Added restoring a database that a restore or upgrade replaced: it is listed with the backups on the recovery page and under Settings › Data and storage, and a newer build's data is shown as kept, with how to get it back (D-042 §3.1)
+- Added "Quit without saving" to the exit prompt once a retry has failed, listing what would be lost; never offered during a restore (D-042 §3.4)
+- Added a progress bar to the workspace and conversation delete dialogs when the backup before the delete takes more than a second; measured 189 ms for 52.7 MB, with a 1 s budget in the benchmark
+- Added tests that fix every stored name (tables, columns, stored values, JSON fields, preference keys) and that every single-implementation interface is used across projects; six forwarding interfaces removed
+- Changed restoring an older backup whose file still exists: it is upgraded in place, with no second backup, and the dialog says the backup stays as it is
+- Changed upgrades to roll back only when the count of broken links between rows rises; links that were already broken are logged
+- Documents: daily-build.md says how to get back data kept from a newer build
+- Try: `scripts/daily.sh trial` to see the upgrade page and notice on a copy of your data; Settings › Data and storage for the replaced data
+- Not verified: Windows and Linux before CI; a real window; the progress bar on data large enough to take a second; a replaced database with a `-wal` file but no `-shm`; the count of broken links in the diagnostic summary (comes with the diagnostics page)
+
+## 0.6.33 · 2026-11-28
+
+- Fixed fetching the model list from Anthropic's own service (api.anthropic.com), which failed on a missing version header; other services are unchanged
+- Try: Settings › Model connection with an Anthropic key and the address `https://api.anthropic.com/v1`, then fetch the model list
+- Not verified: Windows and Linux before CI; the full desktop suite on the fix's own branch (run here at the merge)
+
+## 0.6.32 · 2026-11-28
+
+- Added 新建分支 (New branch) on the conversation page and in a sidebar row's menu: a branch that continues the conversation from its end, with all of it so far as context and nothing added later (requirements v0.37 §6.2)
+- Added renaming by double click on a sidebar row; the first click opens it as before (requirements v0.37 §10.6)
+- Try: `scripts/daily.sh trial`, then double-click a conversation in the sidebar, and press 新建分支 on a conversation page and ask a follow-up
+- Not verified: a real window; Windows; a real model answering in the new branch
+
+## 0.6.31 · 2026-11-28
+
+- Fixed text boxes where an input method (pinyin, say) started composing over selected text: the selection stayed and the composing text was drawn in front of it, with the highlight shifted. The selection is now replaced, as typing does, in every text box (Avalonia 12.1.4 skipped this in most boxes)
+- Try: rename a row in the sidebar and type pinyin over the selected name; the old name goes at the first letter
+- Not verified: Windows input methods
+
+## 0.6.30 · 2026-11-27
+
+- Added `nuget.config` with nuget.org as the only source, and `global.json` with one SDK feature band; CI installs what it names (dependencies-2, ci-build-7, D-042)
+- Added a performance workflow on `main` that never blocks a merge, with budgets three times the local ones (ci-build-9)
+- Added direct tests for `ServiceAddress` and `SelectionCarry` (tests-10)
+- Changed CI to end a hanging test after 5 minutes and name it (tests-7), and to run the Windows key store tests (cross-platform-5); the macOS ones run in the full local run
+- Fixed the class of desktop tests that waited for one state and then asserted another, which failed now and then under load
+- Try: nothing on screen changed; see the first CI run and the performance workflow on GitHub
+- Not verified: whether hosted Windows runners allow the key store tests; the performance budgets on CI's machines
+
 ## 0.6.29 · 2026-11-27
 
 - Changed every service the app builds to take its parts as required parameters; a test resolves each registered service (architecture-4, D-042)

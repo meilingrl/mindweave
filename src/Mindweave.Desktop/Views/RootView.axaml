@@ -133,6 +133,7 @@
           <TextBlock Classes="dialog-title" Text="{x:Static t:UiText.ExitSaveFailedTitle}" />
           <TextBlock Classes="dialog-body" Text="{Binding Exit.FailedBody}" />
           <StackPanel Classes="dialog-buttons">
+            <Button Name="ExitQuitWithoutSaving" Classes="secondary danger" Content="{x:Static t:UiText.QuitWithoutSaving}" Command="{Binding Exit.QuitWithoutSavingCommand}" IsVisible="{Binding Exit.CanQuitWithoutSaving}" />
             <Button Name="ExitReturn" Classes="secondary" Content="{x:Static t:UiText.ExitReturn}" Command="{Binding Exit.ReturnCommand}" IsCancel="True" />
             <Button Name="ExitRetry" Classes="primary" Content="{Binding Exit.FailedRetry}" Command="{Binding Exit.RetryCommand}" IsDefault="True" />
           </StackPanel>
@@ -156,6 +157,7 @@
             </DockPanel>
           </Border>
           <TextBlock Classes="caption" Text="{x:Static t:UiText.WorkspaceDeleting}" IsVisible="{Binding IsDeleting}" />
+          <ProgressBar Name="WorkspaceDeleteProgress" IsVisible="{Binding BackupProgress.IsShown}" IsIndeterminate="{Binding BackupProgress.IsIndeterminate}" Value="{Binding BackupProgress.Value}" Minimum="0" Maximum="100" />
           <StackPanel Classes="dialog-buttons">
             <Button Name="WorkspaceDeleteConfirm" Classes="secondary danger" Content="{x:Static t:UiText.Delete}" Command="{Binding DeleteCommand}" />
             <Button Name="WorkspaceDeleteCancel" Classes="primary" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
@@ -177,6 +179,7 @@
             </DockPanel>
           </Border>
           <TextBlock Classes="caption" Text="{Binding DeletingText}" IsVisible="{Binding IsBusy}" />
+          <ProgressBar Name="ConversationDeleteProgress" IsVisible="{Binding BackupProgress.IsShown}" IsIndeterminate="{Binding BackupProgress.IsIndeterminate}" Value="{Binding BackupProgress.Value}" Minimum="0" Maximum="100" />
           <StackPanel Classes="dialog-buttons">
             <Button Name="ConversationDeleteArchive" Classes="secondary" Command="{Binding ArchiveInsteadCommand}" IsVisible="{Binding Scope.VisibleRoots.Count, FallbackValue=0, Converter={x:Static d:Converters.IsPositive}}"
                     AutomationProperties.Name="{x:Static t:UiText.ArchiveInstead}">

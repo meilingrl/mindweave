@@ -28,7 +28,9 @@ internal static class SettingsInput
 
     /// <summary>
     /// Clicks one of the rows that lead on, once the page has read everything it shows: what is still coming in above the row
-    /// moves it, between aiming and pressing too.
+    /// moves it, between aiming and pressing too. New-answer hints move it as well: in Settings the page ends above them,
+    /// and they come up a moment after the answers, so a test that seeds answers starts from seen ones
+    /// (<see cref="SummaryNetworkScenario.SeedSeenAsync"/>); under load a hint landed between press and release (2026-11-27).
     /// </summary>
     public static async Task OpenAsync(Window window, string row)
     {

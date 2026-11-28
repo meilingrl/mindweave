@@ -75,19 +75,14 @@ public static class CompositionRoot
 
         // The bridges between pages and the window's dialogs: a page a view made reaches the dialogs of the view shown.
         services.AddSingleton<WorkspaceDeletionRequests>();
-        services.AddSingleton<IWorkspaceDeletionPrompt>(sp => sp.GetRequiredService<WorkspaceDeletionRequests>());
         services.AddSingleton<WorkspaceSwitchRequests>();
-        services.AddSingleton<IWorkspaceSwitcher>(sp => sp.GetRequiredService<WorkspaceSwitchRequests>());
         services.AddSingleton<ConversationDeletionRequests>();
-        services.AddSingleton<IConversationDeletionPrompt>(sp => sp.GetRequiredService<ConversationDeletionRequests>());
         services.AddSingleton<Application.Share.IShareMarkdown, Markdown.ShareMarkdown>();
         services.AddSingleton<Application.Share.IShareContents, Application.Share.ShareContentService>();
         services.AddSingleton<Application.ManualBackup.IManualBackups, Application.ManualBackup.ManualBackupService>();
         services.AddSingleton<Application.Storage.ISaveBeforeClose, Application.Storage.SaveBeforeClose>(); // Needs the manual backups above.
         services.AddSingleton<ShareRequests>();
-        services.AddSingleton<ISharePrompt>(sp => sp.GetRequiredService<ShareRequests>());
         services.AddSingleton<BackupRequests>();
-        services.AddSingleton<IBackupPrompts>(sp => sp.GetRequiredService<BackupRequests>());
 
         // The network's view, viewport and selection outlive a view.
         services.AddSingleton<SummaryNetwork.SummaryNetworkSessions>();
@@ -133,6 +128,7 @@ public static class CompositionRoot
         services.AddSingleton<IMenuNavigator>(sp => sp.GetRequiredService<Workbench>());
         services.AddSingleton<IContentNavigator>(sp => sp.GetRequiredService<Workbench>());
         services.AddSingleton<ExitCoordinator>();
+        services.AddTransient<BackupProgressViewModel>();
         services.AddSingleton<WorkspaceDeletionViewModel>();
         services.TryAddSingleton<ConversationDeletionViewModel>(); // Tests give it their own clock.
         services.AddSingleton<BackupRestoreViewModel>();

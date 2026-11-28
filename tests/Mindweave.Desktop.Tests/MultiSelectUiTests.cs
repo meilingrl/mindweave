@@ -268,7 +268,7 @@ public class MultiSelectUiTests
         await UiWait.UntilAsync(() => list.Items.All(i => i.Id != sibling));
         Assert.Equal([middle, leaf], Selected(list));
         held.Finish();
-        await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(leaf));
+        await UiWait.AnswersStoredAsync(conversations, leaf);
         _ = running;
 
         // Now it goes; the leaf is inside the middle's tree, so only the middle gets an archive mark of its own.
@@ -391,7 +391,7 @@ public class MultiSelectUiTests
         var clock = new ManualTime(new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(8)));
         await using var app = DesktopHarness.Create(s => s.AddSingleton(sp => new ConversationDeletionViewModel(
             sp.GetRequiredService<IConversationDeletion>(), sp.GetRequiredService<IConversations>(), sp.GetRequiredService<Workbench>(),
-            sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), clock)));
+            sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), clock, sp.GetRequiredService<ViewModels.BackupProgressViewModel>())));
         var window = app.ShowWindow(1100, 720);
         var (root, _, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
@@ -404,9 +404,14 @@ public class MultiSelectUiTests
         Assert.Equal(UiText.ConversationDeleteContents(1, 0, 1), dialog.Contents);
 
         var branch = await SummaryNetworkScenario.BranchAsync(app, conversations, sibling, "旁支的分支");
-        await UiWait.UntilAsync(() => dialog.Scope!.Conversations.Count == 2);
-        Assert.Equal(UiText.ConversationDeleteScopeChanged, dialog.Problem);
-        Assert.Equal(UiText.ConversationDeleteContents(2, 1, 1), dialog.Contents);
+        // The recount that first finds the branch may still see its answer running and say so; the change is said by the
+        // recount after the answer ends.
+        await UiWait.SettledAsync(() =>
+        {
+            Assert.Equal(UiText.ConversationDeleteContents(2, 1, 1), dialog.Contents);
+            Assert.Empty(dialog.Scope!.Busy);
+            Assert.Equal(UiText.ConversationDeleteScopeChanged, dialog.Problem);
+        });
 
         // Within the hold: the press is not taken as confirming counts the user may not have seen.
         clock.Now += TimeSpan.FromMilliseconds(100);

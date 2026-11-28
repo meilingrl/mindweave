@@ -6,6 +6,6 @@
              x:DataType="vm:StartupViewModel">
   <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
     <ProgressBar IsIndeterminate="True" Width="160" />
-    <TextBlock Text="{x:Static t:UiText.StartupOpening}" Classes="muted" HorizontalAlignment="Center" />
+    <TextBlock Name="StartupText" Text="{Binding Text}" Classes="muted" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="560" />
   </StackPanel>
 </UserControl>

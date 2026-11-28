@@ -6,26 +6,16 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels;
 
-public interface IRecoveryActions
-{
-    Task RetryAsync();
-
-    Task RestoreAsync(BackupInfo backup);
-
-    /// <summary>Quits through the one exit sequence (it has nothing to ask or save here, but owns the final shutdown).</summary>
-    void Quit();
-}
-
 /// <summary>
 /// Shown when the database cannot be opened for writing. Never repairs or restores on its own:
 /// restoring a backup takes an explicit choice followed by a confirmation that states the consequence.
 /// </summary>
 public sealed partial class RecoveryViewModel : ViewModelBase
 {
-    private readonly IRecoveryActions _actions;
+    private readonly AppStartup _actions;
     private readonly ISystemShell _shell;
 
-    public RecoveryViewModel(DatabaseOpenResult result, IReadOnlyList<BackupInfo> backups, IRecoveryActions actions, ISystemShell shell)
+    public RecoveryViewModel(DatabaseOpenResult result, IReadOnlyList<BackupInfo> backups, AppStartup actions, ISystemShell shell)
     {
         ArgumentNullException.ThrowIfNull(result);
         _actions = actions;

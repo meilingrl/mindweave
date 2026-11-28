@@ -10,14 +10,11 @@ using Mindweave.Desktop.ViewModels.Conversations;
 
 namespace Mindweave.Desktop.ViewModels;
 
-/// <summary>Asks for conversations to be deleted with their scope stated; pages and the sidebar hold this, not the dialog.</summary>
-public interface IConversationDeletionPrompt
-{
-    void Open(WorkspaceId workspace, IReadOnlyList<ConversationId> selected);
-}
-
-/// <summary>Hands a delete request to the window's dialog, and tells the sidebar when the dialog deleted or archived.</summary>
-public sealed class ConversationDeletionRequests : IConversationDeletionPrompt
+/// <summary>
+/// Asks for conversations to be deleted with their scope stated: pages and the sidebar hold this, not the dialog. It hands
+/// the request to the window's dialog, and tells the sidebar when the dialog deleted or archived.
+/// </summary>
+public sealed class ConversationDeletionRequests
 {
     public event EventHandler<(WorkspaceId Workspace, IReadOnlyList<ConversationId> Selected)>? Requested;
 
@@ -58,8 +55,9 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase, IDisp
     /// <summary>How long after the counts change under the pointer a press is ignored (it may have started before).</summary>
     internal static readonly TimeSpan ChangeHold = TimeSpan.FromMilliseconds(600);
 
-    public ConversationDeletionViewModel(IConversationDeletion deletion, IConversations conversations, Workbench workbench, ConversationDeletionRequests requests, IUiDispatcher dispatcher, TimeProvider time)
+    public ConversationDeletionViewModel(IConversationDeletion deletion, IConversations conversations, Workbench workbench, ConversationDeletionRequests requests, IUiDispatcher dispatcher, TimeProvider time, BackupProgressViewModel backupProgress)
     {
+        BackupProgress = backupProgress;
         ArgumentNullException.ThrowIfNull(time);
         _time = time;
         ArgumentNullException.ThrowIfNull(requests);
@@ -117,6 +115,9 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase, IDisp
     public partial bool IsBusy { get; private set; }
 
     public bool IsCascade => Scope?.IsCascade == true;
+
+    /// <summary>The backup a cascading delete makes first, shown once it has taken a second (performance-7).</summary>
+    public BackupProgressViewModel BackupProgress { get; }
 
     public string DeletingText => IsCascade ? UiText.WorkspaceDeleting : UiText.ConversationDeleting;
 
@@ -209,7 +210,7 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase, IDisp
         ConversationDeleteOutcome outcome;
         try
         {
-            outcome = await _deletion.DeleteAsync(confirmed, CancellationToken.None);
+            outcome = await BackupProgress.WatchAsync(() => _deletion.DeleteAsync(confirmed, CancellationToken.None));
         }
         catch (StorageWriteException)
         {

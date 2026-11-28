@@ -3,6 +3,7 @@ using System.Globalization;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Summaries;
 using Mindweave.Desktop.SummaryNetwork;
+using Mindweave.Testing;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -335,7 +336,8 @@ public partial class SpatialLayoutTests
             var report = SpatialLayout.Measure(nodes, arrangement!);
             Output($"spatial layout of {nodes.Count:N0} dots ({name}), median of three: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms; {report}");
             Assert.Equal(0, report.DotOverlaps);
-            Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Laying out {nodes.Count:N0} dots ({name}) took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms).");
+            var budget = PerfBudget.Ms(300);
+            Assert.True(elapsed < budget, $"Laying out {nodes.Count:N0} dots ({name}) took {elapsed.TotalMilliseconds:F1} ms (budget {budget.TotalMilliseconds} ms).");
         }
     }
 

@@ -4,12 +4,21 @@ namespace Mindweave.Infrastructure.Ai;
 
 /// <summary>
 /// Minimal Server-Sent Events reader: joins multi-line <c>data:</c> fields, dispatches on a blank line,
-/// ignores comments and other fields, handles LF and CRLF, and flushes a final event at end of stream.
+/// ignores comments and other fields, handles LF, CRLF and CR, and flushes a final event at end of stream. Lines are read
+/// here, not by <see cref="StreamReader.ReadLineAsync(CancellationToken)"/>, which reads a line without a break with no
+/// limit (low finding security-4, D2 §2.5): a line longer than any event fails at once.
 /// </summary>
 internal sealed class SseReader(Stream stream) : IDisposable
 {
     private readonly StreamReader _reader = new(stream, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: false);
     private readonly StringBuilder _data = new();
+    private readonly StringBuilder _line = new();
+    private readonly char[] _buffer = new char[4096];
+    private int _start;
+    private int _end;
+
+    /// <summary>The last line ended with CR: an LF right after it belongs to the same break.</summary>
+    private bool _afterCarriageReturn;
 
     /// <summary>The largest event accepted, in characters.</summary>
     internal const int MaxEventChars = 8 * 1024 * 1024;
@@ -23,7 +32,7 @@ internal sealed class SseReader(Stream stream) : IDisposable
         var hasData = false;
         while (true)
         {
-            var line = await _reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            var line = await ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (line is not null)
             {
                 LineRead?.Invoke();
@@ -78,6 +87,52 @@ internal sealed class SseReader(Stream stream) : IDisposable
     }
 
     public void Dispose() => _reader.Dispose();
+
+    /// <summary>The next line without its break, or null at end of stream; throws once a line is longer than any event.</summary>
+    private async Task<string?> ReadLineAsync(CancellationToken cancellationToken)
+    {
+        _line.Clear();
+        while (true)
+        {
+            if (_start == _end)
+            {
+                _start = 0;
+                _end = await _reader.ReadAsync(_buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                if (_end == 0)
+                {
+                    return _line.Length > 0 ? _line.ToString() : null;
+                }
+            }
+
+            if (_afterCarriageReturn)
+            {
+                _afterCarriageReturn = false;
+                if (_buffer[_start] == '\n')
+                {
+                    _start++;
+                    continue;
+                }
+            }
+
+            for (var i = _start; i < _end; i++)
+            {
+                if (_buffer[i] is '\n' or '\r')
+                {
+                    _line.Append(_buffer, _start, i - _start);
+                    _afterCarriageReturn = _buffer[i] == '\r';
+                    _start = i + 1;
+                    return _line.ToString();
+                }
+            }
+
+            _line.Append(_buffer, _start, _end - _start);
+            _start = _end;
+            if (_line.Length > MaxEventChars)
+            {
+                throw new InvalidDataException("A stream line is longer than any answer could be.");
+            }
+        }
+    }
 
     private string Take()
     {

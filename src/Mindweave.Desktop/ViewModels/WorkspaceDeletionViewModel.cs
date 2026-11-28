@@ -11,14 +11,11 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels;
 
-/// <summary>Asks for a workspace to be deleted; pages hold this, not the dialog, so the page factory has no cycle.</summary>
-public interface IWorkspaceDeletionPrompt
-{
-    void Open(Workspace workspace);
-}
-
-/// <summary>Hands a delete request from a page to the dialog that is listening (the window's one).</summary>
-public sealed class WorkspaceDeletionRequests : IWorkspaceDeletionPrompt
+/// <summary>
+/// Asks for a workspace to be deleted: pages hold this, not the dialog, so the page factory has no cycle. It hands the
+/// request to the dialog that is listening (the window's one).
+/// </summary>
+public sealed class WorkspaceDeletionRequests
 {
     public event EventHandler<Workspace>? Requested;
 
@@ -42,8 +39,9 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase, IDisposa
     private readonly SerialRefresh _rechecks;
     private volatile bool _watching;
 
-    public WorkspaceDeletionViewModel(IWorkspaceDeletion deletion, IConversations conversations, Workbench workbench, SummaryNetworkSessions summaryNetworks, WorkspaceDeletionRequests requests, IUiDispatcher dispatcher)
+    public WorkspaceDeletionViewModel(IWorkspaceDeletion deletion, IConversations conversations, Workbench workbench, SummaryNetworkSessions summaryNetworks, WorkspaceDeletionRequests requests, IUiDispatcher dispatcher, BackupProgressViewModel backupProgress)
     {
+        BackupProgress = backupProgress;
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(conversations);
         _deletion = deletion;
@@ -119,6 +117,9 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase, IDisposa
     [NotifyCanExecuteChangedFor(nameof(DeleteCommand), nameof(CancelCommand))]
     public partial bool IsDeleting { get; private set; }
 
+    /// <summary>The backup the delete makes first, shown once it has taken a second (performance-7).</summary>
+    public BackupProgressViewModel BackupProgress { get; }
+
     /// <summary>The typed name is the workspace's name exactly (as stored, normalized the same way), nothing in it runs and nothing is in progress.</summary>
     public bool CanDelete =>
         Target is { } w && Contents is not null && !IsDeleting && !HasRunningWork
@@ -182,7 +183,7 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase, IDisposa
         WorkspaceDeleteOutcome outcome;
         try
         {
-            outcome = await _deletion.DeleteAsync(workspace.Id, CancellationToken.None);
+            outcome = await BackupProgress.WatchAsync(() => _deletion.DeleteAsync(workspace.Id, CancellationToken.None));
         }
         catch (StorageWriteException)
         {

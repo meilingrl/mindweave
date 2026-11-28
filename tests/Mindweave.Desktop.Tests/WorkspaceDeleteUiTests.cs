@@ -262,7 +262,8 @@ public class WorkspaceDeleteUiTests
             app.Workbench,
             app.Services.GetRequiredService<SummaryNetworkSessions>(),
             requests,
-            app.Services.GetRequiredService<Services.IUiDispatcher>());
+            app.Services.GetRequiredService<Services.IUiDispatcher>(),
+            app.Services.GetRequiredService<ViewModels.BackupProgressViewModel>());
 
         requests.Open(app.Workbench.CurrentWorkspace!);
         await dialog.Loading;

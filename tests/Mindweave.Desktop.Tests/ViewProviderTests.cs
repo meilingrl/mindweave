@@ -63,7 +63,7 @@ public class ViewProviderTests
             s.AddSingleton<Application.Notifications.IAlertSound>(sound);
             s.AddSingleton(sp => made = new ConversationDeletionViewModel(
                 sp.GetRequiredService<Application.Conversations.IConversationDeletion>(), sp.GetRequiredService<IConversations>(), sp.GetRequiredService<Workbench>(),
-                sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), sp.GetRequiredService<TimeProvider>()));
+                sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ViewModels.BackupProgressViewModel>()));
         });
 
         Assert.Same(sound, app.Session.Root.GetRequiredService<Application.Notifications.IAlertSound>());

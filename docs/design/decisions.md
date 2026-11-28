@@ -326,3 +326,8 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Sync is a vision, not ruled out.** It needs a shared cloud, server or repository, with a server side and a client side: another architecture. The manual backup is not declared to have achieved it, and Mindweave does not commit to never offering a server and real sync (evolution D10).
 - **Names.** "Device copy" (D-039, D-041, D-046) becomes manual backup (手动备份) in the documents; the stored kind word `device` stays.
 
+
+## D-048 Two upkeep rules settled while building them (you, 2026-11-28)
+
+- **Interfaces with one implementation (architecture-8).** The new test found 18 that no other project uses in a signature. Six that only forwarded were removed; their callers take the one class. Twelve stay on the test's list of exceptions, each with its written reason: four places where tests put stand-ins (`ISystemShell`, `IThemeApplier`, `IUiDispatcher`, `IPageFactory`), five navigation interfaces (architecture §2 names navigation as a boundary), two narrow views of the generation coordinator (`IGenerationEvents`, `IRunSlots`) and `IToolSource` (the tool registry takes a list of sources). This narrows D-042's "removed".
+- **Stored names (gap-schema-3).** A new preference key or a new JSON field only needs recording in `stored-names.txt`, since an older build passes over it. Every other change, and every removal, needs a new schema version. This narrows D-042's "the schema version is the only gate for stored formats".

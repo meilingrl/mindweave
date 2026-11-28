@@ -49,7 +49,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     private ConversationId? _confirming;
 
     private readonly IConversationDeletion? _deletion;
-    private readonly IConversationDeletionPrompt? _deletionPrompt;
+    private readonly ConversationDeletionRequests? _deletionPrompt;
 
     public ArchivedViewModel(
         Workspace workspace,
@@ -57,7 +57,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
         IWorkbenchNavigator navigator,
         IUiDispatcher dispatcher,
         IConversationDeletion? deletion = null,
-        IConversationDeletionPrompt? deletionPrompt = null)
+        ConversationDeletionRequests? deletionPrompt = null)
         : base(ArchivedRoute.Instance)
     {
         _deletion = deletion;

@@ -515,6 +515,15 @@ public class ChatCompletionsClientTests
         Assert.Equal(kind, error.Kind);
     }
 
+    /// <summary>Low finding security-4 (D2 §2.5): a stream line that never ends is cut off as an invalid response.</summary>
+    [Fact]
+    public async Task A_stream_line_that_never_ends_is_an_invalid_response()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new EndlessLine()) })));
+
+        Assert.Equal(GenerationErrorKind.InvalidResponse, error.Kind);
+    }
+
     [Fact]
     public async Task Choices_with_a_null_delta_or_content_are_not_failures()
     {
@@ -575,6 +584,41 @@ public class ChatCompletionsClientTests
         });
 
         Assert.Equal(["A", "b"], await client.ListModelsAsync("https://api.example.com/v1", "k", Ct));
+    }
+
+    /// <summary>
+    /// 2026-11-28: Anthropic's OpenAI-compatible layer covers chat completions only. Its model list is Anthropic's own API,
+    /// which refuses a request without its version header ("anthropic-version: header is required"), takes the key as
+    /// x-api-key and lists 20 models a page unless asked for more. Other services are asked as before.
+    /// </summary>
+    [Fact]
+    public async Task Anthropic_models_are_listed_with_its_own_headers_and_one_large_page()
+    {
+        HttpRequestMessage? seen = null;
+        var client = Client(r =>
+        {
+            seen = r;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """{"data":[{"type":"model","id":"claude-sonnet-5-5","display_name":"Claude Sonnet 5.5","created_at":"2026-10-01T00:00:00Z"},{"type":"model","id":"claude-opus-5-5","display_name":"Claude Opus 5.5","created_at":"2026-09-01T00:00:00Z"}],"has_more":false,"first_id":"claude-sonnet-5-5","last_id":"claude-opus-5-5"}""",
+                    Encoding.UTF8,
+                    "application/json"),
+            };
+        });
+
+        Assert.Equal(["claude-opus-5-5", "claude-sonnet-5-5"], await client.ListModelsAsync("https://api.anthropic.com/v1/", Key, Ct));
+        Assert.Equal("https://api.anthropic.com/v1/models?limit=1000", seen!.RequestUri!.ToString());
+        Assert.Equal([Key], seen.Headers.GetValues("x-api-key"));
+        Assert.Equal([ChatCompletionsClient.AnthropicVersion], seen.Headers.GetValues("anthropic-version"));
+        Assert.Null(seen.Headers.Authorization);
+
+        // Any other service: the bearer key, no Anthropic headers, no page size.
+        await client.ListModelsAsync("https://api.deepseek.com/v1", Key, Ct);
+        Assert.Equal("https://api.deepseek.com/v1/models", seen.RequestUri!.ToString());
+        Assert.Equal("Bearer", seen.Headers.Authorization!.Scheme);
+        Assert.False(seen.Headers.Contains("x-api-key"));
+        Assert.False(seen.Headers.Contains("anthropic-version"));
     }
 
     [Fact]

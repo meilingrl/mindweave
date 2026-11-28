@@ -15,7 +15,7 @@ namespace Mindweave.Infrastructure.Tests.Performance;
 public class StatisticsPerformanceTests
 {
     /// <summary>One whole page load (usage for the period and every activity fact): "well under a second".</summary>
-    private static readonly TimeSpan LoadBudget = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan LoadBudget = PerfBudget.Ms(500);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

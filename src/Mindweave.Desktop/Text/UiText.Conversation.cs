@@ -27,8 +27,20 @@ public static partial class UiText
     public static string MarkerNewAnswer => T("New answer", "有新回答");
     public static string CreateBranch => T("Create branch", "创建分支");
 
+    /// <summary>Above a message whose formulas or formatting could not be drawn (D2 §2.5).</summary>
+    public static string MessageShownAsPlainText => T(
+        "This message’s formatting couldn’t be drawn, so it is shown as plain text.",
+        "这条消息的格式无法显示，下面按纯文本显示。");
+
     /// <summary>Creating a branch from the selection by keyboard (2026-11-13; ⌘/Ctrl+B stays the sidebar's).</summary>
     public static string BranchShortcut => OperatingSystem.IsMacOS() ? "⌘⇧B" : "Ctrl+Shift+B";
+
+    /// <summary>A branch without a selected passage: it continues from the conversation's end, with all of it as context.</summary>
+    public static string ContinueInBranch => T("New branch", "新建分支");
+
+    public static string ContinueInBranchTip => T(
+        "Continue this conversation in a new branch, with everything so far as its context",
+        "在新的分支里接着这个会话往下问，此前的全部内容都作为上下文");
 
     public static string CreateBranchTip => T(CreateBranch + " (" + BranchShortcut + ")", CreateBranch + "（" + BranchShortcut + "）");
     public static string ReturnToSource => T("Back to source answer", "返回来源");
