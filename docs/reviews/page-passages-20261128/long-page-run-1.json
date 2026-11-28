@@ -1,0 +1,81 @@
+{
+  "at": "2026-11-28T06:11:33.853383+00:00",
+  "model": "deepseek-flash @ api.deepseek.com",
+  "answerPrompt": 1,
+  "runPrompt": 4,
+  "summaryPrompt": 2,
+  "scenarios": [
+    {
+      "id": "long-page",
+      "category": "网络",
+      "failure": null,
+      "passed": 5,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 9 年／9年／九年",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 fetch_page",
+          "passed": true,
+          "detail": "web_search、fetch_page"
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "1 个编号"
+        },
+        {
+          "name": "第一次 fetch_page 的结果含有 设计寿命为 9 年",
+          "passed": true,
+          "detail": "结果约 606 字"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 2,
+        "ToolCalls": 2,
+        "ByTool": {
+          "web_search": 1,
+          "fetch_page": 1
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 1,
+        "ValidCitations": 1,
+        "EstimatedTokens": 3454,
+        "PromptTokens": 2936,
+        "CompletionTokens": 162,
+        "Seconds": 3.9792327,
+        "FirstTextSeconds": 3.2265867,
+        "ScenarioRequests": 2,
+        "ScenarioPromptTokens": 2936,
+        "ScenarioCompletionTokens": 162,
+        "ScenarioCacheReadTokens": 2048,
+        "InputTokens": 2936
+      },
+      "requests": [
+        {
+          "purpose": "answer",
+          "input": 1123,
+          "cached": 896
+        },
+        {
+          "purpose": "answer",
+          "input": 1813,
+          "cached": 1152
+        }
+      ],
+      "quote": null,
+      "answer": "青鸾-7 卫星的设计寿命是 **9 年**。\n\n报告中写道：青鸾-7 气象卫星在本年度完成在轨测试并交付使用；该卫星由研究院第二总体部研制，设计寿命为 9 年，主要载荷是一台多通道微波辐射计，能够在云层下测量大气温度与湿度[1]。"
+    }
+  ]
+}

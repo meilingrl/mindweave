@@ -1,0 +1,81 @@
+{
+  "at": "2026-11-28T06:12:04.486523+00:00",
+  "model": "deepseek-flash @ api.deepseek.com",
+  "answerPrompt": 1,
+  "runPrompt": 4,
+  "summaryPrompt": 2,
+  "scenarios": [
+    {
+      "id": "long-page",
+      "category": "网络",
+      "failure": null,
+      "passed": 5,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 9 年／9年／九年",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 fetch_page",
+          "passed": true,
+          "detail": "web_search、fetch_page"
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "1 个编号"
+        },
+        {
+          "name": "第一次 fetch_page 的结果含有 设计寿命为 9 年",
+          "passed": true,
+          "detail": "结果约 606 字"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 2,
+        "ToolCalls": 2,
+        "ByTool": {
+          "web_search": 1,
+          "fetch_page": 1
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 1,
+        "ValidCitations": 1,
+        "EstimatedTokens": 3454,
+        "PromptTokens": 2915,
+        "CompletionTokens": 147,
+        "Seconds": 6.4435047,
+        "FirstTextSeconds": 5.7445567,
+        "ScenarioRequests": 2,
+        "ScenarioPromptTokens": 2915,
+        "ScenarioCompletionTokens": 147,
+        "ScenarioCacheReadTokens": 2048,
+        "InputTokens": 2915
+      },
+      "requests": [
+        {
+          "purpose": "answer",
+          "input": 1123,
+          "cached": 896
+        },
+        {
+          "purpose": "answer",
+          "input": 1792,
+          "cached": 1152
+        }
+      ],
+      "quote": null,
+      "answer": "南溟航天研究院 2025 年度报告写明，青鸾-7 卫星的设计寿命是 **9 年** [1]。\n\n报告对该卫星的其他说明：它是一颗气象卫星，由研究院第二总体部研制，本年度完成在轨测试并交付使用，主要载荷是一台多通道微波辐射计，能在云层下测量大气温度与湿度 [1]。"
+    }
+  ]
+}

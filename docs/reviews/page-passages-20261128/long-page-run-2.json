@@ -1,0 +1,81 @@
+{
+  "at": "2026-11-28T06:11:55.817935+00:00",
+  "model": "deepseek-flash @ api.deepseek.com",
+  "answerPrompt": 1,
+  "runPrompt": 4,
+  "summaryPrompt": 2,
+  "scenarios": [
+    {
+      "id": "long-page",
+      "category": "网络",
+      "failure": null,
+      "passed": 5,
+      "checks": [
+        {
+          "name": "回答完成",
+          "passed": true,
+          "detail": "Complete"
+        },
+        {
+          "name": "包含 9 年／9年／九年",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "调用 fetch_page",
+          "passed": true,
+          "detail": "web_search、fetch_page"
+        },
+        {
+          "name": "有出处且编号都有效",
+          "passed": true,
+          "detail": "1 个编号"
+        },
+        {
+          "name": "第一次 fetch_page 的结果含有 设计寿命为 9 年",
+          "passed": true,
+          "detail": "结果约 606 字"
+        }
+      ],
+      "metrics": {
+        "State": "Complete",
+        "ModelRequests": 2,
+        "ToolCalls": 2,
+        "ByTool": {
+          "web_search": 1,
+          "fetch_page": 1
+        },
+        "Repeated": 0,
+        "FailedCalls": 0,
+        "Approvals": 0,
+        "LimitReached": null,
+        "CitedNumbers": 1,
+        "ValidCitations": 1,
+        "EstimatedTokens": 3454,
+        "PromptTokens": 2918,
+        "CompletionTokens": 165,
+        "Seconds": 4.1385816,
+        "FirstTextSeconds": 3.5941826,
+        "ScenarioRequests": 2,
+        "ScenarioPromptTokens": 2918,
+        "ScenarioCompletionTokens": 165,
+        "ScenarioCacheReadTokens": 2048,
+        "InputTokens": 2918
+      },
+      "requests": [
+        {
+          "purpose": "answer",
+          "input": 1123,
+          "cached": 896
+        },
+        {
+          "purpose": "answer",
+          "input": 1795,
+          "cached": 1152
+        }
+      ],
+      "quote": null,
+      "answer": "**9 年。**\n\n报告在介绍青鸾-7 气象卫星时写道：该卫星由研究院第二总体部研制，本年度完成在轨测试并交付使用，设计寿命为 9 年，主要载荷是一台多通道微波辐射计，可在云层下测量大气温度与湿度 [1]。"
+    }
+  ]
+}
