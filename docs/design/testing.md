@@ -32,7 +32,7 @@ Avalonia headless tests have only one UI thread per process, so desktop tests in
 
 ## Time budget
 
-- **CI ends a hanging test after 5 minutes and names it**: `dotnet test --blame-hang-timeout 5m` reports "The test running when the crash occurred", and a desktop shard (`test-shards.py --hang 300`, which `suite` uses too) prints `HUNG: <test>` and fails. No coverage figure is kept.
+- **CI ends a hanging test after 5 minutes and names it**: `dotnet test --blame-hang-timeout 5m` reports "The test running when the crash occurred", and a desktop shard (`test-shards.py --hang 300`, which `suite` uses too) in which no test has finished for 5 minutes is ended, prints `HUNG: <test>` for the tests it was running, longest first, and fails. Not the time one test has run: a shard's classes take turns on the one UI thread, so under load a test that only waits runs long while the others finish. No coverage figure is kept.
 
 - A single test over 3 seconds (except in the `Faults` and `Performance` namespaces) is recorded as a warning on CI, not a failure: runner speeds vary too much, and failing on time would itself be intermittent.
 - A new test over budget must have a reason (a real child process, a real lock wait, and so on); where `ManualTime` can advance time, do not use real waits.

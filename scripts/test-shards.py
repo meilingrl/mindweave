@@ -16,9 +16,12 @@ With `--only I` (0 to N-1) it runs just shard I. CI uses this to give each shard
 commit lists the same classes and reads the same timings on every machine of one system, so the N runs together
 cover every class exactly once.
 
-With `--hang SECONDS` a test that runs longer than that is named and its shard is ended and fails, so a hanging test
-costs minutes and says which it was instead of running into the job's time limit unnamed (CI uses 300; tests-7 in
-docs/design/diagnostics-and-upkeep.md). The runner reports it (`-longRunning`); this script ends the shard.
+With `--hang SECONDS` a shard in which no test has finished for that long, while tests are running, is ended and fails,
+and the tests it was running are named, longest first. A hanging test then costs minutes and says which it was instead
+of running into the job's time limit unnamed (CI uses 300; tests-7 in docs/design/diagnostics-and-upkeep.md). The runner
+reports each test starting and finishing (`-reporter verbose`). Not the time one test has run: a shard runs several
+test classes at once, all waiting their turn on the one UI thread, so under load a test that is only waiting runs long
+while the others finish; ending the shard then (as `-longRunning` did, 2026-11-28) failed three healthy shards.
 
 `record` sums the per-class durations of NAME's tests in the TRX files under TRX-DIR and writes them to FILE.
 """
@@ -36,8 +39,9 @@ import xml.etree.ElementTree as ET
 # A name part starts with a letter of any script or "_": a class named in Chinese is a class too.
 CLASS_NAME = re.compile(r"[^\W\d][\w`]*(\.[^\W\d][\w`+]*)+")
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
-# What the xUnit v3 runner writes with -longRunning: [Long Running Test] 'Namespace.Class.Method', Elapsed: 00:05:02
-LONG_RUNNING = re.compile(r"\[Long Running Test\] '(?P<name>[^']+)'")
+# What the xUnit v3 runner writes with -reporter verbose, one line each: "    Namespace.Class.Method(x: 1) [STARTING]",
+# then "... [FINISHED] Time: 0.01s" (a failure or skip line comes between).
+TEST_STEP = re.compile(r"^\s*(?P<name>\S.*?) \[(?P<step>STARTING|FINISHED)\]", re.MULTILINE)
 
 
 def runner(dll):
@@ -94,11 +98,11 @@ def run(args):
         if args.results:
             cmd += ["-trx", os.path.join(args.results, f"shard-{i}.trx")]
         if args.hang:
-            cmd += ["-longRunning", str(args.hang)]
+            cmd += ["-reporter", "verbose"]
         log = open(os.path.join(logs, f"shard-{i}.log"), "w", encoding="utf-8")
         procs.append((i, shard, log, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)))
 
-    hung = watch(procs) if args.hang else {}
+    hung = watch(procs, args.hang) if args.hang else {}
     failed = 0
     for i, shard, log, proc in procs:
         code = proc.wait()
@@ -109,10 +113,11 @@ def run(args):
         state = "passed" if code == 0 and i not in hung else "FAILED"
         print(f"shard {i} ({len(shard['classes'])} classes, ~{shard['seconds']:.0f} s): {state} - {summary}")
         if i in hung:
-            for name in hung[i]:
-                print(f"    HUNG: {name} ran longer than {args.hang} s; the shard was ended")
+            print(f"    no test finished for {args.hang} s; the shard was ended")
+            for name, seconds in hung[i]:
+                print(f"    HUNG: {name} (running for {seconds:.0f} s)")
                 if os.environ.get("GITHUB_ACTIONS") == "true":
-                    print(f"::error title=Hung test::{name} ran longer than {args.hang} s")
+                    print(f"::error title=Hung test::{name}: running for {seconds:.0f} s, and no test finished for {args.hang} s")
         if code != 0 or i in hung:
             failed += 1
             # The failure and the first lines of its message and stack: on CI the log file is gone after the job.
@@ -127,16 +132,20 @@ def run(args):
     sys.exit(1 if failed else 0)
 
 
-def watch(procs):
-    """Follows the shards' logs until they end; a shard whose runner reports a test running too long is ended.
+def watch(procs, limit):
+    """Follows the shards' logs until they end; a shard in which no test finished for `limit` seconds is ended.
 
-    Returns the hung tests by shard. A hanging test never ends on its own, so its process is killed; the other tests
-    of that shard are not run, which the shard's failure says.
+    Returns, by shard, the tests it was running then, longest first with how long each had run (at most three). A
+    hanging test never ends on its own, so its process is killed; the other tests of that shard are not run, which the
+    shard's failure says. A shard that is only slow keeps finishing tests and is left alone.
     """
     hung = {}
     offsets = {i: 0 for i, _, _, _ in procs}
+    running = {i: {} for i, _, _, _ in procs}
+    progress = {i: time.monotonic() for i, _, _, _ in procs}
     while True:
-        running = 0
+        alive = 0
+        now = time.monotonic()
         for i, _, log, proc in procs:
             done = proc.poll() is not None
             with open(log.name, "rb") as f:
@@ -145,14 +154,19 @@ def watch(procs):
             # Only whole lines: a name cut in half would not match, so the rest is read again with its end next time.
             cut = data.rfind(b"\n") + 1
             offsets[i] += cut
-            names = [m.group("name") for m in LONG_RUNNING.finditer(data[:cut].decode("utf-8", errors="replace"))]
-            if names and not done:
-                hung.setdefault(i, [])
-                hung[i] += [n for n in names if n not in hung[i]]
+            for m in TEST_STEP.finditer(data[:cut].decode("utf-8", errors="replace")):
+                if m.group("step") == "STARTING":
+                    running[i].setdefault(m.group("name"), now)
+                else:
+                    running[i].pop(m.group("name"), None)
+                    progress[i] = now
+            if not done and running[i] and now - progress[i] > limit:
+                longest = sorted(running[i].items(), key=lambda item: item[1])[:3]
+                hung[i] = [(name, now - since) for name, since in longest]
                 proc.kill()
                 done = True
-            running += not done
-        if not running:
+            alive += not done
+        if not alive:
             return hung
         time.sleep(1)
 
@@ -201,7 +215,7 @@ def main():
     p.add_argument("--only", type=int)
     p.add_argument("--timings")
     p.add_argument("--results")
-    p.add_argument("--hang", type=int, help="end a shard whose test runs longer than this many seconds")
+    p.add_argument("--hang", type=int, help="end a shard in which no test finished for this many seconds")
     p.set_defaults(func=run)
     r = sub.add_parser("record")
     r.add_argument("trx_dir")

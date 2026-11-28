@@ -121,7 +121,7 @@ jobs:
               --logger trx --results-directory test-results || failed=1
           done
           exit $failed
-      # A test that runs longer than 5 minutes ends its shard and is named ("HUNG: …"; tests-7).
+      # A shard in which no test finishes for 5 minutes is ended, and the tests it was running are named ("HUNG: …"; tests-7).
       - name: Test (desktop shard)
         if: matrix.part != 'rest'
         shell: bash
