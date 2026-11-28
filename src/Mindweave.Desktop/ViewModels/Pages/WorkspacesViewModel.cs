@@ -22,8 +22,8 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
     private readonly IWorkspaceDirectory _directory;
     private readonly IWorkspaces _workspaces;
     private readonly IWorkspaceDeletion _deletion;
-    private readonly IWorkspaceDeletionPrompt? _deletionPrompt;
-    private readonly IWorkspaceSwitcher? _switcher;
+    private readonly WorkspaceDeletionRequests? _deletionPrompt;
+    private readonly WorkspaceSwitchRequests? _switcher;
     private readonly IWorkspaceNameSuggestions? _suggestions;
     private readonly IMenuNavigator? _navigator;
     private readonly IWorkspaceNameCache? _names;
@@ -33,8 +33,8 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
         IWorkspaceDirectory directory,
         IWorkspaces workspaces,
         IWorkspaceDeletion deletion,
-        IWorkspaceDeletionPrompt? deletionPrompt = null,
-        IWorkspaceSwitcher? switcher = null,
+        WorkspaceDeletionRequests? deletionPrompt = null,
+        WorkspaceSwitchRequests? switcher = null,
         IWorkspaceNameSuggestions? suggestions = null,
         IMenuNavigator? navigator = null,
         IWorkspaceNameCache? names = null)

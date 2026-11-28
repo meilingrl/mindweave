@@ -13,8 +13,8 @@ public static partial class UiText
     public static string RestoreBackupConfirm => T("Restore", "恢复");
     public static string LeftoverDatabase => T("Old data replaced by a restore", "恢复时替换下的旧数据");
     public static string LeftoverHint => T(
-        "A database file from before a backup was restored. It stays in the data folder and is not listed as a backup.",
-        "某次恢复备份前的数据库文件，留在数据目录中，没有列为备份。");
+        "The data from before a backup was restored. It stays in the data folder and can be restored like a backup.",
+        "某次恢复备份前的数据，留在数据目录中，可以像备份一样恢复。");
     public static string CloseRestoreNotice => T("Dismiss", "关闭提示");
 
     public static string RestoreTaskTitle => T("Tasks need to stop before restoring", "恢复前需要停止任务");
@@ -50,21 +50,37 @@ public static partial class UiText
     public static string RestoreMadeAt(BackupInfo backup)
     {
         ArgumentNullException.ThrowIfNull(backup);
+        if (backup.Reason == BackupReason.Replaced)
+        {
+            return T(
+                string.Format(Culture, "This is the data a restore replaced on {0}; it was kept in the data folder.", FormatTime(backup.CreatedAt)),
+                string.Format(CultureInfo.CurrentCulture, "这是 {0} 一次恢复时替换下的数据，一直保留在数据目录中。", FormatTime(backup.CreatedAt)));
+        }
+
         return T(
             string.Format(Culture, "This backup was saved automatically on {0}, {1}.", FormatTime(backup.CreatedAt), BackupMadeWhen(backup.Reason)),
             string.Format(CultureInfo.CurrentCulture, "这份备份是 {0} {1}自动保存的。", FormatTime(backup.CreatedAt), BackupMadeWhen(backup.Reason)));
     }
 
-    /// <summary>An older schema is upgraded right after the restore, as on startup.</summary>
+    /// <summary>
+    /// An older schema is upgraded right after the restore, as on startup; the backup itself is the copy from before
+    /// the upgrade, so no other is made (gap-schema-6, D-042).
+    /// </summary>
     public static string RestoreUpgrades(int version) => T(
-        string.Format(Culture, "Its data format version is {0}. After restoring, it is upgraded automatically, just as at startup, and another backup is made before the upgrade.", version),
-        string.Format(CultureInfo.CurrentCulture, "它的数据结构版本是 {0}，恢复后会像启动时一样自动升级，升级前另做一份备份。", version));
+        string.Format(Culture, "Its data format version is {0}. After restoring, it is upgraded automatically, just as at startup; this backup stays as it is.", version),
+        string.Format(CultureInfo.CurrentCulture, "它的数据结构版本是 {0}，恢复后会像启动时一样自动升级；这份备份本身保持原样。", version));
+
+    /// <summary>Added to the restore notice when the restored data was also upgraded.</summary>
+    public static string RestoredAndUpgraded(int version) => T(
+        string.Format(Culture, " It was then upgraded to data format version {0}.", version),
+        string.Format(CultureInfo.CurrentCulture, "随后已升级到结构版本 {0}。", version));
 
     private static string BackupMadeWhen(BackupReason reason) => reason switch
     {
         BackupReason.BeforeWorkspaceDelete => T("before deleting a workspace", "删除工作区前"),
         BackupReason.BeforeConversationDelete => T("before deleting conversations", "删除会话前"),
         BackupReason.BeforeRestore => T("before restoring another backup", "恢复另一份备份前"),
+        BackupReason.Replaced => T("when a restore replaced it", "在一次恢复替换它时"),
         _ => T("before a data upgrade", "数据升级前"),
     };
 

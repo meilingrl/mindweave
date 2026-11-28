@@ -83,6 +83,80 @@ public class ExitSavingTests
         Assert.True(closed);
     }
 
+    /// <summary>
+    /// errors-9 (D-042; architecture §12.3 step 5, requirements §9.3): after a retry has failed too, a third choice quits
+    /// without saving, and the message first names what is lost. The first failure offers only retry and return.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task After_a_failed_retry_quitting_without_saving_is_offered_and_says_what_is_lost()
+    {
+        var failing = new FailingDrafts();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IReadingStateStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
+        var window = app.ShowWindow(1100, 720);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        failing.Fail = true;
+        page.Composer.Text = "还没发出去的问题";
+
+        window.Close();
+        await app.Root.Exit.Running;
+        Assert.True(app.Root.Exit.IsFailed);
+        Assert.False(app.Root.Exit.CanQuitWithoutSaving);
+        Assert.False(app.Root.Exit.QuitWithoutSavingCommand.CanExecute(null));
+        Assert.DoesNotContain(UiText.QuitWithoutSaving, app.Root.Exit.FailedBody, StringComparison.Ordinal);
+
+        app.Root.Exit.RetryCommand.Execute(null);
+        await app.Root.Exit.Running;
+
+        Assert.True(app.Root.Exit.IsFailed);
+        Assert.True(app.Root.Exit.CanQuitWithoutSaving);
+        Assert.Equal(new UnsavedWork(SummaryEdits: false, Drafts: true, Answers: false), app.Root.Exit.Unsaved);
+        Assert.EndsWith(UiText.QuitWithoutSavingLoses(app.Root.Exit.Unsaved), app.Root.Exit.FailedBody, StringComparison.Ordinal);
+        window.UpdateLayout();
+        Assert.True(UiTree.Find<Avalonia.Controls.Button>(window, "ExitQuitWithoutSaving").IsEffectivelyVisible);
+
+        app.Root.Exit.QuitWithoutSavingCommand.Execute(null);
+
+        Assert.Equal(ExitStage.Releasing, app.Root.Exit.Stage);
+        Assert.Equal(1, app.Shell.ExitRequests);
+    }
+
+    [AvaloniaFact]
+    public async Task Returning_after_a_failed_retry_takes_the_third_choice_away_again()
+    {
+        var failing = new FailingDrafts();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IReadingStateStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
+        var window = app.ShowWindow(1100, 720);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        failing.Fail = true;
+        page.Composer.Text = "还没发出去的问题";
+        window.Close();
+        await app.Root.Exit.Running;
+        app.Root.Exit.RetryCommand.Execute(null);
+        await app.Root.Exit.Running;
+        Assert.True(app.Root.Exit.CanQuitWithoutSaving);
+
+        app.Root.Exit.ReturnCommand.Execute(null);
+        window.Close();
+        await app.Root.Exit.Running;
+
+        Assert.True(app.Root.Exit.IsFailed);
+        Assert.False(app.Root.Exit.CanQuitWithoutSaving);
+        Assert.Equal(0, app.Shell.ExitRequests);
+    }
+
+    [Fact]
+    public void What_is_lost_names_each_kind_and_everything_when_nothing_was_saved()
+    {
+        var drafts = UiText.QuitWithoutSavingLoses(new UnsavedWork(false, true, false));
+        var edits = UiText.QuitWithoutSavingLoses(new UnsavedWork(true, false, false));
+        var answers = UiText.QuitWithoutSavingLoses(new UnsavedWork(false, false, true));
+        var all = UiText.QuitWithoutSavingLoses(null);
+
+        Assert.Equal(3, new[] { drafts, edits, answers }.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(all, UiText.QuitWithoutSavingLoses(new UnsavedWork(true, true, true)));
+        Assert.True(all.Length > drafts.Length && all.Length > edits.Length && all.Length > answers.Length);
+    }
+
     [AvaloniaFact]
     public async Task A_summary_draft_whose_page_was_left_is_kept_and_retried_until_it_is_saved()
     {
@@ -209,7 +283,7 @@ public class ExitSavingTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IExportFileWriter>(writer));
         var window = app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        app.Services.GetRequiredService<ISharePrompt>().Open(app.Workbench.CurrentWorkspace!.Id, page.Id);
+        app.Services.GetRequiredService<ShareRequests>().Open(app.Workbench.CurrentWorkspace!.Id, page.Id);
         await app.Root.Share.Loading;
         app.Shell.NextShare = _ => new ExportDestination("share.html", "/unused/share.html", null);
         var save = app.Root.Share.SaveCommand.ExecuteAsync(null);

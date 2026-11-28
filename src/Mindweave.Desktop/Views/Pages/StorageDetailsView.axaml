@@ -91,7 +91,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding SizeText}" />
                     <Button Grid.Column="1" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static t:UiText.RestoreBackup}"
-                            IsVisible="{Binding IsBackup}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
+                            IsVisible="{Binding IsRestorable}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
                             Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}"
                             AutomationProperties.Name="{Binding RestoreName}" AutomationProperties.HelpText="{Binding Hint}" />
                     <Button Grid.Column="2" Name="DeleteBackupButton" Classes="quiet small danger" Content="{x:Static t:UiText.DeleteBackup}"

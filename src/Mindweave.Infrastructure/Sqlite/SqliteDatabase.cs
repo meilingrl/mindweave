@@ -58,13 +58,16 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
     public bool IsOpen => Volatile.Read(ref _writer) is not null;
 
+    /// <inheritdoc />
+    public event EventHandler<DataUpgradeStarting>? UpgradeStarting;
+
     public async Task<DatabaseOpenResult> OpenAsync(CancellationToken cancellationToken)
     {
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await CloseCoreAsync().ConfigureAwait(false);
-            return await Task.Run(OpenCore, cancellationToken).ConfigureAwait(false);
+            return await Task.Run(() => OpenCore(), cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -86,7 +89,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             if (problem != BackupProblem.None)
             {
                 LogRestoreRefused(_logger, backup.Path, problem);
-                var current = await Task.Run(OpenCore, cancellationToken).ConfigureAwait(false);
+                var current = await Task.Run(() => OpenCore(), cancellationToken).ConfigureAwait(false);
                 return current with { ErrorDetail = $"The chosen backup cannot be used ({problem}); nothing was replaced. {current.ErrorDetail}".TrimEnd() };
             }
 
@@ -100,7 +103,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
                 return Result(DatabaseOpenStatus.IoError, null, detail: $"Restore failed: {ex.Message}");
             }
 
-            return await Task.Run(OpenCore, cancellationToken).ConfigureAwait(false);
+            return await Task.Run(() => OpenCore(restoredFrom: backup), cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -162,7 +165,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             return new InPlaceRestoreResult(false, OpenExistingOnly(), RestoreFailure.SwapFailed, ex.Message);
         }
 
-        var restored = OpenCore();
+        var restored = OpenCore(restoredFrom: backup);
         if (restored.IsReady)
         {
             // The verified copy made just before holds what these files held; without it they stay.
@@ -202,6 +205,10 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     public IReadOnlyList<BackupInfo> ListBackups() => _backups.List();
 
     /// <inheritdoc />
+    public IReadOnlyList<BackupInfo> ListRestorable() =>
+        [.. _backups.List().Concat(_backups.ListLeftovers().Select(l => l.AsBackup()).OfType<BackupInfo>()).OrderByDescending(b => b.CreatedAt)];
+
+    /// <inheritdoc />
     public IReadOnlyList<LeftoverDatabase> ListLeftovers() => _backups.ListLeftovers();
 
     /// <inheritdoc />
@@ -211,6 +218,16 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     public void Delete(BackupInfo backup)
     {
         ArgumentNullException.ThrowIfNull(backup);
+        if (backup.Reason == BackupReason.Replaced)
+        {
+            if (_backups.LeftoverOf(backup) is { } leftover)
+            {
+                _backups.Delete(leftover);
+            }
+
+            return;
+        }
+
         _backups.Delete(backup.Path);
     }
 
@@ -230,6 +247,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
     /// <inheritdoc />
     public void Discard(string path) => _backups.Discard(path);
+
+    /// <inheritdoc />
+    public double? Progress => _backups.Progress;
 
     /// <summary>Runs <paramref name="work"/> in its own transaction on the single writer.</summary>
     public Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken)
@@ -400,7 +420,11 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
         }
     }
 
-    private DatabaseOpenResult OpenCore()
+    /// <param name="restoredFrom">
+    /// The backup just put in place, when this open follows a restore: while its file still exists it holds exactly the
+    /// data being upgraded, so no upgrade backup is made of it (gap-schema-6, D-042).
+    /// </param>
+    private DatabaseOpenResult OpenCore(BackupInfo? restoredFrom = null)
     {
         try
         {
@@ -429,7 +453,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
         {
             try
             {
-                return OpenExistingFile();
+                return OpenExistingFile(restoredFrom);
             }
             catch (SqliteException ex) when (IsTransient(ex) && Environment.TickCount64 < deadline)
             {
@@ -479,13 +503,13 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     /// <summary>How long the exit checkpoint waits for readers to leave the log before giving up on truncating it.</summary>
     private static readonly TimeSpan CheckpointWait = TimeSpan.FromMilliseconds(200);
 
-    private DatabaseOpenResult OpenExistingFile()
+    private DatabaseOpenResult OpenExistingFile(BackupInfo? restoredFrom)
     {
         SqliteConnection? connection = null;
         try
         {
             connection = SqliteConnections.OpenReadWrite(_paths.DatabasePath, busyTimeoutMs: _busyTimeoutMs);
-            var outcome = OpenExisting(connection);
+            var outcome = OpenExisting(connection, restoredFrom);
             if (outcome.IsReady)
             {
                 _writer = new SqliteWriteQueue(connection);
@@ -500,7 +524,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
         }
     }
 
-    private DatabaseOpenResult OpenExisting(SqliteConnection connection)
+    private DatabaseOpenResult OpenExisting(SqliteConnection connection, BackupInfo? restoredFrom)
     {
         var applicationId = SqliteConnections.Scalar<int>(connection, "PRAGMA application_id;");
         var version = SqliteConnections.Scalar<int>(connection, "PRAGMA user_version;");
@@ -541,17 +565,30 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             return Result(DatabaseOpenStatus.Ready, version);
         }
 
+        // The restored file still holds exactly this data (its header version is checked too, in case the file was
+        // swapped meanwhile): a second copy of it would only take space (gap-schema-6, D-042).
+        var restoredCopy = restoredFrom is { } source && source.SchemaVersion == version && File.Exists(source.Path) ? source.Path : null;
+        UpgradeStarting?.Invoke(this, new DataUpgradeStarting(version, _catalog.LatestVersion, BackupFirst: restoredCopy is null));
+
         string backupPath;
-        try
+        if (restoredCopy is not null)
         {
-            backupPath = _backups.CreateVerified(connection, version, BackupReason.Migration, BeforeBackupForTests);
+            backupPath = restoredCopy;
+            LogUpgradeBackupSkipped(_logger, version, restoredCopy);
         }
-#pragma warning disable CA1031 // Any backup failure means: do not migrate, report, keep the original.
-        catch (Exception ex)
-#pragma warning restore CA1031
+        else
         {
-            LogBackupFailed(_logger, ex, version);
-            return Result(DatabaseOpenStatus.BackupFailed, version, detail: ex.Message);
+            try
+            {
+                backupPath = _backups.CreateVerified(connection, version, BackupReason.Migration, BeforeBackupForTests);
+            }
+#pragma warning disable CA1031 // Any backup failure means: do not migrate, report, keep the original.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                LogBackupFailed(_logger, ex, version);
+                return Result(DatabaseOpenStatus.BackupFailed, version, detail: ex.Message);
+            }
         }
 
         try
@@ -565,13 +602,24 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             LogMigrationFailed(_logger, ex, version, _catalog.LatestVersion);
 
             // Each failed attempt made a backup; they are rotated like any upgrade backup (health check 2026-11-12, storage-6).
-            _backups.Prune(MigrationBackupsKept, alsoKeep: backupPath);
+            if (restoredCopy is null)
+            {
+                _backups.Prune(MigrationBackupsKept, alsoKeep: backupPath);
+            }
+
             return Result(DatabaseOpenStatus.MigrationFailed, version, backupPath, ex.Message);
         }
 
         LogMigrated(_logger, version, _catalog.LatestVersion, backupPath);
-        _backups.Prune(MigrationBackupsKept);
-        return Result(DatabaseOpenStatus.Ready, version, backupPath);
+        if (restoredCopy is null)
+        {
+            _backups.Prune(MigrationBackupsKept);
+        }
+
+        return Result(DatabaseOpenStatus.Ready, version, backupPath) with
+        {
+            Upgrade = new DataUpgrade(version, _catalog.LatestVersion, backupPath, BackupMadeNow: restoredCopy is null),
+        };
     }
 
     private DatabaseOpenResult CreateNew()
@@ -608,7 +656,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
     /// <summary>
     /// Applies every pending migration in one transaction, following SQLite's documented procedure for
-    /// schema changes: foreign keys off outside the transaction, <c>foreign_key_check</c> before commit.
+    /// schema changes: foreign keys off outside the transaction, <c>foreign_key_check</c> before commit. Only a dangling
+    /// reference the migrations themselves made rolls it back (gap-schema-7, D-042; architecture §12.2): one that was
+    /// there before is logged with its count and left as it is, since nothing is deleted on the user's behalf.
     /// </summary>
     private void Migrate(SqliteConnection connection, int fromVersion)
     {
@@ -616,14 +666,21 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
         try
         {
             using var transaction = connection.BeginTransaction();
+            var before = fromVersion == 0 ? [] : SqliteConnections.ForeignKeyViolations(connection, transaction);
             foreach (var migration in _catalog.Migrations.Where(m => m.Version > fromVersion))
             {
                 migration.Apply(connection, transaction);
             }
 
-            if (SqliteConnections.ForeignKeyViolation(connection, transaction) is { } violation)
+            var after = SqliteConnections.ForeignKeyViolations(connection, transaction);
+            if (after.FirstOrDefault(v => v.Value > before.GetValueOrDefault(v.Key)) is { Key: not null } made)
             {
-                throw new InvalidOperationException($"Migration left a dangling reference: {violation}.");
+                throw new InvalidOperationException($"Migration left a dangling reference: {made.Value - before.GetValueOrDefault(made.Key)} new in {made.Key}.");
+            }
+
+            if (before.Count > 0)
+            {
+                LogDanglingBeforeUpgrade(_logger, before.Values.Sum(), string.Join(", ", before.Select(v => $"{v.Key}: {v.Value}")));
             }
 
             SqliteConnections.Execute(connection, $"PRAGMA user_version = {_catalog.LatestVersion};", transaction);
@@ -687,6 +744,12 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Created database {Path} at schema {Version}")]
     private static partial void LogCreated(ILogger logger, string path, int version);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} dangling references were there before the upgrade and are left as they are ({Where})")]
+    private static partial void LogDanglingBeforeUpgrade(ILogger logger, int count, string where);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "No upgrade backup of schema {Version}: the restored file {RestoredFrom} still holds the same data")]
+    private static partial void LogUpgradeBackupSkipped(ILogger logger, int version, string restoredFrom);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Migrated schema {From} -> {To}; backup {BackupPath}")]
     private static partial void LogMigrated(ILogger logger, int from, int to, string backupPath);

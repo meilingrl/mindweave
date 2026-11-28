@@ -391,7 +391,7 @@ public class MultiSelectUiTests
         var clock = new ManualTime(new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(8)));
         await using var app = DesktopHarness.Create(s => s.AddSingleton(sp => new ConversationDeletionViewModel(
             sp.GetRequiredService<IConversationDeletion>(), sp.GetRequiredService<IConversations>(), sp.GetRequiredService<Workbench>(),
-            sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), clock)));
+            sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), clock, sp.GetRequiredService<ViewModels.BackupProgressViewModel>())));
         var window = app.ShowWindow(1100, 720);
         var (root, _, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;

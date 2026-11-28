@@ -12,10 +12,24 @@ namespace Mindweave.Application.Storage;
 public interface ISaveBeforeClose
 {
     /// <summary>
-    /// True when nothing the user wrote or received is left unsaved; page state alone may degrade. Idempotent: what is
-    /// already saved is not written again.
+    /// What is left unsaved; <see cref="UnsavedWork.Any"/> is false when nothing the user wrote or received is, while page
+    /// state alone may degrade. Idempotent: what is already saved is not written again.
     /// </summary>
-    Task<bool> SaveAsync();
+    Task<UnsavedWork> SaveAsync();
+}
+
+/// <summary>
+/// What a save before closing could not write, by kind, so that quitting without saving can say what is lost
+/// (errors-9, D-042; architecture §12.3 step 5).
+/// </summary>
+/// <param name="SummaryEdits">Edits to summaries not yet saved.</param>
+/// <param name="Drafts">Unsent question drafts and reading positions.</param>
+/// <param name="Answers">The end of answers that were stopped or failed: what came after their last checkpoint.</param>
+public sealed record UnsavedWork(bool SummaryEdits, bool Drafts, bool Answers)
+{
+    public static UnsavedWork None { get; } = new(false, false, false);
+
+    public bool Any => SummaryEdits || Drafts || Answers;
 }
 
 /// <summary>
@@ -34,7 +48,7 @@ public sealed class SaveBeforeClose(
     IGenerationExit generation,
     IDatabaseLifecycle database) : ISaveBeforeClose
 {
-    public async Task<bool> SaveAsync()
+    public async Task<UnsavedWork> SaveAsync()
     {
         // A file still being written: an export or a share is finished, so it is not cut off and leaves no temporary
         // file; a manual backup can take long, so it is stopped, which removes its temporary file.
@@ -49,6 +63,6 @@ public sealed class SaveBeforeClose(
 
         // Then the write queue, and a best-effort checkpoint.
         await database.DrainAsync().ConfigureAwait(false);
-        return summaryDrafts && drafts && answers;
+        return new UnsavedWork(!summaryDrafts, !drafts, !answers);
     }
 }

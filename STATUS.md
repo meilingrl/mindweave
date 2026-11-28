@@ -5,7 +5,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 ## In progress
 
 - Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and step 1 is built: the structure-only share (0.6.13) and the share with content (0.6.15). The import design is adopted (D-041, [sharing-import.md](docs/design/sharing-import.md)); step 2 is built: importing a structure-only share (0.6.18, migration v19) and a share with content (0.6.19). Step 3, the manual backup, is built: saving (0.6.26) and importing with joining by time (0.6.27) (D-046, D-047, [sharing-backup.md](docs/design/sharing-backup.md)). The three steps of sharing are all in.
-- Security, diagnostics and upkeep (evolution D2, [diagnostics-and-upkeep.md](docs/design/diagnostics-and-upkeep.md)): adopted (D-042). The four code fixes are built: performance-5 and -9 (0.6.21), architecture-4 and -5 (0.6.29).
+- Security, diagnostics and upkeep (evolution D2, [diagnostics-and-upkeep.md](docs/design/diagnostics-and-upkeep.md)): adopted (D-042). The four code fixes are built: performance-5 and -9 (0.6.21), architecture-4 and -5 (0.6.29). The upkeep of data, upgrades, backups and exit is built (0.6.34); two of its rules were settled while building it (D-048).
 - Design discussions on task branches: reply quality is adopted (D-043, [reply-quality.md](docs/design/reply-quality.md)); step 1, the prompts and the yardstick, needs a budget from you for real-model runs; return and review is adopted (D-044, [return-and-review.md](docs/design/return-and-review.md)); its first increment, recaps in the network, brings a migration. Ask from anywhere, several connections, search by meaning and prompt caching are adopted (D-045, [ask-anywhere.md](docs/design/ask-anywhere.md)); prompt caching step 1, measuring, is built (0.6.28, migration v20).
 
 ## Next steps
@@ -58,6 +58,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
 - Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration; a title made very long can do the same (rare: 1 of 660 tried). Keeping it out needs a migration.
+- Upkeep of data and exit (0.6.34): on Windows; in a real window; the upgrade page on your real data (try `scripts/daily.sh trial`); the delete progress bar on data that takes over a second.
 - New branch and renaming by double click (0.6.32): in a real window; on Windows; a real model answering in a branch made with 新建分支.
 - The network's molecule layout: on Windows, and an exploration with hundreds of direct branches in two or more explorations (about 4.5 s for two of 500). The title of a root with many branches can lie over one of its branch lines.
 
@@ -79,7 +80,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the Anthropic model list, 0.6.33 | 2026-11-28 | passed: Core 943, Architecture 39, Infrastructure 1395 + 22 skipped, Desktop 4 shards 0 failed |
+| macOS full run | upkeep of data and exit, 0.6.34 | 2026-11-28 | passed: Core 943, Architecture 41, Infrastructure 1407 + 22 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | 3e90875 (0.6.29) | 2026-11-27 | passed: 3329 passed, 0 failed, 128 skipped of 3457; Credential Manager test ran |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

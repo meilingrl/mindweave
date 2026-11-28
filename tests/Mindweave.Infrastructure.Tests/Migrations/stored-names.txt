@@ -1,0 +1,519 @@
+# Stored names per schema version (StoredNamesTests, gap-schema-3). Changes only with a new migration.
+schema 20
+column ai_request.base_url TEXT
+column ai_request.cache_read_tokens INTEGER
+column ai_request.cache_write_tokens INTEGER
+column ai_request.completion_tokens INTEGER
+column ai_request.error_detail TEXT
+column ai_request.error_kind TEXT
+column ai_request.estimated_tokens INTEGER
+column ai_request.finished_at INTEGER
+column ai_request.first_text_ms INTEGER
+column ai_request.http_status INTEGER
+column ai_request.id TEXT
+column ai_request.kind TEXT
+column ai_request.model TEXT
+column ai_request.outcome TEXT
+column ai_request.output_chars INTEGER
+column ai_request.prompt_tokens INTEGER
+column ai_request.provider_request_id TEXT
+column ai_request.purpose TEXT
+column ai_request.response_ms INTEGER
+column ai_request.started_at INTEGER
+column ai_request.task_id TEXT
+column ai_request.workspace_id TEXT
+column app_state.key TEXT
+column app_state.value TEXT
+column branch_context_range.ancestor_id TEXT
+column branch_context_range.child_id TEXT
+column branch_context_range.depth INTEGER
+column branch_context_range.max_seq INTEGER
+column branch_source.anchor TEXT
+column branch_source.anchor_version INTEGER
+column branch_source.child_id TEXT
+column branch_source.created_at INTEGER
+column branch_source.parent_id TEXT
+column branch_source.quote TEXT
+column branch_source.render_profile TEXT
+column branch_source.source_block INTEGER
+column branch_source.source_message_id TEXT
+column branch_source.source_offset INTEGER
+column context_summary.conversation_id TEXT
+column context_summary.created_at INTEGER
+column context_summary.from_seq INTEGER
+column context_summary.id TEXT
+column context_summary.input_hash TEXT
+column context_summary.model TEXT
+column context_summary.prompt_version INTEGER
+column context_summary.text TEXT
+column context_summary.to_seq INTEGER
+column conversation.created_at INTEGER
+column conversation.id TEXT
+column conversation.title TEXT
+column conversation.title_source TEXT
+column conversation.updated_at INTEGER
+column conversation.workspace_id TEXT
+column conversation_archive.archived_at INTEGER
+column conversation_archive.conversation_id TEXT
+column draft.conversation_id TEXT
+column draft.slot_key TEXT
+column draft.text TEXT
+column draft.updated_at INTEGER
+column draft_attachment.conversation_id TEXT
+column draft_attachment.created_at INTEGER
+column draft_attachment.ordinal INTEGER
+column draft_attachment.resource_id TEXT
+column draft_attachment.slot_key TEXT
+column draft_attachment.workspace_id TEXT
+column exploration_place.angle REAL
+column exploration_place.root_conversation_id TEXT
+column exploration_place.size INTEGER
+column exploration_place.updated_at INTEGER
+column exploration_place.workspace_id TEXT
+column exploration_place.x REAL
+column exploration_place.y REAL
+column generation_task.base_url TEXT
+column generation_task.capabilities TEXT
+column generation_task.conversation_id TEXT
+column generation_task.created_at INTEGER
+column generation_task.credential_ref TEXT
+column generation_task.error_detail TEXT
+column generation_task.error_kind TEXT
+column generation_task.finished_at INTEGER
+column generation_task.id TEXT
+column generation_task.input_message_ids TEXT
+column generation_task.input_resources TEXT
+column generation_task.input_summary_ids TEXT
+column generation_task.kind TEXT
+column generation_task.max_output_tokens INTEGER
+column generation_task.model TEXT
+column generation_task.model_config_id TEXT
+column generation_task.protocol TEXT
+column generation_task.run_limit_reached TEXT
+column generation_task.run_limits TEXT
+column generation_task.started_at INTEGER
+column generation_task.state TEXT
+column generation_task.summary_baseline TEXT
+column generation_task.summary_to_seq INTEGER
+column generation_task.target_message_id TEXT
+column generation_task.tools TEXT
+column import.id TEXT
+column import.imported_at INTEGER
+column import.kind TEXT
+column import.title TEXT
+column import_conversation.conversation_id TEXT
+column import_conversation.import_id TEXT
+column link_suggestion.created_at INTEGER
+column link_suggestion.generation_id TEXT
+column link_suggestion.id TEXT
+column link_suggestion.node_a TEXT
+column link_suggestion.node_b TEXT
+column link_suggestion.note TEXT
+column link_suggestion.reason TEXT
+column link_suggestion.state TEXT
+column link_suggestion.updated_at INTEGER
+column link_suggestion.workspace_id TEXT
+column message.completed_at INTEGER
+column message.conversation_id TEXT
+column message.created_at INTEGER
+column message.error_detail TEXT
+column message.error_kind TEXT
+column message.id TEXT
+column message.revision INTEGER
+column message.role TEXT
+column message.seq INTEGER
+column message.state TEXT
+column message.supersedes_id TEXT
+column message_block.data TEXT
+column message_block.kind TEXT
+column message_block.message_id TEXT
+column message_block.ordinal INTEGER
+column message_block.resource_id TEXT
+column message_block.text TEXT
+column model_config.capabilities TEXT
+column model_config.connection_id TEXT
+column model_config.created_at INTEGER
+column model_config.id TEXT
+column model_config.max_output_tokens INTEGER
+column model_config.model TEXT
+column model_config.updated_at INTEGER
+column node_layout.node_id TEXT
+column node_layout.updated_at INTEGER
+column node_layout.workspace_id TEXT
+column node_layout.x REAL
+column node_layout.y REAL
+column reading_position.block_ordinal INTEGER
+column reading_position.conversation_id TEXT
+column reading_position.locator TEXT
+column reading_position.locator_version INTEGER
+column reading_position.message_id TEXT
+column reading_position.slot_key TEXT
+column reading_position.updated_at INTEGER
+column recommendation.basis_node_id TEXT
+column recommendation.generated_at INTEGER
+column recommendation.generation_id TEXT
+column recommendation.id TEXT
+column recommendation.kind TEXT
+column recommendation.question TEXT
+column recommendation.reason TEXT
+column recommendation.seq INTEGER
+column recommendation.state TEXT
+column recommendation.updated_at INTEGER
+column recommendation.workspace_id TEXT
+column resource.byte_size INTEGER
+column resource.conversation_id TEXT
+column resource.created_at INTEGER
+column resource.id TEXT
+column resource.media_type TEXT
+column resource.name TEXT
+column resource.origin TEXT
+column resource.produced_by_step INTEGER
+column resource.produced_by_task TEXT
+column resource.provenance TEXT
+column resource.sha256 TEXT
+column resource.source_url TEXT
+column resource.workspace_id TEXT
+column resource_chunk.end_char INTEGER
+column resource_chunk.estimated_tokens INTEGER
+column resource_chunk.ordinal INTEGER
+column resource_chunk.resource_id TEXT
+column resource_chunk.start_char INTEGER
+column resource_chunk_fts.terms
+column resource_chunk_fts_config.k
+column resource_chunk_fts_config.v
+column resource_chunk_fts_content.c0
+column resource_chunk_fts_content.id INTEGER
+column resource_chunk_fts_data.block BLOB
+column resource_chunk_fts_data.id INTEGER
+column resource_chunk_fts_docsize.id INTEGER
+column resource_chunk_fts_docsize.sz BLOB
+column resource_chunk_fts_idx.pgno
+column resource_chunk_fts_idx.segid
+column resource_chunk_fts_idx.term
+column resource_derivative.blob_sha256 TEXT
+column resource_derivative.created_at INTEGER
+column resource_derivative.estimated_tokens INTEGER
+column resource_derivative.id INTEGER
+column resource_derivative.kind TEXT
+column resource_derivative.producer TEXT
+column resource_derivative.prompt_version TEXT
+column resource_derivative.resource_id TEXT
+column resource_derivative.text TEXT
+column resource_derivative.truncated INTEGER
+column run_step.ai_request_id TEXT
+column run_step.approval TEXT
+column run_step.call_id TEXT
+column run_step.error_detail TEXT
+column run_step.error_kind TEXT
+column run_step.finished_at INTEGER
+column run_step.input TEXT
+column run_step.kind TEXT
+column run_step.ordinal INTEGER
+column run_step.result_resource_id TEXT
+column run_step.risk TEXT
+column run_step.started_at INTEGER
+column run_step.state TEXT
+column run_step.target TEXT
+column run_step.task_id TEXT
+column run_step.tool TEXT
+column service_connection.base_url TEXT
+column service_connection.created_at INTEGER
+column service_connection.credential_ref TEXT
+column service_connection.id TEXT
+column service_connection.name TEXT
+column service_connection.protocol TEXT
+column service_connection.updated_at INTEGER
+column starting_recommendation.applied_at INTEGER
+column starting_recommendation.basis_node_id TEXT
+column starting_recommendation.conversation_id TEXT
+column starting_recommendation.created_at INTEGER
+column starting_recommendation.kind TEXT
+column starting_recommendation.recommendation_id TEXT
+column summary_edit_draft.baseline_id TEXT
+column summary_edit_draft.body TEXT
+column summary_edit_draft.node_id TEXT
+column summary_edit_draft.title TEXT
+column summary_edit_draft.updated_at INTEGER
+column summary_link.created_at INTEGER
+column summary_link.id TEXT
+column summary_link.node_a TEXT
+column summary_link.node_b TEXT
+column summary_link.note TEXT
+column summary_link.origin TEXT
+column summary_link.workspace_id TEXT
+column summary_node.base_title TEXT
+column summary_node.conversation_id TEXT
+column summary_node.created_at INTEGER
+column summary_node.current_version_id TEXT
+column summary_node.display_name TEXT
+column summary_node.id TEXT
+column summary_node.name_source TEXT
+column summary_node.pending_version_id TEXT
+column summary_node.updated_at INTEGER
+column summary_node.workspace_id TEXT
+column summary_read_state.locator TEXT
+column summary_read_state.max_progress REAL
+column summary_read_state.read_source TEXT
+column summary_read_state.updated_at INTEGER
+column summary_read_state.version_id TEXT
+column summary_version.baseline_id TEXT
+column summary_version.body TEXT
+column summary_version.created_at INTEGER
+column summary_version.id TEXT
+column summary_version.model TEXT
+column summary_version.node_id TEXT
+column summary_version.origin TEXT
+column summary_version.seq INTEGER
+column summary_version.short_title TEXT
+column summary_version.task_id TEXT
+column summary_version.title TEXT
+column summary_version.to_seq INTEGER
+column workspace.created_at INTEGER
+column workspace.id TEXT
+column workspace.name TEXT
+column workspace_location.content_key TEXT
+column workspace_location.section_key TEXT
+column workspace_location.updated_at INTEGER
+column workspace_location.workspace_id TEXT
+index ai_request_by_task on ai_request
+index ai_request_by_workspace on ai_request
+index branch_context_range_by_ancestor on branch_context_range
+index branch_source_by_message on branch_source
+index branch_source_by_parent on branch_source
+index conversation_by_workspace on conversation
+index conversation_by_workspace_id on conversation
+index draft_attachment_by_conversation on draft_attachment
+index draft_attachment_by_owner on draft_attachment
+index exploration_place_by_workspace on exploration_place
+index generation_task_by_conversation on generation_task
+index generation_task_by_model on generation_task
+index generation_task_by_target on generation_task
+index generation_task_unfinished on generation_task
+index import_conversation_by_import on import_conversation
+index link_suggestion_by_b on link_suggestion
+index message_block_by_resource on message_block
+index message_by_supersedes on message
+index node_layout_by_workspace on node_layout
+index reading_position_by_message on reading_position
+index recommendation_by_basis on recommendation
+index recommendation_by_workspace on recommendation
+index resource_by_conversation on resource
+index resource_by_sha256 on resource
+index resource_derivative_by_blob on resource_derivative
+index resource_derivative_identity on resource_derivative
+index run_step_by_result on run_step
+index run_step_by_tool on run_step
+index starting_recommendation_by_basis on starting_recommendation
+index summary_edit_draft_by_baseline on summary_edit_draft
+index summary_link_by_b on summary_link
+index summary_node_by_current on summary_node
+index summary_node_by_pending on summary_node
+index summary_node_by_workspace on summary_node
+index summary_node_by_workspace_id on summary_node
+json AbsentAttachmentData.name
+json ActivityCountData.attachment_searches
+json ActivityCountData.other_calls
+json ActivityCountData.pages_read
+json ActivityCountData.summary_searches
+json ActivityCountData.web_searches
+json CitationData.end
+json CitationData.fetched_at
+json CitationData.kind
+json CitationData.number
+json CitationData.start
+json CitationData.target
+json CitationData.url
+json FindingData.id
+json FindingData.kind
+json FindingData.part
+json FindingData.title
+json InputRow.chunks
+json InputRow.form
+json InputRow.name
+json InputRow.of
+json InputRow.resource
+json LimitsData.minutes
+json LimitsData.model_requests
+json LimitsData.tokens
+json LimitsData.tool_calls
+json ModelCapabilities.context_window_tokens
+json ModelCapabilities.image_input
+json ModelCapabilities.prompt_caching
+json ModelCapabilities.reasoning_output
+json ModelCapabilities.streaming
+json ModelCapabilities.tool_calls
+json OfferedToolData.hash
+json OfferedToolData.name
+json ToolCallData.arguments
+json ToolCallData.call_id
+json ToolCallData.risk
+json ToolCallData.tool
+json ToolResultData.call_id
+json ToolResultData.detail
+json ToolResultData.findings
+json ToolResultData.status
+key active_model_config_id
+key appearance
+key bold-colour
+key conversations.unread
+key last_workspace_id
+key mcp.servers
+key news.in-workspace
+key news.sound
+key onboarding.step
+key recommend.auto-prepare
+key recommend.nodes
+key recommend.questions
+key retired_credential_refs
+key sidebar.collapsed
+key sidebar.width
+key summary-network.details.collapsed
+key summary-network.details.width
+key text-width
+key tools.enabled
+key tools.limits
+key usage.currency
+key websearch.credential
+key websearch.default
+key websearch.provider
+key workspace.prepare-names
+table ai_request
+table app_state
+table branch_context_range
+table branch_source
+table context_summary
+table conversation
+table conversation_archive
+table draft
+table draft_attachment
+table exploration_place
+table generation_task
+table import
+table import_conversation
+table link_suggestion
+table message
+table message_block
+table model_config
+table node_layout
+table reading_position
+table recommendation
+table resource
+table resource_chunk
+table resource_chunk_fts
+table resource_chunk_fts_config
+table resource_chunk_fts_content
+table resource_chunk_fts_data
+table resource_chunk_fts_docsize
+table resource_chunk_fts_idx
+table resource_derivative
+table run_step
+table service_connection
+table starting_recommendation
+table summary_edit_draft
+table summary_link
+table summary_node
+table summary_read_state
+table summary_version
+table workspace
+table workspace_location
+trigger import_conversation_deleted on import_conversation
+trigger resource_chunk_deleted on resource_chunk
+value AbsentAttachmentBlockKind absent_attachment
+value ActivityCountBlockKind activity_count
+value AiRequestOutcome completed
+value AiRequestOutcome failed
+value AiRequestOutcome stopped
+value AiRequestOutcome truncated
+value Approval approved
+value Approval denied
+value Approval not_needed
+value Approval pending
+value AttachmentBlockKind attachment
+value ChatProtocol chat_completions
+value CitationBlockKind citation
+value DerivativeKind image_scaled
+value DerivativeKind summary
+value DerivativeKind text
+value GenerationErrorKind compression_failed
+value GenerationErrorKind content_filtered
+value GenerationErrorKind context_too_long
+value GenerationErrorKind credential_unavailable
+value GenerationErrorKind invalid_response
+value GenerationErrorKind network
+value GenerationErrorKind not_configured
+value GenerationErrorKind output_limit
+value GenerationErrorKind quota_or_rate_limited
+value GenerationErrorKind server_error
+value GenerationErrorKind storage_unavailable
+value GenerationErrorKind timeout
+value GenerationErrorKind unauthorized
+value GenerationTaskKind answer
+value GenerationTaskKind naming
+value GenerationTaskKind summary
+value GenerationTaskKind title
+value GenerationTaskState cancelled
+value GenerationTaskState completed
+value GenerationTaskState failed
+value GenerationTaskState interrupted
+value GenerationTaskState queued
+value GenerationTaskState running
+value GenerationTaskState stopped
+value MessageRole assistant
+value MessageRole user
+value MessageState cancelled
+value MessageState complete
+value MessageState failed
+value MessageState interrupted
+value MessageState pending
+value MessageState stopped
+value MessageState streaming
+value NameSource auto
+value NameSource base
+value NameSource manual
+value ReadSource edit
+value ReadSource manual
+value ReadSource progress
+value ResourceForm image
+value ResourceForm image_missing
+value ResourceForm image_omitted
+value ResourceForm image_unsupported
+value ResourceForm parts
+value ResourceForm summary
+value ResourceForm whole
+value ResourceOrigin file
+value ResourceOrigin image
+value ResourceOrigin mcp
+value ResourceOrigin paste
+value ResourceOrigin tool
+value ResourceOrigin web
+value ResourceProvenance external
+value ResourceProvenance user
+value ResourceProvenance workspace
+value RunLimit duration
+value RunLimit model_requests
+value RunLimit tokens
+value RunLimit tool_calls
+value RunStepKind model
+value RunStepKind tool
+value RunStepState awaiting_approval
+value RunStepState completed
+value RunStepState denied
+value RunStepState failed
+value RunStepState running
+value RunStepState stopped
+value RunStepState unknown
+value SummaryOrigin edited
+value SummaryOrigin generated
+value TextBlockKind text
+value TitleSource auto
+value TitleSource manual
+value TitleSource none
+value ToolCallBlockKind tool_call
+value ToolResultBlockKind tool_result
+value ToolResultStatus denied
+value ToolResultStatus failed
+value ToolResultStatus skipped
+value ToolResultStatus succeeded
+value ToolRisk local_read
+value ToolRisk network_read
+value ToolRisk side_effect

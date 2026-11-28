@@ -58,7 +58,7 @@ public sealed partial class ExitCoordinator(
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTaskPromptOpen), nameof(IsBusy), nameof(IsFailed), nameof(BusyText))]
-    [NotifyCanExecuteChangedFor(nameof(StopAndExitCommand), nameof(KeepRunningCommand), nameof(RetryCommand), nameof(ReturnCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopAndExitCommand), nameof(KeepRunningCommand), nameof(RetryCommand), nameof(ReturnCommand), nameof(QuitWithoutSavingCommand))]
     public partial ExitStage Stage { get; private set; }
 
     [ObservableProperty]
@@ -79,7 +79,24 @@ public sealed partial class ExitCoordinator(
 
     public string BusyText => Stage == ExitStage.Restoring ? UiText.RestoreRunning : IsForRestore ? UiText.RestoreSaving : UiText.ExitSaving;
 
-    public string FailedBody => (IsForRestore ? UiText.RestoreSaveFailedBody : UiText.ExitSaveFailedBody) + UiText.UnsaveableSummaryEdits(UnsaveableSummaries);
+    public string FailedBody => (IsForRestore ? UiText.RestoreSaveFailedBody : UiText.ExitSaveFailedBody)
+        + UiText.UnsaveableSummaryEdits(UnsaveableSummaries)
+        + (CanQuitWithoutSaving ? UiText.QuitWithoutSavingLoses(Unsaved) : string.Empty);
+
+    /// <summary>
+    /// After a retry has failed too, quitting offers a third way out (errors-9, D-042; architecture §12.3 step 5): quit
+    /// without saving, having said what is lost. Before that, only force-quitting got out, which loses the same and more.
+    /// Never for a restore: there "return" leaves the data as it was.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FailedBody))]
+    [NotifyCanExecuteChangedFor(nameof(QuitWithoutSavingCommand))]
+    public partial bool CanQuitWithoutSaving { get; private set; }
+
+    /// <summary>What the last save could not write; null when the failure came before saving (stopping the tasks).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FailedBody))]
+    public partial UnsavedWork? Unsaved { get; private set; }
 
     /// <summary>Summaries holding an edit that can never be saved as it is; named so the user knows where to discard it.</summary>
     [ObservableProperty]
@@ -93,6 +110,12 @@ public sealed partial class ExitCoordinator(
         if (value != ExitStage.Failed)
         {
             UnsaveableSummaries = [];
+        }
+
+        if (value is ExitStage.Idle or ExitStage.Releasing)
+        {
+            CanQuitWithoutSaving = false;
+            Unsaved = null;
         }
     }
 
@@ -244,7 +267,31 @@ public sealed partial class ExitCoordinator(
 
     /// <summary>Retry after a failure: the stop step again if it did not finish, then saving.</summary>
     [RelayCommand(CanExecute = nameof(IsFailed))]
-    private void Retry() => Running = _stopped ? SaveAndReleaseAsync() : StopAndReleaseAsync();
+    private void Retry() => Running = RetryAsync();
+
+    private async Task RetryAsync()
+    {
+        await (_stopped ? SaveAndReleaseAsync() : StopAndReleaseAsync());
+        if (Stage == ExitStage.Failed && !IsForRestore)
+        {
+            CanQuitWithoutSaving = true;
+        }
+    }
+
+    /// <summary>
+    /// The third choice after a failed retry (errors-9): what could not be written stays unwritten and the application
+    /// quits. Generation is already stopped; what was committed before stays, as after a forced quit.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanQuitWithoutSaving))]
+    private void QuitWithoutSaving()
+    {
+        LogQuitWithoutSaving(logger, Unsaved?.SummaryEdits, Unsaved?.Drafts, Unsaved?.Answers);
+        Stage = ExitStage.Releasing;
+        shell.ExitApplication();
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Quitting without saving at the user's choice (summary edits unsaved: {SummaryEdits}, drafts: {Drafts}, answer ends: {Answers})")]
+    private static partial void LogQuitWithoutSaving(ILogger logger, bool? summaryEdits, bool? drafts, bool? answers);
 
     /// <summary>Back to work after a failed save: new work is accepted, what the exit stopped stays stopped.</summary>
     [RelayCommand(CanExecute = nameof(IsFailed))]
@@ -288,22 +335,25 @@ public sealed partial class ExitCoordinator(
     private async Task SaveAndReleaseAsync()
     {
         Stage = ExitStage.Flushing;
-        bool saved;
+        UnsavedWork unsaved;
         try
         {
-            saved = await SaveEverythingAsync();
+            unsaved = await SaveEverythingAsync();
         }
 #pragma warning disable CA1031 // Any failure while saving means: keep the window, offer retry or return.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
             LogStepFailed(logger, ex, ExitStage.Flushing);
-            saved = false;
+
+            // Thrown before it could say: everything may be unsaved.
+            unsaved = new UnsavedWork(true, true, true);
         }
 
-        if (!saved)
+        if (unsaved.Any)
         {
             UnsaveableSummaries = await UnsaveableSummariesAsync();
+            Unsaved = unsaved;
             Stage = ExitStage.Failed;
             return;
         }
@@ -371,10 +421,10 @@ public sealed partial class ExitCoordinator(
 
     /// <summary>
     /// Step 4: this view's last location, then everything on the one list of what is saved before the data is closed
-    /// (<see cref="ISaveBeforeClose"/>), which the end of the session runs again. True when nothing the user wrote or
-    /// received is left unsaved; page state alone may degrade.
+    /// (<see cref="ISaveBeforeClose"/>), which the end of the session runs again. Says what the user wrote or received is
+    /// left unsaved; page state alone may degrade.
     /// </summary>
-    private async Task<bool> SaveEverythingAsync()
+    private async Task<UnsavedWork> SaveEverythingAsync()
     {
         await workbench.FlushAsync();
         return await save.SaveAsync();

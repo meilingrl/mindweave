@@ -17,6 +17,19 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.34 · 2026-11-28
+
+- Added a page while the data format is upgraded at start ("Upgrading data … a backup is made first"), and one notice afterwards that says to which version and where the backup is (D-042 §3.1)
+- Added restoring a database that a restore or upgrade replaced: it is listed with the backups on the recovery page and under Settings › Data and storage, and a newer build's data is shown as kept, with how to get it back (D-042 §3.1)
+- Added "Quit without saving" to the exit prompt once a retry has failed, listing what would be lost; never offered during a restore (D-042 §3.4)
+- Added a progress bar to the workspace and conversation delete dialogs when the backup before the delete takes more than a second; measured 189 ms for 52.7 MB, with a 1 s budget in the benchmark
+- Added tests that fix every stored name (tables, columns, stored values, JSON fields, preference keys) and that every single-implementation interface is used across projects; six forwarding interfaces removed
+- Changed restoring an older backup whose file still exists: it is upgraded in place, with no second backup, and the dialog says the backup stays as it is
+- Changed upgrades to roll back only when the count of broken links between rows rises; links that were already broken are logged
+- Documents: daily-build.md says how to get back data kept from a newer build
+- Try: `scripts/daily.sh trial` to see the upgrade page and notice on a copy of your data; Settings › Data and storage for the replaced data
+- Not verified: Windows and Linux before CI; a real window; the progress bar on data large enough to take a second; a replaced database with a `-wal` file but no `-shm`; the count of broken links in the diagnostic summary (comes with the diagnostics page)
+
 ## 0.6.33 · 2026-11-28
 
 - Fixed fetching the model list from Anthropic's own service (api.anthropic.com), which failed on a missing version header; other services are unchanged
