@@ -5,6 +5,7 @@
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:vv="using:Mindweave.Desktop.Views"
+             xmlns:dvm="using:Mindweave.Desktop.ViewModels"
              x:Class="Mindweave.Desktop.Views.Conversations.ConversationView"
              x:DataType="vm:ConversationViewModel"
              ClipToBounds="False">
@@ -286,7 +287,8 @@
                             <SelectableTextBlock Classes="run-step-outcome" Classes.problem="{Binding IsProblem}" Text="{Binding Outcome}" TextWrapping="Wrap"
                                                  IsVisible="{Binding ShowsOutcome}" />
                             <!-- A failed step: the failure block (D2 §2.1), quiet inside the step. -->
-                            <vv:FailureBlock Classes="run-step-failure" DataContext="{Binding Failure}" IsVisible="{Binding $parent[Border].((vm:RunStepItem)DataContext).HasFailure}" />
+                            <!-- Made only for a failed step: a hidden block in every step would slow drawing a long run. -->
+                            <ContentControl Classes="run-step-failure" Content="{Binding Failure}"><ContentControl.ContentTemplate><DataTemplate x:DataType="dvm:FailureViewModel"><vv:FailureBlock /></DataTemplate></ContentControl.ContentTemplate></ContentControl>
                             <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}" ClipToBounds="False">
                               <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -415,7 +417,8 @@
                       </Button>
                       <!-- The failure block (D2 §2.1): the state, what to do with a link to the fix, and details with the service's
                            own message, selectable and copyable (health check 2026-11-12, a11y-3). -->
-                      <vv:FailureBlock Name="AnswerFailure" DataContext="{Binding Failure}" MaxWidth="640" />
+                      <!-- Made only for an answer that failed: a hidden block in every message would slow opening a long conversation. -->
+                      <ContentControl Name="AnswerFailure" Content="{Binding Failure}" MaxWidth="640"><ContentControl.ContentTemplate><DataTemplate x:DataType="dvm:FailureViewModel"><vv:FailureBlock /></DataTemplate></ContentControl.ContentTemplate></ContentControl>
                   </DockPanel>
                 </Border>
                 <!-- The answer's own actions, quiet, in one row right under it: copy, retry or regenerate, its state, its time. -->

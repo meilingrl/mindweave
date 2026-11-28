@@ -110,6 +110,10 @@
     <Border Name="ManualBackupDialog" Classes="dialog-scrim" IsVisible="{Binding ManualBackup.IsOpen}">
       <v:ManualBackupView DataContext="{Binding ManualBackup}" />
     </Border>
+    <!-- Saving a diagnostic package (D2 §2.2), from 诊断 or the recovery page. -->
+    <Border Name="DiagnosticPackageDialog" Classes="dialog-scrim" IsVisible="{Binding DiagnosticPackage.IsOpen}">
+      <v:DiagnosticPackageView DataContext="{Binding DiagnosticPackage}" />
+    </Border>
     <Border Name="ExitTaskPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsTaskPromptOpen}">
       <Border Classes="dialog">
         <StackPanel Spacing="12">

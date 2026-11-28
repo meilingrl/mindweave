@@ -465,6 +465,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
 
+    /// <summary>Recent requests, the log and the diagnostic package (D2 §2.2).</summary>
+    [RelayCommand]
+    private void ShowDiagnostics() => _content.Push(DiagnosticsRoute.Instance);
+
     /// <summary>Token use and activity facts (2026-11-12), a drill-in beside 数据与存储.</summary>
     [RelayCommand]
     private void ShowStatistics() => _content.Push(UsageStatisticsRoute.Instance);

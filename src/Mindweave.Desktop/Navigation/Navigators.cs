@@ -36,6 +36,9 @@ public interface IWorkbenchNavigator : IMenuNavigator, IContentNavigator
 
     /// <summary>Opens 设置 scrolled to <paramref name="section"/>: a failure's link to the setting that fixes it (D2 §2.1).</summary>
     void OpenSettings(SettingsSection section);
+
+    /// <summary>Opens 设置 › 诊断 with the newest request of <paramref name="answer"/> open (a failure block's link, D2 §2.1).</summary>
+    void OpenRequestList(Core.Conversations.MessageId answer);
 }
 
 /// <summary>A part of 设置 that a link can open directly.</summary>

@@ -314,6 +314,9 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// <summary>Opens the part of 设置 that fixes a failure.</summary>
     public Action<Navigation.SettingsSection>? OpenSettings { get; init; }
 
+    /// <summary>Opens 诊断 at this answer's request (D2 §2.1); null where it has no record there (an import).</summary>
+    public Action<MessageId>? OpenRequestList { get; init; }
+
     /// <summary>
     /// The failure block under a failed or interrupted answer (D2 §2.1): the state as before, what to do, and details. Made
     /// when first asked for and again when the state or the error changes.
@@ -356,7 +359,8 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
             UiText.OpenModelConnection,
             fixable ? () => OpenSettings!(Navigation.SettingsSection.ModelConnection) : null,
             Application.Diagnostics.FailureDetails.Kept(CompletedAt, null, ErrorDetail),
-            record is null ? null : ct => record(Id, ct));
+            record is null ? null : ct => record(Id, ct),
+            showInList: OpenRequestList is { } list ? () => list(Id) : null);
     }
 
     /// <summary>Set by the page: whether this is the conversation's last answer and may be retried.</summary>

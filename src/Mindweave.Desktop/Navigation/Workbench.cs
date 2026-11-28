@@ -137,6 +137,13 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
         }
     }
 
+    public void OpenRequestList(Core.Conversations.MessageId answer)
+    {
+        Navigate(new NavigationRequest(MainSection.Settings, SettingsHomeRoute.Instance));
+        Push(DiagnosticsRoute.Instance);
+        (CurrentPage as ViewModels.Pages.DiagnosticsViewModel)?.ShowAnswer(answer);
+    }
+
     public void Push(ContentRoute route)
     {
         ArgumentNullException.ThrowIfNull(route);

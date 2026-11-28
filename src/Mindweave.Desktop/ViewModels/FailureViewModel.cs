@@ -26,6 +26,7 @@ public sealed partial class FailureViewModel : ViewModelBase
     });
 
     private readonly Action? _fix;
+    private readonly Action? _showInList;
     private readonly Func<CancellationToken, Task<FailureDetails?>>? _load;
     private readonly IReadOnlyList<FailureLine> _extra;
     private FailureDetails? _details;
@@ -44,8 +45,10 @@ public sealed partial class FailureViewModel : ViewModelBase
         Action? fix = null,
         FailureDetails? details = null,
         Func<CancellationToken, Task<FailureDetails?>>? load = null,
-        IReadOnlyList<FailureLine>? extra = null)
+        IReadOnlyList<FailureLine>? extra = null,
+        Action? showInList = null)
     {
+        _showInList = showInList;
         Headline = headline;
         Advice = advice;
         FixLabel = fix is null ? null : fixLabel;
@@ -65,6 +68,9 @@ public sealed partial class FailureViewModel : ViewModelBase
     public string? FixLabel { get; }
 
     public bool HasFix => FixLabel is not null;
+
+    /// <summary>A link to this request's row on 诊断 (D2 §2.1); only where the request can be found there.</summary>
+    public bool CanShowInList => _showInList is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsLines))]
@@ -129,6 +135,9 @@ public sealed partial class FailureViewModel : ViewModelBase
 
     [RelayCommand]
     private void Fix() => _fix?.Invoke();
+
+    [RelayCommand]
+    private void ShowInList() => _showInList?.Invoke();
 
     private async Task LoadAsync()
     {

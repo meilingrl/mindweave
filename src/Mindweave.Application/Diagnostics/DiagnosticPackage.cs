@@ -55,6 +55,16 @@ public interface IDiagnosticPackageWriter
 /// <summary>What the export dialog lists before anything is written.</summary>
 public sealed record DiagnosticPreview(int Requests, int LogFiles, long LogBytes, bool DataAvailable);
 
+/// <summary>The diagnostic package as the dialog uses it (D2 §2.2).</summary>
+public interface IDiagnosticPackage
+{
+    /// <summary>What would leave: the number of request records and of log files.</summary>
+    Task<DiagnosticPreview> PreviewAsync(bool dataAvailable, CancellationToken cancellationToken);
+
+    /// <summary>Builds the package and writes it to <paramref name="destination"/>.</summary>
+    Task<ExportWriteMode> SaveAsync(ExportDestination destination, DiagnosticChoice choice, bool dataAvailable, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// The diagnostic package (D2 §2.2, requirements §10.8, architecture §17.2): a zip of plain files the user saves and sends by
 /// their own means. It is built from a list of allowed fields, never by serializing storage records (the E5 rule); the log is
@@ -74,7 +84,7 @@ public sealed partial class DiagnosticPackageService(
     StoredKeys keys,
     IClock clock,
     IDiagnosticPackageWriter writer,
-    ILogger<DiagnosticPackageService> logger)
+    ILogger<DiagnosticPackageService> logger) : IDiagnosticPackage
 {
     /// <summary>How far back the request records go, as the log does.</summary>
     public const int DaysKept = 14;

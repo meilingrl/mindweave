@@ -72,6 +72,10 @@ public sealed partial class RecoveryViewModel : ViewModelBase
     [RelayCommand]
     private void OpenDataFolder() => _shell.OpenFolder(DataDirectory);
 
+    /// <summary>When the data cannot be opened the package is most needed (D2 §2.2): it holds the summary and the logs.</summary>
+    [RelayCommand]
+    private void ExportDiagnostics() => _actions.ExportDiagnostics();
+
     [RelayCommand]
     private void Exit() => _actions.Quit();
 

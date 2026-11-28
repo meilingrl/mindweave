@@ -136,6 +136,7 @@ public static class CompositionRoot
         services.AddSingleton<ShareViewModel>();
         services.AddSingleton<ImportViewModel>();
         services.AddSingleton<ManualBackupViewModel>();
+        services.AddSingleton<DiagnosticPackageViewModel>();
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();
         services.AddSingleton<IRootNavigator>(sp => sp.GetRequiredService<RootViewModel>());

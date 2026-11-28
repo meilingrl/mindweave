@@ -566,6 +566,14 @@
         </Button>
       </StackPanel>
       <StackPanel Classes="settings-block">
+        <Button Name="DiagnosticsButton" Classes="entry setting-entry" Command="{Binding ShowDiagnosticsCommand}" AutomationProperties.Name="{x:Static t:UiText.DiagnosticsLink}">
+          <DockPanel>
+            <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
+            <TextBlock VerticalAlignment="Center" Text="{x:Static t:UiText.DiagnosticsLink}" />
+          </DockPanel>
+        </Button>
+      </StackPanel>
+      <StackPanel Classes="settings-block">
         <Button Name="ManageWorkspacesButton" Classes="entry setting-entry" Command="{Binding ShowWorkspacesCommand}" AutomationProperties.Name="{Binding ManageWorkspacesName}" IsVisible="{Binding CanManageWorkspaces}">
           <DockPanel>
             <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />

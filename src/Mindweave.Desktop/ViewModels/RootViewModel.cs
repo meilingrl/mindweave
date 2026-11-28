@@ -12,7 +12,8 @@ public sealed partial class RootViewModel(
     BackupDeletionViewModel backupDeletion,
     ShareViewModel share,
     ImportViewModel import,
-    ManualBackupViewModel manualBackup) : ViewModelBase, IRootNavigator
+    ManualBackupViewModel manualBackup,
+    DiagnosticPackageViewModel diagnosticPackage) : ViewModelBase, IRootNavigator
 {
     /// <summary>The exit sequence every way of quitting goes through; its task prompt and save failure overlay any root page.</summary>
     public ExitCoordinator Exit { get; } = exit;
@@ -37,6 +38,9 @@ public sealed partial class RootViewModel(
 
     /// <summary>Saving a manual backup (docs/design/sharing-backup.md §5).</summary>
     public ManualBackupViewModel ManualBackup { get; } = manualBackup;
+
+    /// <summary>Saving a diagnostic package (D2 §2.2), from 诊断 or the recovery page.</summary>
+    public DiagnosticPackageViewModel DiagnosticPackage { get; } = diagnosticPackage;
 
     [ObservableProperty]
     public partial ViewModelBase? Current { get; private set; }

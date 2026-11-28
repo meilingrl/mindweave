@@ -90,6 +90,7 @@ public static class ApplicationServices
         services.AddSingleton<WebSearchSettingsService>();
         services.AddSingleton<Application.Credentials.StoredKeys>();
         services.AddSingleton<Application.Diagnostics.DiagnosticPackageService>();
+        services.AddSingleton<Application.Diagnostics.IDiagnosticPackage>(sp => sp.GetRequiredService<Application.Diagnostics.DiagnosticPackageService>());
         services.AddSingleton<IWebSearchSettings>(sp => sp.GetRequiredService<WebSearchSettingsService>());
         services.TryAddSingleton(new Application.Tools.Mcp.McpOptions()); // Tests shorten the timings.
         services.AddSingleton<Application.Tools.Mcp.McpServerSettings>();

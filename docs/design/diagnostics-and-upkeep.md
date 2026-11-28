@@ -1,6 +1,6 @@
 # Security, diagnostics and upkeep
 
-**Status:** approved by the owner on 2026-11-27 (D-042), as written: the D2 design (§2) and the upkeep decisions (§3). It carries out [evolution.md](../evolution.md) D2. Not built. The requirement and architecture text (requirements v0.31, architecture §17) is confirmed by the owner, 2026-11-27. Last discussed: 2026-11-27.
+**Status:** approved by the owner on 2026-11-27 (D-042), as written: the D2 design (§2) and the upkeep decisions (§3). It carries out [evolution.md](../evolution.md) D2. Built: the upkeep (0.6.34), increments 1 to 3 (0.6.35, 0.6.36, 0.6.40); increments 4 and 5 are not built. The requirement and architecture text (requirements v0.31, architecture §17) is confirmed by the owner, 2026-11-27. Last discussed: 2026-11-27.
 
 This note covers evolution D2 (security and diagnostics) and the upkeep decisions left open by the health check of 2026-11-12. It does not cover sharing, import, the exchange format or device copies ([sharing.md](sharing.md)), several connections and protocols, or look, colours and accessibility.
 

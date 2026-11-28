@@ -17,6 +17,15 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.40 · 2026-11-28
+
+- Added 设置 › 诊断 (Diagnostics): the requests of the last 14 days, newest 200, with a 只看失败 | 全部 switch; a row opens in place into its failure details, with the service, usage, cache (未返回 when not reported, never 0) and timings (D-042 §2.2, increment 3)
+- Added 在请求列表中查看 to a failed answer's block, which opens its row on the diagnostics page
+- Added the export of a diagnostic package from the diagnostics page and from the recovery page: the dialog lists what leaves, with ticks for model names and hosts and for the logs, before anything is written
+- Changed the failure block in messages and run steps to be made only when there is a failure, so opening a conversation is lighter
+- Try: set a model with a wrong key and ask, then 在请求列表中查看; 设置 › 诊断 › 导出诊断包…
+- Not verified: Windows and Linux before CI; a real window and save panel; a real log of 14 days; 200 rows are drawn at once, not as you scroll
+
 ## 0.6.39 · 2026-11-28
 
 - Changed how a long fetched page reaches the model: a page over about 2,000 estimated tokens goes as its opening and then the paragraphs that best match the question and the searches that found it, in page order, with the missing parts marked (D-043 step 3). Search, local and MCP results keep their start, as before

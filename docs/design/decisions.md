@@ -272,7 +272,7 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Erasing is one mechanism.** It makes every copy match the current data: the database is rewritten, one fresh backup is made, and the backups that held deleted content are deleted. `secure_delete` stays off, and no migration is needed.
 - **Two rules for what is left for later.** A performance problem with an easy fix is fixed early, without waiting until users feel it. An architectural problem is never left. Four rows of the health check are therefore fixed now: performance-5, performance-9, architecture-4, architecture-5.
 - **The 15 upkeep rows are decided.** Among them: the schema version is the only gate for stored formats; "Quit without saving" after a failed retry; a broken relationship from before a migration does not stop it; no lock files before 1.0.0; performance budgets run in CI without blocking; no coverage figure.
-- The note is [diagnostics-and-upkeep.md](diagnostics-and-upkeep.md); the text is requirements v0.31 (§10.8) and architecture §17. Nothing is built.
+- The note is [diagnostics-and-upkeep.md](diagnostics-and-upkeep.md); the text is requirements v0.31 (§10.8) and architecture §17. Increments 1 to 3 and the upkeep are built (0.6.34 to 0.6.40).
 
 ## D-043 Reply quality is adopted: how answers and summaries are written (you, 2026-11-25 to 11-27)
 

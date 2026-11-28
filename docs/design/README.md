@@ -45,7 +45,7 @@ This directory records the choices that the handoff document lets implementers r
 
 | Document | Content |
 | --- | --- |
-| [Security, diagnostics and upkeep](diagnostics-and-upkeep.md) | Approved 2026-11-27 (evolution D2, D-042), not built: what a failed request shows, the diagnostics page and package, removing keys and keys left behind, erasing deleted content for good, the renderer guard, failure cases, acceptance scenarios and five increments; the standing of the health check's open rows and the upkeep decisions |
+| [Security, diagnostics and upkeep](diagnostics-and-upkeep.md) | Approved 2026-11-27 (evolution D2, D-042), increments 1 to 3 and the upkeep built (0.6.34 to 0.6.40), 4 and 5 not built: what a failed request shows, the diagnostics page and package, removing keys and keys left behind, erasing deleted content for good, the renderer guard, failure cases, acceptance scenarios and five increments; the standing of the health check's open rows and the upkeep decisions |
 
 ## Model access
 

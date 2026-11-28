@@ -254,6 +254,18 @@ public sealed class DesktopHarness : IAsyncDisposable
             return Task.FromResult(NextBackup(suggestedFileName));
         }
 
+        /// <summary>Suggested file names the save dialog of a diagnostic package was opened with (without the extension).</summary>
+        public List<string> DiagnosticRequests { get; } = [];
+
+        /// <summary>What that dialog returns for a suggested name; null (the default) is "cancelled".</summary>
+        public Func<string, ExportDestination?> NextDiagnostic { get; set; } = _ => null;
+
+        public Task<ExportDestination?> PickDiagnosticFileAsync(string suggestedFileName, CancellationToken cancellationToken)
+        {
+            DiagnosticRequests.Add(suggestedFileName);
+            return Task.FromResult(NextDiagnostic(suggestedFileName));
+        }
+
         /// <summary>The path the open dialog for a shared file returns; null (the default) is "cancelled".</summary>
         public Func<string?> NextSharedFile { get; set; } = () => null;
 

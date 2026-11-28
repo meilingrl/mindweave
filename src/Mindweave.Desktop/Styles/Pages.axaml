@@ -57,6 +57,20 @@
   <Style Selector="Grid.backup-end">
     <Setter Property="Grid.Column" Value="4" />
   </Style>
+  <!-- 诊断's request rows (D2 §2.2): a whole row opens; a failure's result in the danger colour; on a narrow page the model
+       and the result move under the time. -->
+  <Style Selector="Button.request-row">
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="Margin" Value="-8,0" />
+  </Style>
+  <Style Selector="TextBlock.request-result.failed">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <Style Selector="Grid.request-line.narrow > StackPanel.request-what">
+    <Setter Property="Grid.Row" Value="1" />
+    <Setter Property="Grid.Column" Value="0" />
+    <Setter Property="Grid.ColumnSpan" Value="4" />
+  </Style>
   <Style Selector="Grid.backup-line.narrow > Grid.backup-end">
     <Setter Property="Grid.Row" Value="1" />
     <Setter Property="Grid.Column" Value="1" />

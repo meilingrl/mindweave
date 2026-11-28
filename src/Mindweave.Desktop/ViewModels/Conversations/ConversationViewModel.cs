@@ -670,6 +670,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
             // D2 §2.1: a failed answer's details come from its request record; an imported answer has none here.
             FailureRecord = _failures is { } failures && !IsReceived ? failures.ForAnswerAsync : null,
             OpenSettings = _navigator.OpenSettings,
+            OpenRequestList = IsReceived ? null : _navigator.OpenRequestList,
         };
         item.PropertyChanged += (_, e) =>
         {
