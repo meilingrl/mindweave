@@ -17,6 +17,17 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.35 · 2026-11-28
+
+- Added 移除密钥 (Remove key) beside 测试连接 in Settings › Model connection; when requests are using the key, it asks first and stops them (D-042 §2.3)
+- Added a line in the MCP server form: arguments are stored as plain text, and a key belongs in an environment variable
+- Added a guard on the drawing of every answer and summary: a message whose formatting cannot be drawn is shown as plain text under a note, and the rest of the page goes on (D-042 §2.5); 348 malformed formulas and about 90 Markdown fragments are tested, and none crashed
+- Fixed retired keys that could stay in the key store for good: they are now cleaned at start-up and when a task ends, behind one gate with the settings save
+- Fixed a key store that does not answer: a read, write or delete fails after 30 seconds with "unlock it and retry", for the model key, the web search key and MCP secrets
+- Fixed a streamed response line without a break growing without bound: it fails as an invalid response past the event limit (security-4)
+- Try: Settings › Model connection › Remove key; start an answer with a slow model first to see the question
+- Not verified: Windows and Linux before CI; a real window; a real locked keychain (tested with a fake store); a real model's malformed output; very long lines without spaces are slow to lay out (47 s for 200,000 characters in a debug build), not guarded
+
 ## 0.6.34 · 2026-11-28
 
 - Added a page while the data format is upgraded at start ("Upgrading data … a backup is made first"), and one notice afterwards that says to which version and where the backup is (D-042 §3.1)

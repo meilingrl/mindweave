@@ -78,6 +78,12 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     public MemoryCredentialStore Credentials { get; } = new();
 
+    /// <summary>How long the harness lets the key store take before a call fails as unavailable.</summary>
+    public static TimeSpan CredentialWait { get; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>Replaced keys waiting to be deleted (D2 §2.3).</summary>
+    public RetiredCredentials RetiredKeys => _services.GetRequiredService<RetiredCredentials>();
+
     public FakeChatClient Client { get; } = new();
 
     /// <summary>The search service (phase 3): scripted hits, no network.</summary>
@@ -413,7 +419,8 @@ internal sealed class ChatHarness : IAsyncDisposable
 
         // Added first: the app's defaults for these are only registered where nothing is yet.
         services.AddSingleton(client);
-        services.AddSingleton(credentials);
+        // Limited as the platform store is, with a short wait (D2 §2.3: 30 s in the app).
+        services.AddSingleton(global::Mindweave.Infrastructure.Credentials.CredentialStores.Limited(credentials, CredentialWait, TimeProvider.System));
         services.AddSingleton<Application.Tools.ISearchProvider>(Search);
         services.AddSingleton<Application.Tools.IWebPageFetcher>(Pages);
         services.AddSingleton<Application.Share.IShareMarkdown>(new PlainMarkdown()); // The app's own is in Desktop.

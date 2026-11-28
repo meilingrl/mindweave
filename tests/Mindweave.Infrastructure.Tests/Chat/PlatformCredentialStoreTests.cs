@@ -14,7 +14,7 @@ public class PlatformCredentialStoreTests
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MINDWEAVE_CREDENTIAL_TESTS") == "1", "Set MINDWEAVE_CREDENTIAL_TESTS=1 to touch the real credential store.");
         Assert.SkipUnless(OperatingSystem.IsMacOS() || OperatingSystem.IsWindows(), "No platform credential store.");
         var ct = TestContext.Current.CancellationToken;
-        var store = CredentialStores.ForPlatform($"test-{Guid.NewGuid():N}");
+        var store = CredentialStores.ForPlatform($"test-{Guid.NewGuid():N}", TimeProvider.System);
         var reference = $"{Guid.NewGuid():D}/{Guid.NewGuid():D}";
         try
         {

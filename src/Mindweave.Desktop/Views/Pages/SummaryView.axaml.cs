@@ -16,6 +16,9 @@ namespace Mindweave.Desktop.Views.Pages;
 public sealed partial class SummaryView : UserControl
 {
     private readonly MarkdownRenderer _renderer = new();
+
+    /// <summary>Shows the body as plain text when its formulas or formatting cannot be drawn (D2 §2.5).</summary>
+    private readonly RenderGuard _guard;
     private readonly DispatcherTimer _report;
     private SummaryViewModel? _page;
     private string? _restoreLocator;
@@ -23,7 +26,8 @@ public sealed partial class SummaryView : UserControl
     public SummaryView()
     {
         InitializeComponent();
-        BodyHost.Content = _renderer;
+        _guard = new RenderGuard(_renderer);
+        BodyHost.Content = _guard;
         AttachTextColumn();
         _renderer.LinkClick += (_, e) => e.Handled = true;
         _report = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background, (_, _) => Report());
@@ -35,6 +39,9 @@ public sealed partial class SummaryView : UserControl
     }
 
     internal MarkdownRenderer Renderer => _renderer;
+
+    /// <summary>The guard around the renderer (tests).</summary>
+    internal RenderGuard Guard => _guard;
 
     /// <summary>How much of the body has been in view, 0–1 (1 when it fits on one screen).</summary>
     internal double Progress =>
@@ -81,11 +88,11 @@ public sealed partial class SummaryView : UserControl
     {
         if (_page?.Shown is not { } version)
         {
-            _renderer.DocumentUpdate = null;
+            _guard.Show(string.Empty, r => r.DocumentUpdate = null);
             return;
         }
 
-        _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(AnswerMarkdown.Parse(version.Body));
+        _guard.Show(version.Body, r => r.DocumentUpdate = new MarkdownDocumentUpdate.Full(AnswerMarkdown.Parse(version.Body)));
         _restoreLocator = _page.ShownLocator;
         Scroller.Offset = default;
 
