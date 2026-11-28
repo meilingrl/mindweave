@@ -55,6 +55,13 @@ public static class Motion
     /// <summary>Window prompts appearing over a scrim.</summary>
     public static readonly TimeSpan Slow = TimeSpan.FromMilliseconds(200);
 
+    /// <summary>
+    /// How many times longer the appearing motions run than <see cref="Base"/> and <see cref="Slow"/>; 1 in the app. Tests
+    /// that look at a motion while it is under way lengthen it: motion runs on the real clock, and on a loaded machine
+    /// building a new page took longer than the whole fade, which had ended before the test looked (2026-11-28).
+    /// </summary>
+    internal static double DurationScale { get; set; } = 1;
+
     /// <summary>Where the transitions for hover, press and selection are; loaded by <see cref="App"/> only while <see cref="Enabled"/>.</summary>
     public static readonly Uri StylesUri = new("avares://Mindweave/Styles/Motion.axaml");
 
@@ -169,7 +176,7 @@ public static class Motion
         }
 
         // FillMode.None: when it ends the element is back on its own values (bindings, styles), never held by the animation.
-        var animation = new Animation { Duration = duration, Easing = EaseOut, FillMode = FillMode.None, Children = { start, end } };
+        var animation = new Animation { Duration = duration * DurationScale, Easing = EaseOut, FillMode = FillMode.None, Children = { start, end } };
         return animation.RunAsync(element, cancel);
     }
 

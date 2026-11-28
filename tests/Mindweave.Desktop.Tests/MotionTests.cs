@@ -39,6 +39,26 @@ public class MotionTests
         }
     }
 
+    /// <summary>
+    /// <see cref="WithMotion"/> with the appearing motions a hundred times longer, for a test that looks at one while it is
+    /// under way. Motion runs on the real clock, and the frames a test delivers run the work queued with them: building a new
+    /// page under load took longer than the whole 160 ms fade, and the page was already opaque when the test looked (0.9986,
+    /// 2026-11-28). How a motion ends is then seen at its own length (<see cref="Motion.Play"/> again, which replaces it).
+    /// </summary>
+    private static T UnderWay<T>(Func<T> body) =>
+        WithMotion(() =>
+        {
+            Motion.DurationScale = 100;
+            try
+            {
+                return body();
+            }
+            finally
+            {
+                Motion.DurationScale = 1;
+            }
+        });
+
     [AvaloniaFact]
     public void The_app_loads_the_transitions_only_while_motion_is_on()
     {
@@ -127,7 +147,7 @@ public class MotionTests
         note.IsVisible = false;
 
         // On: the first frame is still faint and low (it starts transparent, 6 px down); then it settles in place.
-        var (opacity, offset) = WithMotion(() =>
+        var (opacity, offset) = UnderWay(() =>
         {
             note.IsVisible = true;
             FirstFrames();
@@ -135,6 +155,7 @@ public class MotionTests
         });
         Assert.True(opacity < 0.95, $"opacity {opacity}");
         Assert.True(offset > 0.3, $"offset {offset}");
+        _ = Motion.Play(note, AppearMotion.Rise);
         await SettledAsync(() => note.Opacity == 1 && OffsetY(note) == 0);
 
         // Hiding is instant: nothing waits for motion.
@@ -156,7 +177,7 @@ public class MotionTests
         Assert.Equal(AppearMotion.Dialog, Motion.GetAppear(scrim));
 
         var toast = new Border { Width = 100, Height = 30, Classes = { "news-toast" } };
-        var (scrimOpacity, scale, toastOffset) = WithMotion(() =>
+        var (scrimOpacity, scale, toastOffset) = UnderWay(() =>
         {
             scrim.IsVisible = true;
             toasts.Children.Add(toast);
@@ -166,6 +187,8 @@ public class MotionTests
         Assert.True(scrimOpacity < 0.95, $"scrim {scrimOpacity}");
         Assert.True(scale < 1, $"scale {scale}");
         Assert.True(toastOffset > 0.5, $"toast {toastOffset}");
+        _ = Motion.Play(scrim, AppearMotion.Dialog);
+        _ = Motion.Play(toast, AppearMotion.Toast);
         await SettledAsync(() => scrim.Opacity == 1 && (dialog.RenderTransform?.Value.M11 ?? 1) == 1 && OffsetY(toast) == 0);
         window.Close();
     }
@@ -183,13 +206,14 @@ public class MotionTests
         FirstFrames();
         Assert.Equal(1, host.Opacity);
 
-        var opacity = WithMotion(() =>
+        var opacity = UnderWay(() =>
         {
             app.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
             FirstFrames();
             return host.Opacity;
         });
         Assert.True(opacity < 0.95, $"opacity {opacity}");
+        _ = Motion.Play(host, AppearMotion.Page);
         await SettledAsync(() => host.Opacity == 1);
         window.Close();
     }
