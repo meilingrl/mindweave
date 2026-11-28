@@ -195,8 +195,7 @@ public class RowMenuUiTests
 
         // The first click opens the row as ever; the second turns its title into the rename box, all selected, with the focus.
         await UiInput.PastDoubleClickAsync();
-        ClickRow(window, middle);
-        ClickRow(window, middle);
+        DoubleClickRow(window, middle);
         await UiWait.UntilAsync(() => RenameBox(window, middle) is { IsFocused: true, IsEffectivelyVisible: true });
         Assert.Equal(middle, ((ConversationViewModel)app.Workbench.CurrentPage!).Id);
         Assert.Equal(middleTitle, RenameBox(window, middle).SelectedText);
@@ -210,14 +209,12 @@ public class RowMenuUiTests
 
         // A modified double click selects, and in the selection mode a double click ticks: neither renames.
         await UiInput.PastDoubleClickAsync();
-        ClickRow(window, root, Toggle);
-        ClickRow(window, root, Toggle);
+        DoubleClickRow(window, root, Toggle);
         Assert.DoesNotContain(list.Items, i => i.IsRenaming);
         list.ClearSelection();
         list.ToggleSelectionModeCommand.Execute(null);
         await UiInput.PastDoubleClickAsync();
-        ClickRow(window, sibling);
-        ClickRow(window, sibling);
+        DoubleClickRow(window, sibling);
         Assert.DoesNotContain(list.Items, i => i.IsRenaming);
         window.Close();
     }
@@ -685,6 +682,20 @@ public class RowMenuUiTests
         var point = target.TranslatePoint(new Point(20, target.Bounds.Height / 2), window)!.Value;
         window.MouseDown(point, MouseButton.Right);
         window.MouseUp(point, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+    }
+
+    /// <summary>
+    /// A double click on the row's title (<see cref="UiInput.DoubleClick"/>), then what it started. Two <see cref="ClickRow"/>
+    /// calls were one under load only sometimes: the first opens the row's page, and the second press, measured by time,
+    /// then came too late to be the second of a double click.
+    /// </summary>
+    private static void DoubleClickRow(Window window, ConversationId id, RawInputModifiers modifiers = RawInputModifiers.None)
+    {
+        window.UpdateLayout();
+        var title = Find<TextBlock>(Row(window, id), "RowTitle");
+        UiInput.DoubleClick(window, title, modifiers, new Point(4, title.Bounds.Height / 2));
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
     }

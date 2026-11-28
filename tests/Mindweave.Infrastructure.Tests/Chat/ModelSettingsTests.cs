@@ -92,7 +92,10 @@ public class ModelSettingsTests
         await h.WaitForAnswerAsync(sent.Answer!.Value);
 
         // D2 §2.7 scenario 7: the end of the task cleans up, without another save.
+        // The cleanup deletes the key first and writes the shorter list after: wait for the cleanup, not for its first step.
+        // A cleanup asked for later runs after this one (one gate), so the latest one ends after the one that deleted it.
         await ChatHarness.UntilAsync(() => !h.Credentials.Items.ContainsKey(oldRef));
+        await h.RetiredKeys.Latest;
         Assert.Equal("sk-new", Assert.Single(h.Credentials.Items).Value);
         Assert.Empty(await h.Settings.RetiredCredentialRefsAsync(Ct));
     }
