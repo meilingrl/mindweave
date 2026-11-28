@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.41 · 2026-11-28
+
+- Fixed three tests that failed under load: the key cleanup test waits for the shorter retired list, the double click is sent as one double click, and the motion tests read a motion mid-way with it slowed down, through an internal scale that stays 1 in the app
+- Fixed the test runner's hang watch, which ended healthy desktop shards under load: a shard is ended only when tests are running and none has finished for the limit, and it names them
+- Try: `scripts/test.sh full`
+- Not verified: Windows and Linux before CI; RunUiTests' attachment search answer timed out once at a load average of about 28 and passed after, with no race found
+
 ## 0.6.40 · 2026-11-28
 
 - Added 设置 › 诊断 (Diagnostics): the requests of the last 14 days, newest 200, with a 只看失败 | 全部 switch; a row opens in place into its failure details, with the service, usage, cache (未返回 when not reported, never 0) and timings (D-042 §2.2, increment 3)

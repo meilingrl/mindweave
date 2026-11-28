@@ -47,21 +47,32 @@ sys.exit(1)
 
 HUNG_TEST = f"{CLASS}.等待永不结束"
 
-# Stands in for the xUnit runner with one test that never ends: it reports it as the runner's -longRunning does, half
-# a line at a time, then waits for ever. The script must name it and end the process.
+# Stands in for the xUnit runner's verbose reporter with one test that never ends: it starts it (half a line at a time),
+# finishes one other test, then waits for ever. The script must name it and end the process. With SLOW_BUT_MOVING in its
+# arguments the long test ends after 4 s while another test finishes every half second: a shard that is only slow, which
+# must be left alone.
 HANGING_RUNNER = f'''
 import sys, time
 out = lambda text: (sys.stdout.buffer.write(text.encode("utf-8")), sys.stdout.flush())
 if "-list" in sys.argv:
     out({CLASS!r} + "\\n")
     sys.exit(0)
-limit = sys.argv[sys.argv.index("-longRunning") + 1] if "-longRunning" in sys.argv else None
-if limit != "300":
-    out("NO LONG RUNNING LIMIT\\n")
+if "-reporter" not in sys.argv or sys.argv[sys.argv.index("-reporter") + 1] != "verbose":
+    out("NO VERBOSE REPORTER\\n")
     sys.exit(3)
-out("    [D::Mindweave.Desktop.Tests] [Long Running Test] '" + {HUNG_TEST!r}[:20])
-time.sleep(1.5)
-out({HUNG_TEST!r}[20:] + "', Elapsed: 00:05:02\\n")
+out("    " + {HUNG_TEST!r}[:20])
+time.sleep(0.5)
+out({HUNG_TEST!r}[20:] + " [STARTING]\\n")
+out("    " + {TEST!r} + " [STARTING]\\n")
+out("    " + {TEST!r} + " [FINISHED] Time: 0.1s\\n")
+if "SLOW_BUT_MOVING" in sys.argv:
+    for n in range(8):
+        time.sleep(0.5)
+        out(f"    {CLASS}.其他测试{{n}} [STARTING]\\n")
+        out(f"    {CLASS}.其他测试{{n}} [FINISHED] Time: 0.5s\\n")
+    out("    " + {HUNG_TEST!r} + " [FINISHED] Time: 4.5s\\n")
+    out("  Mindweave.Desktop.Tests  Total: 10, Errors: 0, Failed: 0, Skipped: 0, Not Run: 0, Time: 4.5s\\n")
+    sys.exit(0)
 time.sleep(3600)
 '''
 
@@ -125,17 +136,28 @@ class ChineseTextTests(unittest.TestCase):
         self.assertIn("1 failed", out)
 
     def test_a_hanging_test_is_named_and_its_shard_ended(self):
-        fake = self.path("fake_runner.py", HANGING_RUNNER)
-        driver = self.path("driver.py", SHARDS_DRIVER)
-        code, out, err = run(
-            [sys.executable, driver, os.path.join(SCRIPTS, "test-shards.py"), fake,
-             "run", self.path("Fake.dll"), "--shards", "1", "--hang", "300", "--results", self.path("results")],
-            self.dir.name)
+        code, out, err = self.run_hanging()
         self.assertEqual(1, code, f"a hung shard fails\n{out}\n{err}")
         self.assertNotIn("Traceback", err)
-        self.assertNotIn("NO LONG RUNNING LIMIT", out)
-        self.assertIn(f"HUNG: {HUNG_TEST} ran longer than 300 s", out)
+        self.assertNotIn("NO VERBOSE REPORTER", out)
+        self.assertIn("no test finished for 2 s; the shard was ended", out)
+        self.assertIn(f"HUNG: {HUNG_TEST} (running for", out)
+        self.assertNotIn(f"HUNG: {TEST}", out)
         self.assertIn("FAILED", out)
+
+    def test_a_slow_shard_whose_tests_still_finish_is_left_alone(self):
+        code, out, err = self.run_hanging("SLOW_BUT_MOVING")
+        self.assertEqual(0, code, f"a slow shard passes\n{out}\n{err}")
+        self.assertNotIn("HUNG", out)
+        self.assertIn("passed", out)
+
+    def run_hanging(self, *runner_args):
+        fake = self.path("fake_runner.py", HANGING_RUNNER)
+        driver = self.path("driver.py", SHARDS_DRIVER)
+        return run(
+            [sys.executable, driver, os.path.join(SCRIPTS, "test-shards.py"), fake,
+             "run", self.path("Fake.dll"), "--shards", "1", "--hang", "2", "--results", self.path("results"), "--", *runner_args],
+            self.dir.name)
 
     def test_timings_with_chinese_test_names_are_listed_whole(self):
         os.mkdir(self.path("trx"))

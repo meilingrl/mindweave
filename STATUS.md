@@ -85,7 +85,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the diagnostics page, 0.6.40 | 2026-11-28 | passed: Core 943, Architecture 41, Infrastructure 1511 + 22 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the flaky test fixes, 0.6.41 | 2026-11-28 | passed: Core 943, Architecture 41, Infrastructure 1511 + 22 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Claude's official API, real service | RealApiTests | 2026-11-27 | RealApiTests 11/11, summaries 5/5, web-auto 4/4, follow-up 3/5 (the same misses as DeepSeek); no caching reported through the compatibility layer |
 | Windows 11 hardware, full run | 3e90875 (0.6.29) | 2026-11-27 | passed: 3329 passed, 0 failed, 128 skipped of 3457; Credential Manager test ran |

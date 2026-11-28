@@ -21,7 +21,50 @@ internal static class UiInput
     /// <param name="modifiers">Keys held during the click (for example ⇧ or ⌘ to extend a selection).</param>
     /// <param name="at">Where in <paramref name="target"/> to click, in its own coordinates; its centre when null.</param>
     /// <param name="hover">Moves the pointer there first, so the target is hovered when it is pressed, as with a real mouse.</param>
-    public static void Click(Window window, Control target, RawInputModifiers modifiers = RawInputModifiers.None, Point? at = null, bool hover = false)
+    public static void Click(Window window, Control target, RawInputModifiers modifiers = RawInputModifiers.None, Point? at = null, bool hover = false) =>
+        WithoutTooltips(target, () => ClickCore(window, target, modifiers, at, hover));
+
+    /// <summary>
+    /// Double-clicks <paramref name="target"/>: a click, then a second press at the same point that says it is the second
+    /// (<see cref="SecondPress"/>), and its release.
+    /// </summary>
+    public static void DoubleClick(Window window, Control target, RawInputModifiers modifiers = RawInputModifiers.None, Point? at = null) =>
+        WithoutTooltips(target, () =>
+        {
+            Settle();
+            target.BringIntoView();
+            window.UpdateLayout();
+            var point = target.TranslatePoint(at ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)
+                ?? throw new InvalidOperationException($"{Describe(target)} is no longer in the window.");
+            window.MouseDown(point, MouseButton.Left, modifiers);
+            window.MouseUp(point, MouseButton.Left, modifiers);
+            SecondPress(window, point, modifiers);
+            window.MouseUp(point, MouseButton.Left, modifiers);
+            window.UpdateLayout();
+        });
+
+    /// <summary>
+    /// The second press of a double click at <paramref name="at"/>, in window coordinates. It says so itself instead of
+    /// relying on the clock: the headless window stamps a press after it has run the work queued before it, so on a loaded
+    /// runner the work the first click started (a page opening, a refresh after a link) pushed a second press measured by
+    /// time past the double-click time, and it was a click of its own (Linux CI runs 44797665196, 44806763101,
+    /// 45196408589; a row's rename, 2026-11-28). The system stamps a person's presses when they happen. It goes to whatever
+    /// lies under the point, as a real one does.
+    /// </summary>
+    public static void SecondPress(Window window, Point at, RawInputModifiers modifiers = RawInputModifiers.None)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        var target = window.InputHitTest(at) as Interactive
+            ?? throw new InvalidOperationException($"Nothing under {at} takes a press.");
+        var properties = new PointerPointProperties(RawInputModifiers.LeftMouseButton | modifiers, PointerUpdateKind.LeftButtonPressed);
+        var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, isPrimary: true);
+        var keys = (KeyModifiers)(int)(modifiers & (RawInputModifiers.Alt | RawInputModifiers.Control | RawInputModifiers.Shift | RawInputModifiers.Meta));
+        target.RaiseEvent(new PointerPressedEventArgs(target, pointer, window, at, (ulong)Environment.TickCount64, properties, keys, clickCount: 2));
+    }
+
+    private static void WithoutTooltips(Control target, Action click)
     {
         // A tooltip that opens while the pointer rests here (its delay runs out on a slow runner) lies in the headless overlay
         // right over the point and takes the press; in the app it is its own window beside the pointer. Closing it is not
@@ -40,7 +83,7 @@ internal static class UiInput
 
         try
         {
-            ClickCore(window, target, modifiers, at, hover);
+            click();
         }
         finally
         {

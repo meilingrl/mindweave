@@ -205,7 +205,7 @@ public class SummaryLinksUiTests
 
         // The canvas did not move under the pointer: the hint lies over it, and the toolbar's 隐藏关联 came with 关联到….
         Assert.Equal(origin, PointIn(window, canvas, default));
-        SecondPress(window, leafAt);
+        UiInput.SecondPress(window, leafAt);
         Assert.Same(network, app.Workbench.CurrentPage);
         Assert.Equal(root, network.Selected?.Id);
         Assert.True(Assert.Single(network.Links!.Items).IsEditing);
@@ -217,7 +217,7 @@ public class SummaryLinksUiTests
         await UiInput.PastDoubleClickAsync();
         var siblingAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == sibling).Center);
         Press(window, siblingAt);
-        SecondPress(window, siblingAt);
+        UiInput.SecondPress(window, siblingAt);
 
         await UiWait.UntilAsync(() => !network.IsPicking && network.Links.Items.Count == 2 && network.Links.Items.Any(i => i.IsEditing));
         await SettledAsync(network);
@@ -243,7 +243,7 @@ public class SummaryLinksUiTests
         await UiInput.PastDoubleClickAsync();
         var rootAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == root).Center);
         Press(window, rootAt);
-        SecondPress(window, rootAt);
+        UiInput.SecondPress(window, rootAt);
         Assert.Same(network, app.Workbench.CurrentPage);
         Assert.True(network.IsPicking);
         Assert.Equal(UiText.LinkPickRefusedSelf, network.PickRefusal);
@@ -252,7 +252,7 @@ public class SummaryLinksUiTests
         network.CancelPickCommand.Execute(null);
         await UiInput.PastDoubleClickAsync();
         Press(window, leafAt);
-        SecondPress(window, leafAt);
+        UiInput.SecondPress(window, leafAt);
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is SummaryViewModel);
         window.Close();
 
@@ -264,17 +264,6 @@ public class SummaryLinksUiTests
         {
             window.MouseDown(at, MouseButton.Left);
             window.MouseUp(at, MouseButton.Left);
-        }
-
-        // The second press of a double click. It says so itself instead of relying on the clock: on a slow machine the first
-        // headless press runs the whole refresh the link caused, and a press measured by time is then a click of its own
-        // (Linux CI runs 44797665196, 44806763101, 45196408589). It goes to whatever lies under the point, as a real one does.
-        static void SecondPress(Window window, Avalonia.Point at)
-        {
-            var target = Assert.IsAssignableFrom<Avalonia.Interactivity.Interactive>(window.InputHitTest(at));
-            var properties = new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed);
-            var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, isPrimary: true);
-            target.RaiseEvent(new PointerPressedEventArgs(target, pointer, window, at, (ulong)Environment.TickCount64, properties, KeyModifiers.None, clickCount: 2));
         }
     }
 
