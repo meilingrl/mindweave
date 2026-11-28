@@ -112,6 +112,13 @@ public sealed record ToolOutput(string Text, string Detail, ResourceProvenance P
 
     /// <summary>The run's [n] numbers of the sources in the result (W4, L11), so a result the answer cites is kept longest (L7).</summary>
     public IReadOnlyList<int> Numbers { get; init; } = [];
+
+    /// <summary>
+    /// For a page of prose (requirements §10.9, reply quality Q8): what its paragraphs are matched against when it is too
+    /// long to send whole, the question and the searches that led to it; a long result is then sent as its opening and best
+    /// matches (<see cref="PagePassages"/>). Null, as for data and third-party results: a long result is sent as its start.
+    /// </summary>
+    public IReadOnlyList<string>? PassagesFor { get; init; }
 }
 
 /// <summary>An image a tool returned (phase 4), with its media type.</summary>

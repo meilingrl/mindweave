@@ -158,6 +158,75 @@ public class WebRunFlowTests
         Assert.Equal(ToolResultStatus.Succeeded, answer.Blocks.OfType<ToolResultBlock>().Last().Status);
     }
 
+    private const string Patent = "瓦特在 1769 年取得了分离冷凝器的专利，蒸汽机的效率由此提高了两倍多。";
+
+    /// <summary>A page of forty paragraphs about steam, the patent in paragraph 37 (far past the first 2,000 tokens).</summary>
+    private static string LongSteamPage() => string.Join("\n\n", Enumerable.Range(1, 40).Select(n => n == 37 ? Patent
+        : $"第 {n} 节讲述了早期蒸汽机在矿井排水中的使用。矿主们希望用更少的煤抽出更多的水，工匠们便不断改进锅炉、气缸与活塞的做法，并把经验记在笔记里，传给下一代工匠。这些改进大多是一点一滴积累起来的。"));
+
+    [Fact]
+    public async Task A_long_page_reaches_the_model_as_its_opening_and_the_paragraphs_that_match_the_question()
+    {
+        // Requirements §10.9, reply quality Q8 (acceptance 11): the first result the model gets holds the passage deep in the page.
+        await using var h = await StartAsync();
+        h.Pages.Page("https://example.org/steam", "蒸汽机的历史", LongSteamPage());
+        h.Client.CallTool(WebSearchTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(FetchPageTool.ToolName, Url("https://example.org/steam"));
+        h.Client.Reply("瓦特在 1769 年取得了分离冷凝器的专利[1]。");
+
+        var (_, answer) = await AskAsync(h, "瓦特是哪一年取得分离冷凝器专利的？");
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
+        var page = FakeChatClient.Dialogue(requests[2])[^1].Content;
+        Assert.StartsWith(WebMaterial.Opening + "\n[1] 蒸汽机的历史\n网址：https://example.org/steam", page, StringComparison.Ordinal);
+        Assert.Contains("第 1 节讲述了早期蒸汽机", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("第 20 节", page, StringComparison.Ordinal);
+        Assert.Contains("部分）\n\n" + Patent, page, StringComparison.Ordinal);
+        Assert.Contains("网页较长，以上是开头和与问题最相关的段落", page, StringComparison.Ordinal);
+        Assert.Contains(SearchAttachmentsTool.ToolName, page, StringComparison.Ordinal);
+        Assert.EndsWith(WebMaterial.Closing, page, StringComparison.Ordinal);
+
+        // The page is stored whole, and the citation is found in the full text.
+        var citation = Assert.Single(ContentBlocks.CitationsOf(answer.Blocks));
+        var stored = (await h.ResourceService.GetAsync(citation.Resource!.Value, Ct))!;
+        Assert.Contains("第 20 节", stored.Text, StringComparison.Ordinal);
+        Assert.Contains("分离冷凝器的专利", stored.Text![citation.Start..citation.End], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_search_that_led_to_a_long_page_picks_its_paragraphs_when_the_question_does_not()
+    {
+        await using var h = await StartAsync();
+        h.Pages.Page("https://example.org/steam", "蒸汽机的历史", LongSteamPage());
+        h.Client.CallTool(WebSearchTool.ToolName, Query("分离冷凝器 专利 年份"));
+        h.Client.CallTool(FetchPageTool.ToolName, Url("https://example.org/steam"));
+        h.Client.Reply("1769 年[1]。");
+
+        await AskAsync(h, "那是什么时候？");
+
+        var page = FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList()[2])[^1].Content;
+        Assert.Contains(Patent, page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_long_page_nothing_in_which_matches_is_sent_as_its_start()
+    {
+        await using var h = await StartAsync();
+        h.Pages.Page("https://example.org/steam", "蒸汽机的历史", LongSteamPage());
+        h.Client.CallTool(WebSearchTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(FetchPageTool.ToolName, Url("https://example.org/steam"));
+        h.Client.Reply("页面里没有提到灯塔。");
+
+        // 蒸汽机 is in every paragraph: it tells none apart.
+        await AskAsync(h, "灯塔岛的开放时间？");
+
+        var page = FakeChatClient.Dialogue(h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList()[2])[^1].Content;
+        Assert.Contains("以上只是开头", page, StringComparison.Ordinal);
+        Assert.Contains("第 8 节", page, StringComparison.Ordinal);
+        Assert.DoesNotContain(Patent, page, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task A_page_from_the_results_is_read_without_asking_and_its_citation_points_at_the_cited_passage()
     {

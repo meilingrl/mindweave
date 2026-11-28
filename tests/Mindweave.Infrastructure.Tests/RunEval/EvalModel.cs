@@ -90,6 +90,12 @@ internal sealed record EvalExpectation
 
     public bool Terms { get; init; }
 
+    /// <summary>
+    /// The first result of this tool that the model got contains at least one of the words (reply quality Q8, acceptance 11:
+    /// a long page's passage reaches the model without a second look).
+    /// </summary>
+    public (string Tool, string[] Words)? FirstResultHas { get; init; }
+
     /// <summary>Checks of their own, on what was observed.</summary>
     public IReadOnlyList<Func<EvalObservation, EvalCheck>> Extra { get; init; } = [];
 }
@@ -127,6 +133,9 @@ internal sealed record EvalObservation(
     /// <summary>For a summary scenario: what was stored, title and body.</summary>
     public EvalSummary? Summary { get; init; }
 
+    /// <summary>Each tool result of the measured answer as the model first got it, in that order.</summary>
+    public IReadOnlyList<EvalSent> Sent { get; init; } = [];
+
     /// <summary>Each sentence of the answer that cites a source, with the passage it cites, for the judge (Q10).</summary>
     public IReadOnlyList<EvalCited> Cited { get; init; } = [];
 
@@ -143,6 +152,9 @@ internal sealed record EvalObservation(
 }
 
 internal sealed record EvalSummary(string Title, string? ShortTitle, string Body, string State);
+
+/// <summary>A tool result as the model got it the first time (it may be shortened later in the run, L7).</summary>
+internal sealed record EvalSent(string Tool, string Content);
 
 /// <summary>A sentence that writes [<paramref name="Number"/>], and the text of the source it names (empty when it names none).</summary>
 internal sealed record EvalCited(string Sentence, int Number, string Passage);

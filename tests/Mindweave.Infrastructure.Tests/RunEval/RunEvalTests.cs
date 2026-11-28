@@ -533,9 +533,13 @@ internal sealed class EvalSpending(double? budget, EvalPrices? prices)
 /// </summary>
 internal sealed class EvalBudgetedClient(IChatClient inner, EvalSpending spending) : IChatClient
 {
+    /// <summary>Every request sent, in order (what the model was given, for the checks on tool results).</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<ChatRequest> Requests { get; } = new();
+
     public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(
         ChatRequest request, string apiKey, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        Requests.Enqueue(request);
         if (spending.Stops)
         {
             throw new ChatClientException(GenerationErrorKind.QuotaOrRateLimited, $"The evaluation's budget is reached (spent {spending.Spent:0.0000}).");

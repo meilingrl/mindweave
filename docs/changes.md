@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.39 · 2026-11-28
+
+- Changed how a long fetched page reaches the model: a page over about 2,000 estimated tokens goes as its opening and then the paragraphs that best match the question and the searches that found it, in page order, with the missing parts marked (D-043 step 3). Search, local and MCP results keep their start, as before
+- Changed the follow-up search query (L9) to be built in every web setting, not only 开
+- Try: ask about a detail deep in a long web page; `scripts/real-api.sh eval <config> long-page` with a budget
+- Not verified: Windows and Linux before CI; real pages (only made-up pages, and three paid runs on deepseek-flash that passed 5/5 each, reports in docs/reviews/page-passages-20261128); other models
+
 ## 0.6.38 · 2026-11-28
 
 - Added Settings › Personal note: up to 500 characters of your own preferences, sent at the start of every answer and summary request, marked as yours; your question or a required format wins over it (D-043 step 2)

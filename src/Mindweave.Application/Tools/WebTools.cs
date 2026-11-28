@@ -135,6 +135,7 @@ public sealed class WebSearchTool(IWebSearchSettings settings, TimeProvider? tim
         {
             var number = web.NumberFor(hit.Url);
             web.Allow(hit.Url);
+            web.FoundBy(hit.Url, query);
             text.Append('\n');
             var start = text.Length;
             text.Append(CultureInfo.InvariantCulture, $"[{number}] {OneLine(hit.Title)}\n{T("URL: ", "网址：")}{hit.Url.AbsoluteUri}\n");
@@ -268,7 +269,8 @@ public sealed class FetchPageTool(IWebPageFetcher fetcher, TimeProvider? time = 
         var url = Address(arguments) ?? throw new ToolInputException(T("The URL, url, is missing.", "缺少网址 url。"));
         if (web.PageRead(url) is { } again)
         {
-            return again;
+            // A search since the first read may have found it too.
+            return again with { PassagesFor = web.PassageQueries(url, again.SourceUrl) };
         }
 
         FetchedPage page;
@@ -301,6 +303,7 @@ public sealed class FetchPageTool(IWebPageFetcher fetcher, TimeProvider? time = 
             Name = title,
             SourceUrl = page.Url,
             Numbers = [number],
+            PassagesFor = web.PassageQueries(url, page.Url),
             Stored = id => web.Register(id, body, [new RunSource(number, page.Url, title, id, 0, body.Length, at, IsPage: true)]),
         };
         web.RememberPage(url, output with { Stored = null });

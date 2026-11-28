@@ -10,6 +10,7 @@
 | [运行评测基线 2026-11-19](run-eval-20261119/README.md) | 评测 L12 对 deepseek-flash 的第一份基线（改进 L1–L11 之前）：报告、数字与未通过检查的原因 |
 | [回复质量第一步对照 2026-11-27](reply-quality-20261127/README.md) | 上一版与本版提示词在 deepseek-flash 上的并排对照（含评判提示）：报告、数字、费用与发现（英文） |
 | [提示缓存第二步评测 2026-11-27](cache-stable-start-20261127/README.md) | 请求的固定开头（缓存第二步）前后在 deepseek-flash 上各一次评测：检查、读自缓存的输入、费用与发现（英文） |
+| [回复质量第三步长页评测 2026-11-28](page-passages-20261128/README.md) | 长网页按问题取最相关段落后，long-page 场景在 deepseek-flash 上的三次付费运行：报告、费用与发现（英文） |
 
 现行行为以 [需求](../requirements.md) 和 [架构](../architecture.md) 为准。
 

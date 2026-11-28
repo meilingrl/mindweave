@@ -22,9 +22,18 @@ public static class SearchTerms
     /// <summary>An FTS5 query matching chunks with any term of <paramref name="question"/>, or null when it has none.</summary>
     public static string? Query(string question)
     {
-        ArgumentNullException.ThrowIfNull(question);
-        var terms = Terms(question).Where(t => t.Length > 1 || !IsCjk(t[0])).Distinct(StringComparer.Ordinal).Take(MaxQueryTerms).ToList();
+        var terms = QueryTerms(question);
         return terms.Count == 0 ? null : string.Join(" OR ", terms.Select(t => "\"" + t.Replace("\"", "\"\"", StringComparison.Ordinal) + "\""));
+    }
+
+    /// <summary>
+    /// The distinct terms of <paramref name="question"/> that are searched for, at most <see cref="MaxQueryTerms"/>: a lone CJK
+    /// character (a run of one) is left out, as it matches too much.
+    /// </summary>
+    public static IReadOnlyList<string> QueryTerms(string question)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        return Terms(question).Where(t => t.Length > 1 || !IsCjk(t[0])).Distinct(StringComparer.Ordinal).Take(MaxQueryTerms).ToList();
     }
 
     private static IEnumerable<string> Terms(string text)

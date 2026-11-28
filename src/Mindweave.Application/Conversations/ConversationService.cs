@@ -1052,16 +1052,12 @@ public sealed partial class ConversationService : IConversations
                 _ => null,
             }))
             .Append(question);
-        string? preSearch = null;
-        if (mode == WebSearchMode.On)
-        {
-            // L9: a short question, or one that points back, searches with what it is about.
-            var title = (await _store.GetAsync(inputs.Own.Conversation, cancellationToken).ConfigureAwait(false))?.Title;
-            var questions = inputs.Own.Messages.Where(m => m.Role == MessageRole.User).Select(m => ContentBlocks.TypedTextOf(m.Blocks)).ToList();
-            var previous = questions.Count > 1 ? questions[^2] : null;
-            preSearch = Tools.WebRun.PreSearchQuery(question ?? string.Empty, title, inputs.Own.Quote, previous);
-        }
-
+        // L9: a short question, or one that points back, searches with what it is about; the 开 search uses it, and so does
+        // the matching of a long page's paragraphs in any setting (Q8).
+        var title = (await _store.GetAsync(inputs.Own.Conversation, cancellationToken).ConfigureAwait(false))?.Title;
+        var questions = inputs.Own.Messages.Where(m => m.Role == MessageRole.User).Select(m => ContentBlocks.TypedTextOf(m.Blocks)).ToList();
+        var previous = questions.Count > 1 ? questions[^2] : null;
+        var preSearch = Tools.WebRun.PreSearchQuery(question ?? string.Empty, title, inputs.Own.Quote, previous);
         return new Tools.WebRun(mode, question ?? string.Empty, texts) { PreSearch = preSearch };
     }
 

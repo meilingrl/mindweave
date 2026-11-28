@@ -24,7 +24,7 @@ An answer has three parts: before the run (once per question), the run loop, and
    1. Check the limits; if any is reached, this round is the final one: no tools, and “请直接回答” (Please answer directly) is added at the end of the request (R8; until prompt caching step 2, at the end of the system turn).
    2. Assemble the request; when it exceeds the available space, shrink the earliest tool results to one line (first in, first out); if it still does not fit, handle it as reaching the token limit.
    3. Send one streamed model request. Stopped → end; timeout → go to the final request; **any error → the whole answer fails**; **truncated for length → end**; no tool calls, or this is the final request → this is the answer.
-   4. Execute the tool calls **one by one**: parse arguments → wait for approval when needed (releasing the execution slot, W10) → execute with a timeout → store the result as a resource → if it is at most 2,000 estimated tokens, give it to the model whole; otherwise give the beginning and a handle → mark external material as untrusted (W11) → stop offering a tool after it errors 3 times in a row.
+   4. Execute the tool calls **one by one**: parse arguments → wait for approval when needed (releasing the execution slot, W10) → execute with a timeout → store the result as a resource → if it is at most 2,000 estimated tokens, give it to the model whole; otherwise give the beginning and a handle (a page of prose: its opening and the paragraphs that best match the question, [web-search.md](web-search.md) §6) → mark external material as untrusted (W11) → stop offering a tool after it errors 3 times in a row.
 3. Go back to step 2.
 
 ### 1.3 After the run
@@ -110,7 +110,7 @@ Purpose: compare runs before and after a change, across models and across prompt
 | `two-readings` | Explanation | A question with two readings (a day on Mercury) | Names both readings (59 and 176 days) |
 | `summary-topic` | Explanation | A question on a topic that has a summary | Builds on it (its facts appear); no web |
 | `follow-up-on` | Follow-up | A follow-up that refers back, in the "开" setting | The pre-search carries the topic; correct answer; valid citations |
-| `long-page` | Web | A detail in paragraph 37 of 40 of a long page | Reads the page; correct answer; valid citations |
+| `long-page` | Web | A detail in paragraph 37 of 40 of a long page | Reads the page, and the first page result it gets holds the detail (Q8); correct answer; valid citations |
 | `summary-jumps` | Summary | A conversation that jumps between ideas, then a summary | The summary opens with a gist of one or two sentences and lists key terms |
 
 `attachment-short` and `attachment-long` also check that no [n] is written without a source, and `attachment-short` that the attachment is named. "Does not restate" compares runs of 12 letters: a share of 20% or more taken from the parent answer, apart from the selected passage itself, fails.
